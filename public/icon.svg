@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="roseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fda4af" />
+      <stop offset="50%" stop-color="#f43f5e" />
+      <stop offset="100%" stop-color="#be123c" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#be123c" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="url(#roseGrad)" />
+  
+  <!-- Icon container with shadow -->
+  <g filter="url(#shadow)" transform="translate(106, 96)">
+    <!-- Elegant shopping bag design -->
+    <path d="M75,120 L225,120 C238.8,120 250,131.2 250,145 L250,295 C250,308.8 238.8,320 225,320 L75,320 C61.2,320 50,308.8 50,295 L50,145 C50,131.2 61.2,120 75,120 Z" 
+          fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Handle -->
+    <path d="M100,120 C100,50 200,50 200,120" 
+          fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" />
+    <!-- Heart icon in the center of the bag -->
+    <path d="M150,230 C150,230 115,200 115,180 C115,166 126,155 140,155 C148,155 150,162 150,162 C150,162 152,155 160,155 C174,155 185,166 185,180 C185,200 150,230 150,230 Z" 
+          fill="#ffffff" />
+    <!-- Star accents representing international/VIP -->
+    <polygon points="260,70 265,85 280,85 268,95 272,110 260,100 248,110 252,95 240,85 255,85" fill="#fef08a" />
+    <polygon points="40,240 43,250 53,250 45,257 48,267 40,260 32,267 35,257 27,250 37,250" fill="#fef08a" />
+  </g>
+</svg>

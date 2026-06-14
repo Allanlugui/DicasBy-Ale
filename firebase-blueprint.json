@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "Store": {
+      "title": "Store",
+      "description": "Represents an international or domestic store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A gringa product available for purchase in store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "priceUSD": { "type": "number" },
+        "priceBRL": { "type": "number" }
+      },
+      "required": ["storeId", "name", "priceUSD", "priceBRL"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Represents an order containing one or more products",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "trackingId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "items": { "type": "array" },
+        "subtotalBRL": { "type": "number" },
+        "serviceFeeBRL": { "type": "number" },
+        "storageFeeBRL": { "type": "number" },
+        "shippingFeeBRL": { "type": "number" },
+        "appFeeBRL": { "type": "number" },
+        "totalBRL": { "type": "number" },
+        "status": { "type": "string" },
+        "history": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "trackingId", "customerName", "customerEmail", "items", "status", "createdAt", "totalBRL"]
+    },
+    "Collaborator": {
+      "title": "Collaborator",
+      "description": "Company team member with specified roles and permissions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "permissions": { "type": "array" },
+        "receiveQuoteNotifications": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "email", "role", "permissions", "active", "createdAt"]
+    },
+    "QuoteRequest": {
+      "title": "QuoteRequest",
+      "description": "Custom client product quotation requests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "customerPhone": { "type": "string" },
+        "productName": { "type": "string" },
+        "productDescription": { "type": "string" },
+        "productImageUrl": { "type": "string" },
+        "priceUSD": { "type": "number" },
+        "quotedPriceUSD": { "type": "number" },
+        "quotedPriceBRL": { "type": "number" },
+        "storeLocationUS": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "orderId": { "type": "string" }
+      },
+      "required": ["userId", "productName", "status", "createdAt"]
+    },
+    "DriveFolder": {
+      "title": "DriveFolder",
+      "description": "Folders for storing user and order documents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "parentId": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "createdAt", "updatedAt"]
+    },
+    "FileDocument": {
+      "title": "FileDocument",
+      "description": "Documents representing receipts, invoices, etc.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "url": { "type": "string" },
+        "userId": { "type": "string" },
+        "folderId": { "type": "string" },
+        "size": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "type", "url", "createdAt", "updatedAt"]
+    },
+    "SystemNotification": {
+      "title": "SystemNotification",
+      "description": "System-wide alerts for administrators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "data": { "type": "object" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "message", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/stores/{storeId}": {
+      "schema": "Store",
+      "description": "Gringa stores directory"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Featured gringa products"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Client shipment orders"
+    },
+    "/collaborators/{collaboratorId}": {
+      "schema": "Collaborator",
+      "description": "Registered company team members"
+    },
+    "/quoteRequests/{quoteId}": {
+      "schema": "QuoteRequest",
+      "description": "Individual product price quote requests"
+    },
+    "/folders/{folderId}": {
+      "schema": "DriveFolder",
+      "description": "Folders for documents"
+    },
+    "/documents/{documentId}": {
+      "schema": "FileDocument",
+      "description": "Files and documents"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "SystemNotification",
+      "description": "Admin system notifications"
+    }
+  }
+}

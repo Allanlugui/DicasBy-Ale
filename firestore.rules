@@ -1,0 +1,195 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.get('email', '') == 'jallanluiz@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          request.auth.token.get('email', '') != '' &&
+          exists(/databases/$(database)/documents/collaborators/$(request.auth.token.email.lower())) &&
+          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email.lower())).data.active == true
+        )
+      );
+    }
+
+    function hasPermission(perm) {
+      return request.auth != null && (
+        request.auth.token.email == 'jallanluiz@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          exists(/databases/$(database)/documents/collaborators/$(request.auth.token.email)) &&
+          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email)).data.active == true &&
+          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email)).data.permissions.hasAny([perm])
+        )
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function existing() { return resource.data; }
+    function incoming() { return request.resource.data; }
+
+    match /stores/{storeId} {
+      allow read: if true; // anyone can read stores
+      function isValidStore(data) {
+        return data.keys().hasAll(['name']) 
+            && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+            && (data.get('logoUrl', '') is string)
+            && (data.get('description', '') is string);
+      }
+      allow create: if hasPermission('stores') && isValidId(storeId) && isValidStore(incoming());
+      allow update: if hasPermission('stores') && isValidStore(incoming());
+      allow delete: if hasPermission('stores');
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      function isValidProduct(data) {
+        return data.keys().hasAll(['storeId', 'name', 'priceUSD', 'priceBRL']) 
+            && data.storeId is string && data.storeId.size() <= 128
+            && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+            && data.priceUSD is number
+            && data.priceBRL is number
+            && (data.get('description', '') is string)
+            && (data.get('imageUrl', '') is string);
+      }
+      allow create: if hasPermission('products') && isValidId(productId) && isValidProduct(incoming());
+      allow update: if hasPermission('products') && isValidProduct(incoming());
+      allow delete: if hasPermission('products');
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      
+      function isValidOrder(data) {
+        return data.keys().hasAll(['userId', 'trackingId', 'customerName', 'customerEmail', 'items', 'status', 'createdAt', 'totalBRL'])
+            && data.userId is string && data.userId.size() <= 128
+            && data.trackingId is string && data.trackingId.size() <= 20
+            && data.customerName is string && data.customerName.size() <= 100
+            && data.customerEmail is string && data.customerEmail.size() <= 100
+            && data.items is list && data.items.size() > 0 && data.items.size() <= 50
+            && data.status is string
+            && data.createdAt is string
+            && data.totalBRL is number;
+      }
+      allow create: if isEmailVerified() && isValidId(orderId) && isValidOrder(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if hasPermission('orders') && isValidOrder(incoming());
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      function isValidTicket(data) {
+        return data.userId is string && data.protocol is string && data.status is string && data.messages is list;
+      }
+      allow create: if isEmailVerified() && isValidId(ticketId) && isValidTicket(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if hasPermission('tickets') || (isEmailVerified() && existing().userId == request.auth.uid);
+      allow delete: if hasPermission('tickets');
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isEmailVerified() && isValidId(reviewId) && incoming().userId == request.auth.uid;
+      allow update: if hasPermission('reviews') || (isEmailVerified() && existing().userId == request.auth.uid);
+      allow delete: if hasPermission('reviews');
+    }
+
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /profiles/{userId} {
+      allow read: if isAdmin() || (isSignedIn() && userId == request.auth.uid);
+      allow create, update: if isAdmin() || (isEmailVerified() && userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if hasPermission('settings');
+    }
+
+    match /collaborators/{collaboratorId} {
+      allow read: if true;
+      allow write: if hasPermission('team');
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /shippingMethods/{methodId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /quoteRequests/{quoteId} {
+      allow read: if isAdmin() || (isSignedIn() && existing().userId == request.auth.uid);
+      
+      function isValidQuoteRequest(data) {
+        return data.keys().hasAll(['userId', 'productName', 'status', 'createdAt'])
+            && data.userId is string && data.userId.size() <= 128
+            && data.productName is string && data.productName.size() > 0 && data.productName.size() <= 200
+            && data.status is string
+            && data.createdAt is string;
+      }
+      allow create: if isEmailVerified() && isValidId(quoteId) && isValidQuoteRequest(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isAdmin() || hasPermission('orders') || hasPermission('products') || (isEmailVerified() && existing().userId == request.auth.uid);
+      allow delete: if isAdmin() || hasPermission('orders');
+    }
+
+    match /folders/{folderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      function isValidFolder(data) {
+        return data.keys().hasAll(['name', 'createdAt', 'updatedAt'])
+            && data.name is string && data.name.size() > 0
+            && data.createdAt is string
+            && data.updatedAt is string;
+      }
+      // Allow creation for anyone to support guest receipt uploads, but read is still restricted
+      allow create: if isValidId(folderId) && isValidFolder(request.resource.data);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid) || (resource.data.userId == request.resource.data.userId);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /documents/{documentId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      function isValidDocument(data) {
+        return data.keys().hasAll(['name', 'type', 'url', 'createdAt', 'updatedAt'])
+            && data.name is string && data.name.size() > 0
+            && data.type is string && data.type.size() > 0
+            && data.url is string && data.url.size() > 0
+            && data.createdAt is string
+            && data.updatedAt is string;
+      }
+      // Allow creation for anyone to support guest document storage
+      allow create: if isValidId(documentId) && isValidDocument(request.resource.data);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid) || (resource.data.userId == request.resource.data.userId);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /notifications/{notificationId} {
+      allow list: if isAdmin() || (isSignedIn() && request.auth.token.get('email', '') == 'jallanluiz@gmail.com');
+      allow get, update, delete: if isAdmin() || (isSignedIn() && request.auth.token.get('email', '') == 'jallanluiz@gmail.com');
+      allow create: if true;
+    }
+  }
+}
