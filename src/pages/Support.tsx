@@ -1,18 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context';
 import { Navigate } from 'react-router-dom';
-import { MessageSquare, Send, Bot, User as UserIcon, Plus, Maximize2, Minimize2, X } from 'lucide-react';
+import { MessageSquare, Send, Bot, User as UserIcon, Plus, Maximize2, Minimize2, X, Paperclip, FileText, Download } from 'lucide-react';
 import { TicketMessage } from '../types';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+interface MessageAttachment {
+  name: string;
+  url: string;
+  type: string;
+}
+
 export function Support() {
-  const { user, tickets, createTicket, updateTicket, orders, updateOrderStatus, products } = useAppContext();
+  const { user, tickets, createTicket, updateTicket, orders, updateOrderStatus, products, autoSaveUserDocument } = useAppContext();
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [manuallyClosed, setManuallyClosed] = useState(false);
+  
+  // Pending attachments list
+  const [selectedAttachments, setSelectedAttachments] = useState<MessageAttachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
   const lastActivityRef = useRef<number>(Date.now());
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -38,18 +50,52 @@ export function Support() {
 
     const interval = setInterval(() => {
       const now = Date.now();
-      const diff = now - lastActivityRef.current;
-      
-      // 5 minutes = 300,000 ms
-      if (diff >= 300000) {
-        const timeoutMsg: TicketMessage = {
-          role: 'bot',
-          text: 'O atendimento foi encerrado automaticamente por inatividade (5 minutos). Caso precise de ajuda, abra um novo chamado.',
-          timestamp: new Date().toISOString()
-        };
-        updateTicket(activeTicket.id, [...activeTicket.messages, timeoutMsg], 'CLOSED');
-        setActiveTicketId(null);
-        setManuallyClosed(true);
+
+      // Check if human support was requested
+      if (activeTicket.needsHuman) {
+        // Has the agent joined? The agent has joined if there's any message marked with isAgent === true from bot
+        const hasAgentJoined = activeTicket.messages.some(m => m.role === 'bot' && m.isAgent === true);
+        
+        if (!hasAgentJoined) {
+          // RULE 1: If the chat is forwarded to a human agent, pause the inactivity timer until the agent Joins (sends reply)
+          lastActivityRef.current = now;
+          return;
+        }
+
+        // RULE 2: If the agent sends a message to the client, and the client takes more than five minutes to respond, auto-close the ticket.
+        const reversedMessages = [...activeTicket.messages].reverse();
+        const lastAgentMsgIndex = reversedMessages.findIndex(m => m.role === 'bot' && m.isAgent === true);
+        
+        if (lastAgentMsgIndex !== -1) {
+          const lastAgentMsg = reversedMessages[lastAgentMsgIndex];
+          const agentSentTime = new Date(lastAgentMsg.timestamp).getTime();
+          const clientRespondedAfter = reversedMessages.slice(0, lastAgentMsgIndex).some(m => m.role === 'user');
+
+          if (!clientRespondedAfter && (now - agentSentTime >= 300000)) {
+            const timeoutMsg: TicketMessage = {
+              role: 'bot',
+              text: 'O atendimento foi encerrado automaticamente por falta de resposta do cliente (5 minutos após a mensagem enviada pelo atendente). Caso precise de ajuda, abra um novo chamado.',
+              timestamp: new Date().toISOString()
+            };
+            updateTicket(activeTicket.id, [...activeTicket.messages, timeoutMsg], 'CLOSED');
+            setActiveTicketId(null);
+            setManuallyClosed(true);
+            return;
+          }
+        }
+      } else {
+        // Standard bot inactivity timer
+        const diff = now - lastActivityRef.current;
+        if (diff >= 300000) {
+          const timeoutMsg: TicketMessage = {
+            role: 'bot',
+            text: 'O atendimento foi encerrado automaticamente por inatividade (5 minutos). Caso precise de ajuda, abra um novo chamado.',
+            timestamp: new Date().toISOString()
+          };
+          updateTicket(activeTicket.id, [...activeTicket.messages, timeoutMsg], 'CLOSED');
+          setActiveTicketId(null);
+          setManuallyClosed(true);
+        }
       }
     }, 10000); // Check every 10s
 
@@ -70,7 +116,78 @@ export function Support() {
     );
   }
 
-  // Find the fresh ticket data in the list (or fallback)
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject('No canvas context');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(dataUrl);
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingAttachment(true);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const url = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(file);
+        });
+
+        let finalUrl = url;
+        if (file.type.startsWith('image/')) {
+          finalUrl = await compressImage(file);
+        }
+
+        setSelectedAttachments(prev => [
+          ...prev,
+          { name: file.name, url: finalUrl, type: file.type }
+        ]);
+      } catch (err) {
+        console.error("Error compressing image:", err);
+      }
+    }
+    setUploadingAttachment(false);
+    if (attachmentInputRef.current) attachmentInputRef.current.value = '';
+  };
 
   const startNewTicket = async (initialQuery?: string) => {
     const protocol = Math.floor(Math.random() * 1000000000).toString();
@@ -101,21 +218,45 @@ export function Support() {
   };
 
   const handleSend = async (text: string) => {
-    if (!text.trim() || !activeTicket || activeTicket.status === 'CLOSED') return;
+    const hasAttachments = selectedAttachments.length > 0;
+    if (!text.trim() && !hasAttachments) return;
+    if (!activeTicket || activeTicket.status === 'CLOSED') return;
     
     resetTimer();
+
     const newMsg: TicketMessage = {
       role: 'user',
-      text,
-      timestamp: new Date().toISOString()
+      text: text.trim(),
+      timestamp: new Date().toISOString(),
+      attachments: hasAttachments ? selectedAttachments : undefined
     };
+    
     const newMessages = [...activeTicket.messages, newMsg];
     const isFirstUserMessage = activeTicket.messages.filter(m => m.role === 'user').length === 0;
 
+    const attachmentsToSave = [...selectedAttachments];
     setInputText('');
+    setSelectedAttachments([]);
     setLoading(true);
     
     await updateTicket(activeTicket.id, newMessages);
+
+    // Save attachments of this conversation to user's administrative drive automatically!
+    if (attachmentsToSave.length > 0) {
+      for (const att of attachmentsToSave) {
+        try {
+          await autoSaveUserDocument(
+            user.uid,
+            user.displayName || user.email || 'Cliente',
+            'Atendimento',
+            att.name,
+            att.url
+          );
+        } catch (saveErr) {
+          console.error("Failed to auto-save file document into active user drive:", saveErr);
+        }
+      }
+    }
 
     // Notify admin if it's the first message from user
     if (isFirstUserMessage) {
@@ -211,6 +352,43 @@ export function Support() {
     }
   };
 
+  const renderMessageAttachments = (msg: TicketMessage) => {
+    if (!msg.attachments || msg.attachments.length === 0) return null;
+    return (
+      <div className="mt-3 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {msg.attachments.map((att, idx) => {
+            const isImg = att.type.startsWith('image/') || att.url.startsWith('data:image/');
+            return (
+              <div key={idx} className="bg-white border border-stone-200 rounded-xl p-2 max-w-sm flex items-center gap-2.5 shadow-sm transition hover:shadow-md">
+                {isImg ? (
+                  <a href={att.url} target="_blank" rel="noreferrer" className="shrink-0 group relative cursor-pointer block">
+                    <img src={att.url} alt={att.name || 'Image'} className="w-12 h-12 object-cover rounded-lg border border-stone-100" referrerPolicy="no-referrer" />
+                    <div className="absolute inset-0 bg-black/40 text-white text-[10px] flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition font-bold">Ver</div>
+                  </a>
+                ) : (
+                  <div className="w-12 h-12 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                    <FileText className="w-6 h-6 text-rose-500" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-stone-800 truncate" title={att.name}>{att.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] text-stone-400 capitalize shrink-0">{att.type.split('/')[1] || 'Doc'}</span>
+                    <a href={att.url} download={att.name} target="_blank" rel="noreferrer" className="text-rose-500 hover:text-rose-600 transition flex items-center gap-0.5 text-[9px] font-black uppercase cursor-pointer" title="Download">
+                      <Download className="w-3 h-3" />
+                      <span>Download</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 h-[80vh]">
       {/* Sidebar with ticket list */}
@@ -218,7 +396,7 @@ export function Support() {
         <div className="p-4 border-b border-stone-100 bg-stone-50 flex justify-between items-center">
            <h2 className="font-bold text-stone-900 font-display">Meus Chamados</h2>
            <button onClick={() => startNewTicket()} className="bg-rose-100 text-rose-600 p-2 rounded-lg hover:bg-rose-200 cursor-pointer">
-             <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
            </button>
         </div>
         <div className="overflow-y-auto flex-1 p-2 space-y-2">
@@ -324,7 +502,14 @@ export function Support() {
                        {m.role === 'user' ? <UserIcon className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                      </div>
                      <div className={`p-3 rounded-2xl max-w-[80%] ${m.role === 'user' ? 'bg-stone-100 text-stone-800 rounded-tr-sm' : 'bg-rose-50 text-stone-900 rounded-tl-sm'}`}>
-                       <p className="text-sm whitespace-pre-wrap">{m.text}</p>
+                       {m.role === 'bot' && m.isAgent && (
+                         <div className="text-[10px] uppercase tracking-wider font-extrabold text-rose-600 mb-1 flex items-center gap-1">
+                           <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                           Atendente Humano
+                         </div>
+                       )}
+                       {m.text && <p className="text-sm whitespace-pre-wrap">{m.text}</p>}
+                       {renderMessageAttachments(m)}
                      </div>
                    </div>
                  ))}
@@ -363,24 +548,75 @@ export function Support() {
                   </button>
                 </div>
               ) : (
-                <div className="p-4 bg-white border-t border-stone-100">
+                <div className="p-4 bg-white border-t border-stone-100 flex flex-col gap-2">
+                  {/* Selected attachments list preview */}
+                  {selectedAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pb-2">
+                      {selectedAttachments.map((att, idx) => (
+                        <div key={idx} className="relative bg-stone-50 border border-stone-200 rounded-lg p-1.5 pr-8 flex items-center gap-1.5 text-xs max-w-xs shadow-sm">
+                          {att.type.startsWith('image/') ? (
+                            <img src={att.url} alt="thumbnail" className="w-8 h-8 object-cover rounded" />
+                          ) : (
+                            <FileText className="w-8 h-8 p-1.5 text-rose-500 bg-rose-50 rounded animate-pulse" />
+                          )}
+                          <span className="truncate max-w-[120px] font-medium text-stone-700">{att.name}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedAttachments(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-rose-500 rounded-full hover:bg-stone-200 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {uploadingAttachment && (
+                        <div className="flex items-center gap-1.5 text-xs text-stone-500 animate-pulse bg-stone-50 border border-stone-200 rounded-lg p-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0"></span>
+                          <span>Preparando arquivo...</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputText); }} 
-                    className="relative flex items-center"
+                    className="relative flex items-center gap-2"
                     onKeyDown={resetTimer}
                     onClick={resetTimer}
                   >
-                    <input
-                      type="text"
-                      value={inputText}
-                      onChange={e => { setInputText(e.target.value); resetTimer(); }}
-                      disabled={loading}
-                      placeholder="Digite sua dúvida..."
-                      className="w-full pl-4 pr-12 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition text-sm"
+                    {/* Hidden file input */}
+                    <input 
+                      type="file" 
+                      ref={attachmentInputRef} 
+                      className="hidden" 
+                      onChange={handleFileChange}
+                      multiple
+                      accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                     />
-                    <button type="submit" disabled={loading || !inputText.trim()} className="absolute right-2 p-2 text-rose-500 hover:text-rose-600 disabled:opacity-50">
-                      <Send className="w-5 h-5" />
+                    
+                    <button
+                      type="button"
+                      disabled={loading || uploadingAttachment}
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className="p-2.5 text-stone-400 hover:text-rose-500 hover:border-rose-300 bg-stone-50 rounded-xl border border-stone-200 hover:bg-stone-100 transition shrink-0 flex items-center justify-center cursor-pointer"
+                      title="Anexar comprovante, imagem ou documento"
+                    >
+                      <Paperclip className="w-5 h-5" />
                     </button>
+
+                    <div className="relative flex-grow flex items-center">
+                      <input
+                        type="text"
+                        value={inputText}
+                        onChange={e => { setInputText(e.target.value); resetTimer(); }}
+                        disabled={loading}
+                        placeholder={selectedAttachments.length > 0 ? "Adicione uma legenda ou envie..." : "Digite sua dúvida..."}
+                        className="w-full pl-4 pr-12 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition text-sm"
+                      />
+                      <button type="submit" disabled={loading || (!inputText.trim() && selectedAttachments.length === 0)} className="absolute right-2 p-2 text-rose-500 hover:text-rose-600 disabled:opacity-50 cursor-pointer">
+                        <Send className="w-5 h-5" />
+                      </button>
+                    </div>
                   </form>
                 </div>
               )}

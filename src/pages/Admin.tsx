@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell, Download } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { useAppContext } from '../context';
 import { OrderStatus, Product, Store, Ticket, Review, TicketMessage, Order, SystemNotification } from '../types';
@@ -26,7 +26,7 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentTicket || !reply.trim() || currentTicket.status === 'CLOSED') return;
-    const newMsg: TicketMessage = { role: 'bot', text: reply, timestamp: new Date().toISOString() };
+    const newMsg: TicketMessage = { role: 'bot', text: reply, timestamp: new Date().toISOString(), isAgent: true };
     await updateTicket(currentTicket.id, [...currentTicket.messages, newMsg], undefined, false);
     setReply('');
   };
@@ -108,7 +108,50 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
                {currentTicket.messages.map((m, i) => (
                   <div key={i} className={`flex gap-3 max-w-[80%] ${m.role === 'bot' ? 'ml-auto flex-row-reverse' : ''}`}>
                     <div className={`p-3 rounded-2xl ${m.role === 'bot' ? 'bg-rose-50 text-stone-900 rounded-tr-sm' : 'bg-stone-100 text-stone-800 rounded-tl-sm'}`}>
-                      <p className="text-sm whitespace-pre-wrap">{m.text}</p>
+                      {m.role === 'bot' && m.isAgent && (
+                        <div className="text-[10px] uppercase tracking-wider font-extrabold text-rose-600 mb-1 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          Atendente Humano
+                        </div>
+                      )}
+                      
+                      {m.text && <p className="text-sm whitespace-pre-wrap">{m.text}</p>}
+                      
+                      {/* Render attachments if present */}
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            {m.attachments.map((att: any, idx: number) => {
+                              const isImg = att.type?.startsWith('image/') || att.url?.startsWith('data:image/');
+                              return (
+                                <div key={idx} className="bg-white border border-stone-200 rounded-xl p-2 max-w-sm flex items-center gap-2.5 shadow-sm">
+                                  {isImg ? (
+                                    <a href={att.url} target="_blank" rel="noreferrer" className="shrink-0 group relative block cursor-pointer">
+                                      <img src={att.url} alt={att.name || 'Image'} className="w-12 h-12 object-cover rounded-lg border border-stone-100" referrerPolicy="no-referrer" />
+                                      <div className="absolute inset-0 bg-black/40 text-white text-[10px] flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition font-bold">Ver</div>
+                                    </a>
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center shrink-0">
+                                      <FileText className="w-6 h-6 text-rose-500" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-stone-800 truncate" title={att.name}>{att.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] text-stone-400 capitalize shrink-0">{att.type?.split('/')[1] || 'Doc'}</span>
+                                      <a href={att.url} download={att.name} target="_blank" rel="noreferrer" className="text-rose-500 hover:text-rose-600 transition flex items-center gap-0.5 text-[9px] font-black uppercase cursor-pointer">
+                                        <Download className="w-3 h-3" />
+                                        <span>Download</span>
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   </div>
                ))}

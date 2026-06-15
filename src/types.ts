@@ -2,6 +2,12 @@ export type TicketMessage = {
   role: 'bot' | 'user';
   text: string;
   timestamp: string;
+  isAgent?: boolean;
+  attachments?: {
+    name: string;
+    url: string;
+    type: string;
+  }[];
 };
 
 export type Ticket = {

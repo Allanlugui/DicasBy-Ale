@@ -92,22 +92,33 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 
         console.warn(`[Gemini SDK] Failed calling ${modelName} on attempt ${attempt}:`, msg);
 
         // Treat 503, 429 and any message mentioning demand, quota, unavailable or status 503/429 as transient
-        const isTemporary = 
-          status === 503 || 
+        const isQuotaExhausted = 
           status === 429 || 
-          msg.includes("503") || 
           msg.includes("429") || 
-          msg.includes("UNAVAILABLE") || 
           msg.includes("RESOURCE_EXHAUSTED") ||
-          msg.includes("high demand") ||
           msg.includes("quota") ||
           msg.includes("rate limit") ||
+          msg.includes("limit exceeded");
+
+        const isTemporary = 
+          isQuotaExhausted ||
+          status === 503 || 
+          msg.includes("503") || 
+          msg.includes("UNAVAILABLE") || 
+          msg.includes("high demand") ||
           msg.includes("temporary") ||
           msg.includes("experiencing high demand");
 
         if (isTemporary) {
           // If a model is experiencing high demand / 503 / 429, also mark it as overloaded to protect future queries
           markModelOverloaded(modelName);
+        }
+
+        if (isQuotaExhausted) {
+          // If quota is exhausted or rate limit is hit, do not waste time retrying this model.
+          // Switch to the fallback model immediately.
+          console.log(`[Gemini SDK] Quota exhausted/rate limited for ${modelName}. Switching immediately to fallback.`);
+          break;
         }
 
         if (!isTemporary) {
@@ -324,8 +335,13 @@ app.post("/api/extract-product", async (req, res) => {
             isGeminiMissing: false
           });
         }
-      } catch (geminiError) {
-        console.error("[Scraper] Gemini search-grounded extraction failed, falling back to scraped metadata:", geminiError);
+      } catch (geminiError: any) {
+        const errorMsg = String(geminiError).toLowerCase();
+        if (errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit")) {
+          console.log("[Scraper] Gemini search-grounded extraction rate limit or quota reached. Falling back to scraped metadata elegantly.");
+        } else {
+          console.error("[Scraper] Gemini search-grounded extraction failed, falling back to scraped metadata:", geminiError);
+        }
       }
     }
 
@@ -467,9 +483,13 @@ app.post("/api/search-internet", async (req, res) => {
     }
 
   } catch (error: any) {
-    console.error("[Search Internet] Error searching internet with Gemini:", error);
-    // Determine the error message/status
-    const isQuotaError = error?.message?.includes("quota") || error?.message?.includes("429") || (error?.status === 429);
+    const errorMsg = String(error).toLowerCase();
+    const isQuotaError = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit") || (error?.status === 429);
+    if (isQuotaError) {
+      console.log("[Search Internet] Error searching internet with Gemini due to quota/rate limit.");
+    } else {
+      console.error("[Search Internet] Error searching internet with Gemini:", error);
+    }
     res.status(isQuotaError ? 429 : 500).json({ 
       results: [], 
       isFallback: false, 
@@ -479,9 +499,8 @@ app.post("/api/search-internet", async (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
+  const { messages, orders, products, protocol, customerName } = req.body;
   try {
-    const { messages, orders, products, protocol, customerName } = req.body;
-    
     const ordersInfo = orders && orders.length > 0 
       ? `\n\nPedidos do cliente:\n${JSON.stringify(orders.map((o: any) => ({
           id: o.id,
@@ -576,11 +595,66 @@ ${productsInfo}`;
     });
     res.json({ text: aiResponse.text });
   } catch (e: any) {
-    console.error("[Chat API Error]:", e);
-    const isQuotaError = e?.message?.includes("quota") || e?.message?.includes("429") || (e?.status === 429);
-    const fallbackText = isQuotaError 
-      ? "Olá! No momento estou sob alta demanda de requisições. Para que eu possa te ajudar imediatamente ou tirar qualquer dúvida urgente sobre pedidos, fale conosco no WhatsApp (+5511933232319) ou nos envie um e-mail em jallanluiz@gmail.com. Obrigado pela compreensão!"
-      : "Desculpe-me, ocorreu uma falha temporária na comunicação. Caso precise de ajuda imediata, por favor fale conosco no WhatsApp (+5511933232319) ou por e-mail em jallanluiz@gmail.com.";
+    const errorMsg = String(e).toLowerCase();
+    const isQuotaError = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit") || (e?.status === 429);
+    if (isQuotaError) {
+      console.log("[Chat API Error] Rate limit or Quota exceeded on Gemini API. Activating conversational fallback list...");
+    } else {
+      console.error("[Chat API Error]:", e);
+    }
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.text || "";
+    const lowerMsg = lastUserMsg.toLowerCase().trim();
+    
+    let fallbackText = "";
+    if (lowerMsg.includes("humano") || lowerMsg.includes("atendente") || lowerMsg.includes("suporte") || lowerMsg.includes("falar com") || lowerMsg.includes("pessoa") || lowerMsg.includes("gerente") || lowerMsg.includes("atendimento")) {
+      fallbackText = "Estou transferindo o seu atendimento diretamente para um especialista do nosso suporte humano agora para que possamos analisar seu caso detalhadamente. Você pode aguardar aqui no chat ou se preferir, entrar em contato conosco diretamente pelo WhatsApp (+55 11 93323-2319). [TRANSFER_TO_HUMAN]";
+    } else if (lowerMsg.includes("cancel") || lowerMsg.includes("estorn") || lowerMsg.includes("excluir")) {
+      const pendingOrder = orders?.find((o: any) => o.status === 'PENDING_PAYMENT');
+      if (pendingOrder) {
+        fallbackText = `Percebi que você gostaria de cancelar a sua compra do pedido #${pendingOrder.id}. Como este pedido encontra-se com o status "Aguardando Pagamento", efetuei o cancelamento automático dele conforme solicitado! \n\n[CANCEL_ORDER_ID: ${pendingOrder.id}]`;
+      } else {
+        const paidOrder = orders?.find((o: any) => o.status !== 'PENDING_PAYMENT' && o.status !== 'CANCELLED');
+        if (paidOrder) {
+          fallbackText = `Identifiquei o seu pedido #${paidOrder.id} com o status atual "${paidOrder.status}". Como o pagamento já foi recebido ou o pedido já está em rota de entrega, o cancelamento automático não é possível por aqui. Estou transferindo seu atendimento diretamente para um especialista do nosso suporte humano agora para que possamos analisar seu caso detalhadamente. Você pode aguardar aqui no chat ou se preferir, entrar em contato conosco diretamente pelo WhatsApp (+55 11 93323-2319). [TRANSFER_TO_HUMAN]`;
+        } else {
+          fallbackText = "Não encontrei nenhum pedido ativo ou pendente de pagamento em seu cadastro para cancelamento automático. Se precisar de ajuda para cancelar uma compra já paga, por favor chame no WhatsApp (+5511933232319) ou fale com nossa equipe de suporte. [TRANSFER_TO_HUMAN]";
+        }
+      }
+    } else if (lowerMsg.includes("rastre") || lowerMsg.includes("prazo") || lowerMsg.includes("entrega") || lowerMsg.includes("cheg") || lowerMsg.includes("envi") || lowerMsg.includes("pedido") || lowerMsg.includes("status")) {
+      if (orders && orders.length > 0) {
+        const lastOrder = orders[orders.length - 1];
+        const itemsList = lastOrder.items?.map((i: any) => `- ${i.name || i.product?.name} (Qtd: ${i.quantity})`).join('\n') || '';
+        const trackingInfoText = (lastOrder.trackingId && lastOrder.trackingId !== "Sem código de rastreio cadastrado no momento")
+          ? `O código de rastreamento do seu envio é: ${lastOrder.trackingId}.`
+          : "O código de rastreamento ainda está sendo finalizado pelas equipes de logística internacional e será atualizado em breve.";
+        
+        fallbackText = `Olá! Busquei seus registros e identifiquei seu pedido mais recente #${lastOrder.id}.\n\n` +
+               `Status do Pedido: ${lastOrder.status === 'PENDING_PAYMENT' ? 'Aguardando Pagamento' : lastOrder.status}\n` +
+               `Itens do Pedido:\n${itemsList}\n\n` +
+               `Prazo e Envio: Os prazos variam de acordo com o método de envio contratado (geralmente de 15 a 25 dias úteis para despacho direto dos EUA). ${trackingInfoText}\n\n` +
+               `Caso reste qualquer dúvida, por favor responda com "falar com suporte humano".`;
+      } else {
+        fallbackText = "Não encontrei nenhum pedido ativo ou histórico de compras em nosso banco de dados associado ao seu cadastro. Se você realizou uma compra sob outro e-mail, por favor me informe! De qualquer forma, posso te transferir para nossa equipe de suporte para analisar seu caso. [TRANSFER_TO_HUMAN]";
+      }
+    } else if (products && products.length > 0) {
+      const matchedProducts = products.filter((p: any) => lowerMsg.includes(p.name?.toLowerCase()) || (p.brand && lowerMsg.includes(p.brand?.toLowerCase())));
+      if (matchedProducts.length > 0) {
+        const prodText = matchedProducts.map((p: any) => {
+          const inStockText = p.inventory > 0 ? `disponível em estoque de vitrina (Estoque: ${p.inventory})` : 'sob encomenda dos EUA';
+          return `- **${p.name}** (${p.brand || 'Marca importada'}): Preço aproximado de R$ ${p.priceBRL || (p.priceUSD * 5.5)} (${inStockText})`;
+        }).join('\n');
+        fallbackText = `Encontrei informações de produtos relacionados à sua busca em nosso catálogo:\n\n${prodText}\n\nSe quiser realizar uma cotação personalizada para importarmos qualquer modelo específico direto dos EUA para você, basta clicar em "Pedir um Orçamento"!`;
+      }
+    }
+
+    if (!fallbackText) {
+      const errStr = JSON.stringify(e).toLowerCase() + " " + String(e).toLowerCase();
+      const isQuotaError = errStr.includes("quota") || errStr.includes("429") || errStr.includes("limit") || errStr.includes("exhausted");
+      fallbackText = isQuotaError 
+        ? "Olá! No momento nosso assistente virtual inteligente está sob altíssima demanda, mas estou aqui para te conduzir:\n\n• **Prazos:** Nossos prazos dependem do método de envio contratado (geralmente de 15 a 25 dias úteis).\n• **Cancelamento:** Digite 'cancelar pedido' para cancelamentos automáticos de compras pendentes.\n• **Falar com Humano:** Se precisar tirar qualquer dúvida urgente ou interagir com nosso suporte, digite 'falar com suporte humano' ou fale no WhatsApp: (+55 11 93323-2319)."
+        : "Desculpe-me, ocorreu uma falha de comunicação temporária. Caso precise de ajuda imediata, por favor fale conosco no WhatsApp (+5511933232319) ou digite 'falar com suporte humano' para eu te transferir!";
+    }
+
     res.json({ text: fallbackText });
   }
 });
@@ -645,17 +719,35 @@ app.post("/api/notify-ticket", async (req, res) => {
       prompt = `Atenção: O CLIENTE SOLICITOU SUPORTE HUMANO OU O BOT DETECTOU A NECESSIDADE DE UM ATENDENTE. Resuma com urgência o histórico para facilitar o atendimento do atendente humano.\n\nChamado: ${protocol}\nNome do cliente: ${customerName}\nMensagens:\n${JSON.stringify(messages)}`;
     }
     
+    let summaryText = "";
+    
+    // Get the last 4 messages to show as a fallback chronological context
+    const fallbackMessageLog = Array.isArray(messages) && messages.length > 0
+      ? messages.slice(-4).map((m: any) => `[${m.role === 'bot' ? 'Suporte' : 'Cliente'}]: ${m.text}`).join('\n')
+      : "Sem histórico de mensagens disponível.";
+
     const ai = getGeminiClient();
     if (!ai) {
       console.warn("[Ticket Notifier] Can't use Gemini because client is not initialized.");
-      return res.json({ success: true, warning: "Gemini not initialized" });
+      summaryText = `[Incapaz de gerar resumo automático por chave de API ou conexão indisponível]\n\nÚltimas mensagens registradas:\n${fallbackMessageLog}`;
+    } else {
+      try {
+        const aiResponse = await generateContentWithRetry(ai, {
+          model: "gemini-3.5-flash",
+          contents: prompt
+        });
+        summaryText = aiResponse.text;
+      } catch (geminiErr: any) {
+        const errorMsg = String(geminiErr).toLowerCase();
+        const isQuotaError = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit") || (geminiErr?.status === 429);
+        if (isQuotaError) {
+          console.log("[Ticket Notifier] Gemini summarization failed due to quota/rate limit.");
+        } else {
+          console.error("[Ticket Notifier] Gemini summarization failed:", geminiErr);
+        }
+        summaryText = `[Incapaz de gerar resumo automático por limite de cota de IA atingido temporariamente]\n\nÚltimas mensagens registradas:\n${fallbackMessageLog}`;
+      }
     }
-
-    const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: prompt
-    });
-    const summaryText = aiResponse.text;
     const subject = isUrgent ? `⚠️ [URGENTE - TRANSFERÊNCIA HUMANA] Chamado #${protocol}` : `Novo Ticket #${protocol}`;
 
     // Recipients: All provided active ticket collaborators, defaulting to jallanluiz@gmail.com
@@ -777,19 +869,33 @@ Instruções para o comprador:
       ? collaborators.map((c: any) => `${c.name} <${c.email}>`).join(', ')
       : "compras@importafacil.com (Setor de Compras Geral)";
 
+    let quoteEmailText = "";
+    const fallbackTemplate = `Olá Equipe de Compras,\n\nUm novo orçamento foi solicitado no sistema!\n• Código do Orçamento: ${quoteId}\n• Cliente: ${customerName} (${customerEmail})\n• Telefone: ${customerPhone || 'Não informado'}\n• Produto de Interesse: ${productName}\n• Detalhes: ${productDescription || 'Não informado'}\n• Valor Estimado: $${priceUSD ? priceUSD.toFixed(2) : '0.00'} USD\n\nPor favor, analise a solicitação, localize o produto em lojas dos EUA e defina o preço final em BRL (incluindo taxas alfandegárias e de envio) no Painel Administrativo para aprovação do cliente.`;
+
     const ai = getGeminiClient();
     if (!ai) {
       console.warn("[Quote Notifier] Can't use Gemini because client is not initialized.");
-      console.log(`\n\n=== [FALLBACK] E-MAIL DE NOTIFICAÇÃO (ÁREA DE COMPRAS) ===\nDestinatários: ${recipientList}\nAssunto: Novo Orçamento Solicitado #${quoteId}\n\nOlá Equipe de Compras,\n\nUm novo orçamento foi solicitado por ${customerName} para o produto: ${productName}.\nPor favor, verifiquem o Painel Administrativo.\n=======================================================\n\n`);
-      return res.json({ success: true, warning: "Fallback triggered" });
+      quoteEmailText = fallbackTemplate;
+    } else {
+      try {
+        const aiResponse = await generateContentWithRetry(ai, {
+          model: "gemini-3.5-flash",
+          contents: prompt
+        });
+        quoteEmailText = aiResponse.text;
+      } catch (geminiErr: any) {
+        const errorMsg = String(geminiErr).toLowerCase();
+        const isQuotaError = errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit") || (geminiErr?.status === 429);
+        if (isQuotaError) {
+          console.log("[Quote Notifier] Gemini quote notification summarization failed due to quota/rate limit, placing fallback template.");
+        } else {
+          console.error("[Quote Notifier] Gemini quote notification summarization failed, placing fallback template:", geminiErr);
+        }
+        quoteEmailText = fallbackTemplate;
+      }
     }
 
-    const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
-      contents: prompt
-    });
-
-    console.log(`\n\n=== E-MAIL DE NOTIFICAÇÃO (ÁREA DE COMPRAS) ===\nDestinatários: ${recipientList}\nAssunto: [ÁREA DE COMPRAS] Nova Solicitação de Orçamento #${quoteId}\n\n${aiResponse.text}\n================================================\n\n`);
+    console.log(`\n\n=== E-MAIL DE NOTIFICAÇÃO (ÁREA DE COMPRAS) ===\nDestinatários: ${recipientList}\nAssunto: [ÁREA DE COMPRAS] Nova Solicitação de Orçamento #${quoteId}\n\n${quoteEmailText}\n================================================\n\n`);
     res.json({ success: true });
   } catch (e) {
     console.error("[Quote Notifier] Error during quote notification summary:", e);
