@@ -10,17 +10,49 @@ export function Support() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [manuallyClosed, setManuallyClosed] = useState(false);
+  const lastActivityRef = useRef<number>(Date.now());
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-select latest ticket on mount/load and expand to full screen
   useEffect(() => {
-    if (tickets.length > 0 && !activeTicketId) {
+    if (tickets.length > 0 && !activeTicketId && !manuallyClosed) {
       // Find first non-closed ticket, or fallback to first
       const firstActive = tickets.find(t => t.status !== 'CLOSED') || tickets[0];
       setActiveTicketId(firstActive.id);
       setIsExpanded(true);
     }
-  }, [tickets, activeTicketId]);
+  }, [tickets, activeTicketId, manuallyClosed]);
+
+  // Reset inactivity timer on user interaction
+  const resetTimer = () => {
+    lastActivityRef.current = Date.now();
+  };
+
+  const activeTicket = tickets.find(t => t.id === activeTicketId);
+
+  useEffect(() => {
+    if (!activeTicketId || !activeTicket || activeTicket.status === 'CLOSED') return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const diff = now - lastActivityRef.current;
+      
+      // 5 minutes = 300,000 ms
+      if (diff >= 300000) {
+        const timeoutMsg: TicketMessage = {
+          role: 'bot',
+          text: 'O atendimento foi encerrado automaticamente por inatividade (5 minutos). Caso precise de ajuda, abra um novo chamado.',
+          timestamp: new Date().toISOString()
+        };
+        updateTicket(activeTicket.id, [...activeTicket.messages, timeoutMsg], 'CLOSED');
+        setActiveTicketId(null);
+        setManuallyClosed(true);
+      }
+    }, 10000); // Check every 10s
+
+    return () => clearInterval(interval);
+  }, [activeTicketId, activeTicket]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -37,7 +69,6 @@ export function Support() {
   }
 
   // Find the fresh ticket data in the list (or fallback)
-  const activeTicket = tickets.find(t => t.id === activeTicketId);
 
   const startNewTicket = async (initialQuery?: string) => {
     const protocol = Math.floor(Math.random() * 1000000000).toString();
@@ -70,6 +101,7 @@ export function Support() {
   const handleSend = async (text: string) => {
     if (!text.trim() || !activeTicket || activeTicket.status === 'CLOSED') return;
     
+    resetTimer();
     const newMsg: TicketMessage = {
       role: 'user',
       text,
@@ -163,6 +195,8 @@ export function Support() {
                onClick={() => {
                  setActiveTicketId(t.id);
                  setIsExpanded(true);
+                 setManuallyClosed(false);
+                 resetTimer();
                }}
                className={`w-full text-left p-3 rounded-xl transition cursor-pointer ${activeTicketId === t.id ? 'bg-rose-50 border-rose-200 border' : 'hover:bg-stone-50 border border-transparent'}`}
              >
@@ -233,6 +267,7 @@ export function Support() {
                      onClick={() => {
                        setActiveTicketId(null);
                        setIsExpanded(false);
+                       setManuallyClosed(true);
                      }}
                      title="Fechar bate-papo"
                      className="p-1.5 rounded-full bg-stone-50 border border-stone-200 text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition cursor-pointer flex items-center justify-center font-bold"
@@ -288,11 +323,16 @@ export function Support() {
                 </div>
               ) : (
                 <div className="p-4 bg-white border-t border-stone-100">
-                  <form onSubmit={(e) => { e.preventDefault(); handleSend(inputText); }} className="relative flex items-center">
+                  <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSend(inputText); }} 
+                    className="relative flex items-center"
+                    onKeyDown={resetTimer}
+                    onClick={resetTimer}
+                  >
                     <input
                       type="text"
                       value={inputText}
-                      onChange={e => setInputText(e.target.value)}
+                      onChange={e => { setInputText(e.target.value); resetTimer(); }}
                       disabled={loading}
                       placeholder="Digite sua dúvida..."
                       className="w-full pl-4 pr-12 py-3 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition text-sm"
