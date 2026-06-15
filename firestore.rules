@@ -27,12 +27,13 @@ service cloud.firestore {
 
     function hasPermission(perm) {
       return request.auth != null && (
-        request.auth.token.email == 'jallanluiz@gmail.com' ||
+        request.auth.token.get('email', '') == 'jallanluiz@gmail.com' ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
         (
-          exists(/databases/$(database)/documents/collaborators/$(request.auth.token.email)) &&
-          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email)).data.active == true &&
-          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email)).data.permissions.hasAny([perm])
+          request.auth.token.get('email', '') != '' &&
+          exists(/databases/$(database)/documents/collaborators/$(request.auth.token.email.lower())) &&
+          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email.lower())).data.active == true &&
+          get(/databases/$(database)/documents/collaborators/$(request.auth.token.email.lower())).data.permissions.hasAny([perm])
         )
       );
     }
@@ -190,6 +191,22 @@ service cloud.firestore {
       allow list: if isAdmin() || (isSignedIn() && request.auth.token.get('email', '') == 'jallanluiz@gmail.com');
       allow get, update, delete: if isAdmin() || (isSignedIn() && request.auth.token.get('email', '') == 'jallanluiz@gmail.com');
       allow create: if true;
+    }
+
+    match /systemKnowledge/{factId} {
+      allow read: if true;
+      function isValidKnowledge(data) {
+        return data.keys().hasAll(['id', 'title', 'description', 'category', 'createdAt', 'updatedAt'])
+            && data.id is string
+            && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+            && data.description is string && data.description.size() > 0 && data.description.size() <= 10000
+            && data.category is string && data.category.size() > 0 && data.category.size() <= 100
+            && data.createdAt is string
+            && data.updatedAt is string;
+      }
+      allow create: if (isAdmin() || hasPermission('tickets')) && isValidId(factId) && isValidKnowledge(incoming());
+      allow update: if (isAdmin() || hasPermission('tickets')) && isValidKnowledge(incoming());
+      allow delete: if isAdmin() || hasPermission('tickets');
     }
   }
 }

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell, Download } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell, Download, Brain, Sparkles, BookOpen, Clock, Pause } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { useAppContext } from '../context';
-import { OrderStatus, Product, Store, Ticket, Review, TicketMessage, Order, SystemNotification } from '../types';
+import { OrderStatus, Product, Store, Ticket, Review, TicketMessage, Order, SystemNotification, SystemKnowledge } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 
@@ -459,8 +459,8 @@ function ShippingMethodsTab() {
 }
 
 export function Admin() {
-  const { collaborator, user, orders, stores, products, tickets, reviews, updateOrderStatus, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, updateTicket, notifications } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | null>(null);
+  const { collaborator, user, orders, stores, products, tickets, reviews, updateOrderStatus, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, updateTicket, notifications, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge } = useAppContext();
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | null>(null);
 
   const hasPermission = (perm: string) => {
     if (user?.email === 'jallanluiz@gmail.com') return true;
@@ -471,7 +471,7 @@ export function Admin() {
   // Automatically select the first visible/permitted tab on load or profile load
   useEffect(() => {
     const tabs: (typeof activeTab)[] = [
-      'orders', 'products', 'stores', 'tickets', 'team', 'shipping', 'reviews', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory'
+      'orders', 'products', 'stores', 'tickets', 'team', 'shipping', 'reviews', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory', 'knowledge'
     ];
     const allowed = tabs.find(t => {
       if (t === 'shipping') return hasPermission('orders');
@@ -480,6 +480,7 @@ export function Admin() {
       if (t === 'customers') return hasPermission('orders'); // Allow access to CRM if they have orders access
       if (t === 'coupons') return hasPermission('settings');
       if (t === 'shipping_methods') return hasPermission('settings');
+      if (t === 'knowledge') return hasPermission('tickets');
       return t && hasPermission(t);
     });
     if (allowed) {
@@ -635,6 +636,15 @@ export function Admin() {
             {activeTab === 'inventory' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
           </button>
         )}
+        {hasPermission('tickets') && (
+          <button 
+            onClick={() => setActiveTab('knowledge')}
+            className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === 'knowledge' ? 'text-rose-600' : 'text-stone-500 hover:text-stone-800'}`}
+          >
+            IA Regenerativa
+            {activeTab === 'knowledge' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
+          </button>
+        )}
       </div>
 
       {activeTab === 'orders' && hasPermission('orders') && <OrdersTab orders={orders} updateOrderStatus={updateOrderStatus} />}
@@ -652,6 +662,14 @@ export function Admin() {
       {activeTab === 'coupons' && hasPermission('settings') && <CouponsTab />}
       {activeTab === 'shipping_methods' && hasPermission('settings') && <ShippingMethodsTab />}
       {activeTab === 'inventory' && hasPermission('products') && <InventoryTab products={products} updateProduct={updateProduct} />}
+      {activeTab === 'knowledge' && hasPermission('tickets') && (
+        <AdminKnowledgeTab 
+          systemKnowledge={systemKnowledge} 
+          addSystemKnowledge={addSystemKnowledge} 
+          updateSystemKnowledge={updateSystemKnowledge} 
+          deleteSystemKnowledge={deleteSystemKnowledge}
+        />
+      )}
       
     </div>
   );
@@ -2176,6 +2194,420 @@ function InventoryTab({ products, updateProduct }: { products: Product[], update
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function AdminKnowledgeTab({
+  systemKnowledge,
+  addSystemKnowledge,
+  updateSystemKnowledge,
+  deleteSystemKnowledge
+}: {
+  systemKnowledge: SystemKnowledge[];
+  addSystemKnowledge: any;
+  updateSystemKnowledge: any;
+  deleteSystemKnowledge: any;
+}) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'APPROVED' | 'PENDING'>('ALL');
+  
+  // Modal state for manually adding rules
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newCategory, setNewCategory] = useState<'ESTOQUE' | 'FRETE' | 'IMPOSTOS' | 'CANCELAMENTO' | 'POLÍTICAS' | 'OUTROS'>('OUTROS');
+  
+  // Edit state
+  const [editingItem, setEditingItem] = useState<SystemKnowledge | null>(null);
+  const [editDescription, setEditDescription] = useState('');
+
+  const handleAddRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newDescription.trim()) return;
+    try {
+      await addSystemKnowledge({
+        title: newTitle,
+        description: newDescription,
+        category: newCategory,
+        isApproved: true, // Manually entered rules are approved by default
+        confidence: 1.0,
+        type: 'HUMAN_REPLY'
+      });
+      setNewTitle('');
+      setNewDescription('');
+      setNewCategory('OUTROS');
+      setIsNewModalOpen(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItem || !editDescription.trim()) return;
+    try {
+      await updateSystemKnowledge(editingItem.id, { description: editDescription });
+      setEditingItem(null);
+      setEditDescription('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const filteredKnowledge = systemKnowledge.filter(k => {
+    const matchesSearch = k.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          k.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'ALL' || k.category === categoryFilter;
+    const matchesStatus = statusFilter === 'ALL' || 
+                          (statusFilter === 'APPROVED' && k.isApproved) || 
+                          (statusFilter === 'PENDING' && !k.isApproved);
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  const getCategoryColor = (cat: string) => {
+    switch (cat) {
+      case 'ESTOQUE': return 'bg-amber-50 text-amber-800 border-amber-200';
+      case 'FRETE': return 'bg-sky-50 text-sky-800 border-sky-200';
+      case 'IMPOSTOS': return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'CANCELAMENTO': return 'bg-rose-50 text-rose-800 border-rose-200';
+      case 'POLÍTICAS': return 'bg-indigo-50 text-indigo-800 border-indigo-200';
+      default: return 'bg-stone-50 text-stone-800 border-stone-200';
+    }
+  };
+
+  const approvedRules = systemKnowledge.filter(k => k.isApproved);
+  const pendingRules = systemKnowledge.filter(k => !k.isApproved);
+
+  return (
+    <div className="space-y-6">
+      {/* Top dashboard summary stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-stone-500 font-medium text-sm block">Total de Regras</span>
+            <span className="text-3xl font-display font-bold text-stone-900 mt-1 block">{systemKnowledge.length}</span>
+          </div>
+          <div className="p-3 bg-stone-50 rounded-xl">
+            <BookOpen className="w-6 h-6 text-stone-500" />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-rose-600 font-medium text-sm block">Regras Ativas (IA)</span>
+            <span className="text-3xl font-display font-bold text-rose-700 mt-1 block">{approvedRules.length}</span>
+            <span className="text-xs text-rose-500 mt-1 block">Influenciando o Bot Ativo</span>
+          </div>
+          <div className="p-3 bg-rose-50 rounded-xl">
+            <Sparkles className="w-6 h-6 text-rose-500" />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-amber-100 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-amber-700 font-medium text-sm block">Aguardando Aprovação</span>
+            <span className="text-3xl font-display font-bold text-amber-800 mt-1 block">{pendingRules.length}</span>
+            <span className="text-xs text-amber-600 mt-1 block">Auto-aprendidos de Atendimentos</span>
+          </div>
+          <div className="p-3 bg-amber-50 rounded-xl">
+            <Brain className="w-6 h-6 text-amber-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Control bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-stone-100 shadow-xs">
+        <div className="flex flex-wrap items-center gap-3 flex-1">
+          {/* Search */}
+          <div className="relative min-w-[200px] flex-1 max-w-sm">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
+            <input
+              type="text"
+              placeholder="Buscar regras aprendidas..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border rounded-lg border-stone-200 text-stone-700 bg-stone-50/50 hover:bg-stone-50 focus:bg-white text-sm"
+            />
+          </div>
+
+          {/* Category Filter */}
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            className="border rounded-lg border-stone-200 text-stone-700 py-2 px-3 text-sm bg-white"
+          >
+            <option value="ALL">Todas Categorias</option>
+            <option value="ESTOQUE">Estoque</option>
+            <option value="FRETE">Frete</option>
+            <option value="IMPOSTOS">Impostos / Alfândega</option>
+            <option value="CANCELAMENTO">Prazos & Cancelamentos</option>
+            <option value="POLÍTICAS">Políticas Gerais</option>
+            <option value="OUTROS">Outros</option>
+          </select>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as any)}
+            className="border rounded-lg border-stone-200 text-stone-700 py-2 px-3 text-sm bg-white"
+          >
+            <option value="ALL">Todos Status</option>
+            <option value="APPROVED">Ativos (Aprovados)</option>
+            <option value="PENDING">Pendentes (Auto-aprendidos)</option>
+          </select>
+        </div>
+
+        <button
+          onClick={() => setIsNewModalOpen(true)}
+          className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Adicionar Regra Manual
+        </button>
+      </div>
+
+      {/* Grid of Knowledge Rules */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filteredKnowledge.length === 0 ? (
+          <div className="col-span-2 py-16 text-center bg-white rounded-2xl border border-stone-100">
+            <BookOpen className="w-12 h-12 text-stone-300 mx-auto mb-3" />
+            <p className="text-stone-500 font-medium font-sans">Nenhuma regra ativa ou pendente encontrada.</p>
+            <p className="text-xs text-stone-400 mt-1">Sua IA aprende observando o suporte em tempo real.</p>
+          </div>
+        ) : (
+          filteredKnowledge.map(k => (
+            <div 
+              key={k.id} 
+              className={`p-6 rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between ${
+                k.isApproved 
+                  ? 'bg-white border-stone-200 shadow-sm hover:shadow-md' 
+                  : 'bg-amber-50/40 border-amber-200/70 shadow-xs'
+              }`}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${getCategoryColor(k.category)}`}>
+                        {k.category}
+                      </span>
+                      {k.isApproved ? (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-100 flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3 text-emerald-600" />
+                          Ativo no Bot
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-amber-600" />
+                          Auto-aprendido (Pendente)
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900 tracking-tight leading-snug">{k.title}</h3>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingItem(k);
+                        setEditDescription(k.description);
+                      }}
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-50 transition-colors"
+                      title="Editar descrição da regra"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => deleteSystemKnowledge(k.id)}
+                      className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Remover regra"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-sm text-stone-600 font-normal leading-relaxed whitespace-pre-line bg-stone-50/50 p-3.5 rounded-xl border border-stone-100/50">
+                  {k.description}
+                </div>
+
+                {/* Score & Meta */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-stone-100">
+                  <div className="flex items-center justify-between text-xs text-stone-500">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      {k.type === 'HUMAN_REPLY' ? (
+                        <>
+                          <Users className="w-3.5 h-3.5 text-stone-400" />
+                          Atendimento Humano Observado
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-3.5 h-3.5 text-stone-400" />
+                          Atendimento Virtual Observado
+                        </>
+                      )}
+                    </span>
+                    <span className="font-bold text-stone-700 font-mono">Confiança: {Math.round(k.confidence * 100)}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full ${k.isApproved ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                      style={{ width: `${k.confidence * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons at card bottom */}
+              <div className="flex items-center justify-end gap-3 pt-4 mt-2">
+                {!k.isApproved ? (
+                  <button
+                    onClick={() => updateSystemKnowledge(k.id, { isApproved: true, confidence: 1.0 })}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2 px-4 text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Aprovar Regra e Integrar na Memória do Bot
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => updateSystemKnowledge(k.id, { isApproved: false })}
+                    className="w-full text-stone-500 hover:text-stone-800 hover:bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-xs font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Pause className="w-3.5 h-3.5" />
+                    Pausar Diretriz
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Edit Description Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl border border-stone-100 flex flex-col space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xl font-bold text-stone-900 leading-snug">Editar Regra de IA</h4>
+              <button 
+                onClick={() => setEditingItem(null)}
+                className="p-1 rounded-full text-stone-400 hover:text-stone-800 hover:bg-stone-50"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-xs text-stone-500 font-medium">
+              Altere a diretriz de resolução do cenário para refilar como o Assistente Virtual deve reagir no chat.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">Regra para: {editingItem.title}</label>
+              <textarea
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                rows={5}
+                className="w-full p-3 border rounded-xl border-stone-200 text-stone-700 bg-stone-50/50 hover:bg-stone-50 focus:bg-white text-sm focus:outline-rose-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 text-sm font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-bold cursor-pointer"
+              >
+                Salvar Alterações
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Manual Rule Modal */}
+      {isNewModalOpen && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center z-[100] p-4">
+          <form onSubmit={handleAddRule} className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl border border-stone-100 flex flex-col space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xl font-bold text-stone-900">Nova Diretriz Manual do Sistema</h4>
+              <button 
+                type="button"
+                onClick={() => setIsNewModalOpen(false)}
+                className="p-1 rounded-full text-stone-400 hover:text-stone-800 hover:bg-stone-50"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">Título do Cenário</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="EX: Cancelamento de Peças Sob Encomenda"
+                  value={newTitle}
+                  onChange={e => setNewTitle(e.target.value)}
+                  className="w-full p-3 border rounded-xl border-stone-200 text-stone-700 bg-stone-50/50 text-sm focus:outline-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">Categoria</label>
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value as any)}
+                    className="w-full p-3 border rounded-xl border-stone-200 text-stone-700 bg-white text-sm focus:outline-rose-500"
+                  >
+                    <option value="ESTOQUE">Estoque</option>
+                    <option value="FRETE">Frete</option>
+                    <option value="IMPOSTOS">Impostos / Alfândega</option>
+                    <option value="CANCELAMENTO">Prazos & Cancelamentos</option>
+                    <option value="POLÍTICAS">Políticas Gerais</option>
+                    <option value="OUTROS">Outros</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-700 uppercase tracking-wider block">Diretriz de Resolução (Como o Bot deve Agir)</label>
+                <textarea
+                  required
+                  placeholder="EX: Explique ao cliente que encomendas especiais já pagas sofrem carência de 3 dias para estorno..."
+                  value={newDescription}
+                  onChange={e => setNewDescription(e.target.value)}
+                  rows={4}
+                  className="w-full p-3 border rounded-xl border-stone-200 text-stone-700 bg-stone-50/50 text-sm focus:outline-rose-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsNewModalOpen(false)}
+                className="px-4 py-2 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 text-sm font-semibold cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold cursor-pointer"
+              >
+                Adicionar Diretriz
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

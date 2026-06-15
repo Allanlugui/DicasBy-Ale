@@ -254,3 +254,17 @@ export type SystemNotification = {
   updatedAt: string;
 };
 
+export type SystemKnowledge = {
+  id: string;
+  title: string;
+  description: string;
+  category: 'ESTOQUE' | 'FRETE' | 'IMPOSTOS' | 'CANCELAMENTO' | 'POLÍTICAS' | 'OUTROS';
+  sourceTicketId?: string;
+  interactionCount: number;
+  confidence: number;
+  isApproved: boolean;
+  type: 'HUMAN_REPLY' | 'BOT_INTERACTION';
+  createdAt: string;
+  updatedAt: string;
+};
+

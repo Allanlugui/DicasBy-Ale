@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod } from './types';
+import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge } from './types';
 import { generateTrackingId, cleanUndefined } from './lib/utils';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User, signInWithEmailLink, isSignInWithEmailLink, sendSignInLinkToEmail, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -109,6 +109,11 @@ interface AppContextType {
   addShippingMethod: (method: Omit<ShippingMethod, 'id'>) => Promise<void>;
   updateShippingMethod: (id: string, method: Partial<ShippingMethod>) => Promise<void>;
   deleteShippingMethod: (id: string) => Promise<void>;
+  systemKnowledge: SystemKnowledge[];
+  addSystemKnowledge: (knowledge: Omit<SystemKnowledge, 'id' | 'createdAt' | 'updatedAt' | 'interactionCount'>) => Promise<void>;
+  updateSystemKnowledge: (id: string, knowledge: Partial<SystemKnowledge>) => Promise<void>;
+  deleteSystemKnowledge: (id: string) => Promise<void>;
+  learnFromTicket: (ticketId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -131,6 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
+  const [systemKnowledge, setSystemKnowledge] = useState<SystemKnowledge[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'company'), (docSnap) => {
@@ -293,6 +299,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     unsubs.push(onSnapshot(collection(db, 'shippingMethods'), (snap) => {
       setShippingMethods(snap.docs.map(d => ({ id: d.id, ...d.data() } as ShippingMethod)));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'shippingMethods')));
+
+    unsubs.push(onSnapshot(collection(db, 'systemKnowledge'), (snap) => {
+      setSystemKnowledge(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemKnowledge)));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'systemKnowledge')));
 
     return () => unsubs.forEach(u => u());
   }, [isAdmin]);
@@ -565,6 +575,80 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateData.needsHuman = needsHuman;
     }
     await updateDoc(doc(db, 'tickets', ticketId), cleanUndefined(updateData));
+
+    if (status === 'CLOSED') {
+      setTimeout(() => {
+        learnFromTicket(ticketId).catch(console.error);
+      }, 1000);
+    }
+  };
+
+  const learnFromTicket = async (ticketId: string) => {
+    try {
+      const latestSnap = await getDocs(query(collection(db, 'tickets')));
+      const targetTicket = latestSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Ticket))
+        .find(t => t.id === ticketId);
+      
+      if (!targetTicket || targetTicket.messages.length < 2) return;
+
+      const res = await fetch('/api/learn-from-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: targetTicket.id,
+          protocol: targetTicket.protocol,
+          customerName: targetTicket.customerName,
+          messages: targetTicket.messages
+        })
+      });
+      const data = await res.json();
+      if (data.result && Array.isArray(data.result)) {
+        for (const fact of data.result) {
+          const ref = doc(collection(db, 'systemKnowledge'));
+          const item: SystemKnowledge = {
+            id: ref.id,
+            title: fact.title,
+            description: fact.description,
+            category: fact.category || 'OUTROS',
+            sourceTicketId: targetTicket.id,
+            interactionCount: 0,
+            confidence: fact.confidence || 0.7,
+            isApproved: false, // Default pending for human review
+            type: fact.type || 'BOT_INTERACTION',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await setDoc(ref, cleanUndefined(item));
+        }
+      }
+    } catch (err) {
+      console.error("[learnFromTicket Error]:", err);
+    }
+  };
+
+  const addSystemKnowledge = async (knowledge: Omit<SystemKnowledge, 'id' | 'createdAt' | 'updatedAt' | 'interactionCount'>) => {
+    const ref = doc(collection(db, 'systemKnowledge'));
+    const newKnowledge: SystemKnowledge = {
+      ...knowledge,
+      id: ref.id,
+      interactionCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    await setDoc(ref, cleanUndefined(newKnowledge));
+  };
+
+  const updateSystemKnowledge = async (id: string, knowledge: Partial<SystemKnowledge>) => {
+    const updateData = {
+      ...knowledge,
+      updatedAt: new Date().toISOString()
+    };
+    await updateDoc(doc(db, 'systemKnowledge', id), cleanUndefined(updateData));
+  };
+
+  const deleteSystemKnowledge = async (id: string) => {
+    await deleteDoc(doc(db, 'systemKnowledge', id));
   };
 
   const submitReview = async (review: Review) => {
@@ -879,7 +963,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, profile, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod }}>
+    <AppContext.Provider value={{ user, profile, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket }}>
       {children}
     </AppContext.Provider>
   );

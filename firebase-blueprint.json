@@ -136,6 +136,25 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "type", "title", "message", "status", "createdAt", "updatedAt"]
+    },
+    "SystemKnowledge": {
+      "title": "SystemKnowledge",
+      "description": "Learned knowledge and facts automatically captured from human and customer interactions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "sourceTicketId": { "type": "string" },
+        "interactionCount": { "type": "number" },
+        "confidence": { "type": "number" },
+        "isApproved": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "category", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -170,6 +189,10 @@
     "/notifications/{notificationId}": {
       "schema": "SystemNotification",
       "description": "Admin system notifications"
+    },
+    "/systemKnowledge/{factId}": {
+      "schema": "SystemKnowledge",
+      "description": "Regenerative AI persistent knowledge and learned system operations rules"
     }
   }
 }

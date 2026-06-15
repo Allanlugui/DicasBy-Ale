@@ -13,7 +13,7 @@ interface MessageAttachment {
 }
 
 export function Support() {
-  const { user, tickets, createTicket, updateTicket, orders, updateOrderStatus, products, autoSaveUserDocument } = useAppContext();
+  const { user, tickets, createTicket, updateTicket, orders, updateOrderStatus, products, autoSaveUserDocument, systemKnowledge } = useAppContext();
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [inputText, setInputText] = useState('');
@@ -279,6 +279,7 @@ export function Support() {
           protocol: activeTicket.protocol,
           customerName: activeTicket.customerName,
           orders: userOrders,
+          systemKnowledge: systemKnowledge?.filter(k => k.isApproved) || [],
           products: products?.map(p => ({
             name: p.name,
             brand: p.brand,

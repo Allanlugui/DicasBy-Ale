@@ -499,7 +499,7 @@ app.post("/api/search-internet", async (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { messages, orders, products, protocol, customerName } = req.body;
+  const { messages, orders, products, protocol, customerName, systemKnowledge } = req.body;
   try {
     const ordersInfo = orders && orders.length > 0 
       ? `\n\nPedidos do cliente:\n${JSON.stringify(orders.map((o: any) => ({
@@ -534,10 +534,15 @@ app.post("/api/chat", async (req, res) => {
 - Nome do Cliente: ${customerName || "Não identificado"}
 - Protocolo do Chamado de Suporte: ${protocol || "Não especificado"}`;
 
-    const systemInstruction = `Você é um assistente virtual de suporte inteligente e autônomo da loja Dicas by Alê.
+    const learnedRulesText = systemKnowledge && systemKnowledge.length > 0
+       ? `\n\nCONHECIMENTOS REGENERADOS APRENDIDOS (AUTONOMIA DO ASSISTENTE COM O PASSAR DO TEMPO):\nSiga rigorosamente as diretrizes e regras que você aprendeu com resoluções humanas passadas para solucionar estes cenários no sistema:\n${systemKnowledge.map((k: any, idx: number) => `Regra Extra #${idx + 1} (${k.category}): ${k.title}\n- Diretriz de Resolução: ${k.description}`).join('\n\n')}`
+       : '';
+
+    const systemInstruction = `Você é um assistente virtual de suporte inteligente, autônomo e regenerativo da loja Dicas by Alê.
 Sua missão é ajudar o cliente de forma empática, profissional e direta sobre dúvidas de prazos, cancelamentos, estoque, valores e status de seus pedidos.
 
 ${clientHeader}
+${learnedRulesText}
 
 REGRAS DE ESTOQUE, QUANTIDADES E VALORES:
 - DATA ATUAL: Considere que o dia de hoje é 05 de Junho de 2026. Lembre-se, o ano atual é 2026!
@@ -900,6 +905,86 @@ Instruções para o comprador:
   } catch (e) {
     console.error("[Quote Notifier] Error during quote notification summary:", e);
     res.json({ success: true, warning: "Fallback trigger error" });
+  }
+});
+
+app.post("/api/learn-from-ticket", async (req, res) => {
+  try {
+    const { messages, ticketId, protocol, customerName } = req.body;
+    
+    if (!messages || messages.length < 2) {
+      return res.json({ result: [] });
+    }
+
+    const conversationText = messages.map((m: any) => {
+      const actor = m.role === 'bot' ? (m.isAgent ? 'Atendente Humano' : 'Assistente Virtual') : 'Cliente';
+      return `[${actor} - ${m.timestamp}]: ${m.text}`;
+    }).join('\n');
+
+    const prompt = `Você é um especialista em Inteligência Artificial e Engenharia de Conhecimento para suporte de e-commerce da loja Dicas by Alê.
+Analise a seguinte conversa de suporte entre um Cliente e nossa equipe (que inclui o Assistente Virtual e, possivelmente, um Atendente Humano).
+
+Seu objetivo é extrair qualquer novo aprendizado, regra do sistema, política atualizada da loja (ex: fretes, taxas, prazos, formas de devolução, cancelamentos especiais) ou resoluções práticas usadas para sanar o problema do cliente.
+
+Regras importantes:
+1. NÃO inclua dados pessoais como o nome do cliente "${customerName || 'Cliente'}", código de rastreamento do cliente, CPF ou valores exclusivos desta compra. Generalize-os em diretrizes de sistema (Ex: "Casos de cancelamento após envio requerem retenção de R$50 de taxa postal" ou "Se a transportadora X atrasar, oferecemos cupom de 5%").
+2. Foque especialmente em soluções dadas pelo "Atendente Humano", pois estas mostram como a IA deve proceder em casos similares no futuro para aumentar sua autonomia.
+3. Se a conversa for muito simples e não contiver nenhum conhecimento novo relevante (apenas saudações ou perguntas básicas já cobertas), retorne um array vazio [].
+4. Crie títulos concisos e descrições ricas, em português. Emita o resultado obedecendo estritamente o formato JSON abaixo.
+5. Retorne os aprendizados estritamente como um array de objetos JSON formatado exatamente como este exemplo:
+[
+  {
+    "title": "Regra de Cancelamento para Encomendas Especiais",
+    "category": "CANCELAMENTO",
+    "description": "Se o cliente solicitar o cancelamento de uma encomenda internacional que já foi adquirida nas lojas dos EUA, deve-se cobrar 15% de taxa de reestocagem.",
+    "confidence": 0.9,
+    "type": "HUMAN_REPLY"
+  }
+]
+
+Categorias permitidas: "ESTOQUE" | "FRETE" | "IMPOSTOS" | "CANCELAMENTO" | "POLÍTICAS" | "OUTROS"
+Tipos permitidos: "HUMAN_REPLY" (se envolveu Atendente Humano) | "BOT_INTERACTION" (se resolvido satisfatoriamente pelo bot)
+
+Conversa de suporte (Protocolo #${protocol || 'N/A'}):
+${conversationText}`;
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      console.warn("[Register Knowledge] Can't parse with Gemini because client is not initialized.");
+      return res.json({ result: [] });
+    }
+
+    try {
+      const aiResponse = await generateContentWithRetry(ai, {
+        model: "gemini-3.5-flash",
+        contents: prompt
+      });
+
+      const responseText = aiResponse.text;
+      
+      // Attempt to extract JSON from response text
+      let jsonStr = responseText;
+      const jsonStart = responseText.indexOf('[');
+      const jsonEnd = responseText.lastIndexOf(']');
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        jsonStr = responseText.substring(jsonStart, jsonEnd + 1);
+      }
+
+      let parsedKnowledge = [];
+      try {
+        parsedKnowledge = JSON.parse(jsonStr);
+      } catch (err) {
+        console.warn("[Register Knowledge] Failed to parse JSON reply from Gemini, response was:", responseText);
+      }
+
+      return res.json({ result: Array.isArray(parsedKnowledge) ? parsedKnowledge : [] });
+    } catch (geminiError: any) {
+      console.log("[Register Knowledge] Gemini rate limit or quota reached when analyzing knowledge.");
+      return res.json({ result: [] });
+    }
+  } catch (err) {
+    console.error("[Register Knowledge Error]:", err);
+    res.json({ result: [] });
   }
 });
 
