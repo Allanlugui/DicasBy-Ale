@@ -3,6 +3,8 @@ import { useAppContext } from '../context';
 import { Navigate } from 'react-router-dom';
 import { MessageSquare, Send, Bot, User as UserIcon, Plus, Maximize2, Minimize2, X } from 'lucide-react';
 import { TicketMessage } from '../types';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export function Support() {
   const { user, tickets, createTicket, updateTicket, orders, updateOrderStatus, products } = useAppContext();
@@ -133,6 +135,8 @@ export function Support() {
         body: JSON.stringify({ 
           messages: newMessages,
           ticketId: activeTicket.id,
+          protocol: activeTicket.protocol,
+          customerName: activeTicket.customerName,
           orders: userOrders,
           products: products?.map(p => ({
             name: p.name,
@@ -163,12 +167,42 @@ export function Support() {
           await updateOrderStatus(orderIdToCancel, 'CANCELLED', 'Cancelado via Atendimento Automático');
         }
 
+        const transferMatch = textResult.includes('[TRANSFER_TO_HUMAN]');
+        let isTransferred = false;
+        if (transferMatch) {
+          textResult = textResult.replace(/\[TRANSFER_TO_HUMAN\]/g, '').trim();
+          isTransferred = true;
+          
+          let activeCollabs: any[] = [];
+          try {
+            const tempQ = query(collection(db, 'collaborators'), where('active', '==', true));
+            const collabSnap = await getDocs(tempQ);
+            activeCollabs = collabSnap.docs
+              .map(d => d.data())
+              .filter((c: any) => c.permissions && c.permissions.includes('tickets'));
+          } catch (err) {
+            console.error("Error querying collaborators to notify:", err);
+          }
+
+          fetch('/api/notify-ticket', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+              protocol: activeTicket.protocol, 
+              customerName: activeTicket.customerName, 
+              messages: [...newMessages, { role: 'bot', text: textResult, timestamp: new Date().toISOString() }],
+              isUrgent: true,
+              collaborators: activeCollabs
+            })
+          }).catch(console.error);
+        }
+
         const botMsg: TicketMessage = {
           role: 'bot',
           text: textResult,
           timestamp: new Date().toISOString()
         };
-        await updateTicket(activeTicket.id, [...newMessages, botMsg]);
+        await updateTicket(activeTicket.id, [...newMessages, botMsg], undefined, isTransferred ? true : undefined);
       }
     } catch (e) {
       console.error(e);
@@ -231,7 +265,14 @@ export function Support() {
             <>
               <div onClick={() => { if (!isExpanded) setIsExpanded(true); }} className={`p-4 border-b border-stone-100 bg-stone-50 flex justify-between items-center gap-2 ${!isExpanded ? 'cursor-pointer hover:bg-stone-100 transition' : ''}`}>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-bold text-stone-900 font-display truncate">Atendimento em Andamento</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-stone-900 font-display truncate">Atendimento em Andamento</span>
+                    {activeTicket.needsHuman && (
+                      <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse shrink-0">
+                        Suporte Humano Solicitado
+                      </span>
+                    )}
+                  </div>
                   <span className="text-xs text-stone-500 truncate">Protocolo: {activeTicket.protocol}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

@@ -27,7 +27,7 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
     e.preventDefault();
     if (!currentTicket || !reply.trim() || currentTicket.status === 'CLOSED') return;
     const newMsg: TicketMessage = { role: 'bot', text: reply, timestamp: new Date().toISOString() };
-    await updateTicket(currentTicket.id, [...currentTicket.messages, newMsg]);
+    await updateTicket(currentTicket.id, [...currentTicket.messages, newMsg], undefined, false);
     setReply('');
   };
 
@@ -62,6 +62,11 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
               <div className="flex justify-between items-center">
                 <span className="font-bold text-xs text-rose-600">#{t.protocol}</span>
                 <div className="flex items-center gap-2">
+                  {t.needsHuman && t.status !== 'CLOSED' && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-red-100 text-red-700 animate-pulse border border-red-200">
+                      Urgente (Humano)
+                    </span>
+                  )}
                   <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${t.status === 'CLOSED' ? 'bg-stone-100 text-stone-500' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
                     {t.status === 'CLOSED' ? 'Sem atividade' : 'Aberto'}
                   </span>
@@ -79,7 +84,14 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
           <>
             <div className="p-4 bg-stone-50 border-b border-stone-100 flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-stone-900">Protocolo {currentTicket.protocol}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-stone-900 font-display">Protocolo {currentTicket.protocol}</h3>
+                  {currentTicket.needsHuman && currentTicket.status !== 'CLOSED' && (
+                    <span className="bg-red-500 text-white text-[9px] uppercase font-bold px-2 py-0.5 rounded-full animate-bounce shadow">
+                      Aguardando Humano ⚠️
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-stone-500">Cliente: {currentTicket.customerName}</p>
               </div>
               {currentTicket.status === 'CLOSED' ? (

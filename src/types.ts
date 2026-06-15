@@ -13,6 +13,7 @@ export type Ticket = {
   messages: TicketMessage[];
   createdAt: string;
   updatedAt: string;
+  needsHuman?: boolean;
 };
 
 export type Review = {

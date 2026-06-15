@@ -80,7 +80,7 @@ interface AppContextType {
   updateStore: (id: string, store: Partial<Store>) => Promise<void>;
   deleteStore: (id: string) => Promise<void>;
   createTicket: (protocol: string, messages: TicketMessage[]) => Promise<string | undefined>;
-  updateTicket: (ticketId: string, messages: TicketMessage[], status?: 'OPEN' | 'CLOSED') => Promise<void>;
+  updateTicket: (ticketId: string, messages: TicketMessage[], status?: 'OPEN' | 'CLOSED', needsHuman?: boolean) => Promise<void>;
   submitReview: (review: Review) => Promise<void>;
   sendLoginLink: (email: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -189,13 +189,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Quick initial check for the owner
     if (user.email === 'jallanluiz@gmail.com') {
       setIsAdmin(true);
+    } else {
+      setIsAdmin(false);
     }
 
     // Listen to collaborator docs query
     const targetEmail = user.email || '';
+    const emailsArray = [targetEmail, targetEmail.toLowerCase(), targetEmail.toUpperCase()].filter(Boolean);
+
+    if (emailsArray.length === 0) {
+      setCollaborator(null);
+      setIsAdmin(false);
+      return () => {};
+    }
+
     const q = query(
       collection(db, 'collaborators'),
-      where('email', 'in', [targetEmail, targetEmail.toLowerCase(), targetEmail.toUpperCase()].filter(Boolean))
+      where('email', 'in', emailsArray)
     );
 
     const unsubCollab = onSnapshot(q, (snap) => {
@@ -323,27 +333,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : query(documentsRef, where('userId', '==', user.uid));
 
     const unsubOrders = onSnapshot(ordersQ, (snap) => {
-      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+      const filtered = isAdmin ? fetched : fetched.filter(o => o.userId === user.uid);
+      setOrders(filtered);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'orders'));
 
     const unsubTickets = onSnapshot(ticketsQ, (snap) => {
-      setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() } as Ticket)));
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as Ticket));
+      const filtered = isAdmin ? fetched : fetched.filter(t => t.userId === user.uid);
+      setTickets(filtered);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'tickets'));
 
     const unsubQuotes = onSnapshot(quoteRequestsQ, (snap) => {
-      setQuoteRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as QuoteRequest)));
+      const fetched = snap.docs.map(d => ({ id: d.id, ...d.data() } as QuoteRequest));
+      const filtered = isAdmin ? fetched : fetched.filter(q => q.userId === user.uid);
+      setQuoteRequests(filtered);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'quoteRequests'));
 
     const unsubFolders = onSnapshot(foldersQ, (snap) => {
       const parsed = snap.docs.map(d => ({ id: d.id, ...d.data() } as DriveFolder));
       parsed.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      setFolders(parsed);
+      const filtered = isAdmin ? parsed : parsed.filter(f => f.userId === user.uid);
+      setFolders(filtered);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'folders'));
 
     const unsubDocuments = onSnapshot(documentsQ, (snap) => {
       const parsed = snap.docs.map(d => ({ id: d.id, ...d.data() } as FileDocument));
       parsed.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-      setDocuments(parsed);
+      const filtered = isAdmin ? parsed : parsed.filter(doc => doc.userId === user.uid);
+      setDocuments(filtered);
     }, (err) => handleFirestoreError(err, OperationType.GET, 'documents'));
 
     return () => { unsubOrders(); unsubTickets(); unsubQuotes(); unsubFolders(); unsubDocuments(); };
@@ -535,13 +553,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return ref.id;
   };
 
-  const updateTicket = async (ticketId: string, messages: TicketMessage[], status?: 'OPEN' | 'CLOSED') => {
+  const updateTicket = async (ticketId: string, messages: TicketMessage[], status?: 'OPEN' | 'CLOSED', needsHuman?: boolean) => {
     const updateData: any = {
       messages,
       updatedAt: new Date().toISOString()
     };
     if (status) {
       updateData.status = status;
+    }
+    if (needsHuman !== undefined) {
+      updateData.needsHuman = needsHuman;
     }
     await updateDoc(doc(db, 'tickets', ticketId), cleanUndefined(updateData));
   };
