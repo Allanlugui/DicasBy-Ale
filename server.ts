@@ -56,10 +56,8 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 
   // List of valid models from current skill guidelines
   const fallbackList = [
     requestedModel,
-    "gemini-3.5-flash",
-    "gemini-3.1-flash-lite",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
+    "gemini-1.5-flash",
+    "gemini-1.5-pro"
   ];
   
   // Filter out duplicates and maintain order

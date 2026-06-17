@@ -308,23 +308,7 @@ export function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {sortedProducts.slice(0, 8).map(product => (
-            <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
-          ))}
-        </div>
-
-        {/* Store Carousel in the Middle */}
-        {featuredStores.length > 0 && (
-          <div className="-mx-4 sm:-mx-6 lg:-mx-8 my-12">
-             <StoreCarousel 
-              items={featuredStores} 
-              onItemClick={(storeId) => setSelectedStore(storeId === selectedStore ? null : storeId)} 
-             />
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {sortedProducts.slice(8).map(product => (
+          {sortedProducts.map(product => (
             <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
           ))}
         </div>

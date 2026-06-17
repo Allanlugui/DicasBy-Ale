@@ -11,6 +11,7 @@ import { Login } from './pages/Login';
 import { Support } from './pages/Support';
 import { Receipt } from './pages/Receipt';
 import { Profile } from './pages/Profile';
+import { Footer } from './components/Footer';
 
 function ProtectedAdmin({ children }: { children: React.ReactNode }) {
   const { user, isAdmin } = useAppContext();
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/admin" element={<ProtectedAdmin><Admin /></ProtectedAdmin>} />
             </Routes>
           </main>
+          <Footer />
         </div>
       </BrowserRouter>
     </AppProvider>

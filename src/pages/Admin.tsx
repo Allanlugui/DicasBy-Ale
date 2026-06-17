@@ -12,6 +12,7 @@ import { AdminCollaboratorsTab } from './AdminCollaboratorsTab';
 import { AdminShippingLabelsTab } from './AdminShippingLabelsTab';
 import { AdminQuotesTab } from '../components/AdminQuotesTab';
 import { AdminDriveTab } from './AdminDriveTab';
+import { AdminCustomersTab } from './AdminCustomersTab';
 
 export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updateTicket: any }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -209,8 +210,6 @@ export function ReviewsTab({ reviews }: { reviews: Review[] }) {
     </div>
   );
 }
-
-import { AdminCustomersTab } from './AdminCustomersTab';
 
 function AdminNotificationsTab() {
   const { notifications, resolveNotification } = useAppContext();
@@ -460,18 +459,20 @@ function ShippingMethodsTab() {
 
 export function Admin() {
   const { collaborator, user, orders, stores, products, tickets, reviews, updateOrderStatus, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, updateTicket, notifications, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | null>(null);
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'highlights' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | null>(null);
 
   const hasPermission = (perm: string) => {
     if (user?.email === 'jallanluiz@gmail.com') return true;
     if (!collaborator) return false;
+    // Allow access to highlights if they have products or stores permission
+    if (perm === 'highlights') return collaborator.permissions.includes('products') || collaborator.permissions.includes('stores');
     return collaborator.permissions.includes(perm);
   };
 
   // Automatically select the first visible/permitted tab on load or profile load
   useEffect(() => {
     const tabs: (typeof activeTab)[] = [
-      'orders', 'products', 'stores', 'tickets', 'team', 'shipping', 'reviews', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory', 'knowledge'
+      'orders', 'products', 'stores', 'highlights', 'tickets', 'team', 'shipping', 'reviews', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory', 'knowledge'
     ];
     const allowed = tabs.find(t => {
       if (t === 'shipping') return hasPermission('orders');
@@ -535,6 +536,18 @@ export function Admin() {
           >
             Lojas
             {activeTab === 'stores' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
+          </button>
+        )}
+        {hasPermission('highlights') && (
+          <button 
+            onClick={() => setActiveTab('highlights')}
+            className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === 'highlights' ? 'text-rose-600' : 'text-stone-500 hover:text-stone-800'}`}
+          >
+            <div className="flex items-center gap-1">
+              <Star className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+              Destaques
+            </div>
+            {activeTab === 'highlights' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
           </button>
         )}
         {hasPermission('settings') && (
@@ -651,6 +664,7 @@ export function Admin() {
       {activeTab === 'customers' && hasPermission('orders') && <AdminCustomersTab />}
       {activeTab === 'products' && hasPermission('products') && <ProductsTab products={products} stores={stores} addProduct={addProduct} updateProduct={updateProduct} deleteProduct={deleteProduct} />}
       {activeTab === 'stores' && hasPermission('stores') && <StoresTab stores={stores} addStore={addStore} updateStore={updateStore} deleteStore={deleteStore} />}
+      {activeTab === 'highlights' && hasPermission('highlights') && <HighlightsTab products={products} stores={stores} updateProduct={updateProduct} updateStore={updateStore} />}
       {activeTab === 'tickets' && hasPermission('tickets') && <TicketsTab tickets={tickets} updateTicket={updateTicket} />}
       {activeTab === 'team' && hasPermission('team') && <AdminCollaboratorsTab />}
       {activeTab === 'shipping' && hasPermission('orders') && <AdminShippingLabelsTab orders={orders} />}
@@ -1366,6 +1380,77 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
   );
 }
 
+function HighlightsTab({ products, stores, updateProduct, updateStore }: { products: Product[], stores: Store[], updateProduct: any, updateStore: any }) {
+  const featuredProducts = products.filter(p => p.isFeatured);
+  const featuredStores = stores.filter(s => s.isFeatured);
+
+  return (
+    <div className="space-y-12">
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-stone-900">Produtos em Destaque (Carrossel Home)</h3>
+            <p className="text-xs text-stone-500">Produtos que aparecerão na barra rolante superior da página inicial.</p>
+          </div>
+          <span className="bg-rose-50 text-rose-600 px-3 py-1 rounded-full text-xs font-black uppercase">{featuredProducts.length} Itens</span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {products.map(p => (
+            <button 
+              key={p.id}
+              onClick={() => updateProduct(p.id, { isFeatured: !p.isFeatured })}
+              className={`flex items-center gap-3 p-3 rounded-2xl border transition text-left cursor-pointer group ${p.isFeatured ? 'bg-rose-50 border-rose-200' : 'bg-white border-stone-100 hover:border-stone-200 shadow-sm'}`}
+            >
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 shrink-0">
+                <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-stone-900 truncate">{p.name}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                   <Star className={`w-3 h-3 ${p.isFeatured ? 'fill-rose-500 text-rose-500' : 'text-stone-300'}`} />
+                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-tighter">{p.isFeatured ? 'No Carrossel' : 'Inativo'}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-6 pt-12 border-t border-stone-100">
+          <div>
+            <h3 className="text-xl font-bold text-stone-900">Lojas em Destaque (Barra de Marcas)</h3>
+            <p className="text-xs text-stone-500">Lojas que aparecerão no carrossel de logomarcas no meio da página.</p>
+          </div>
+          <span className="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-black uppercase">{featuredStores.length} Lojas</span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stores.map(s => (
+            <button 
+              key={s.id}
+              onClick={() => updateStore(s.id, { isFeatured: !s.isFeatured })}
+              className={`flex items-center gap-3 p-3 rounded-2xl border transition text-left cursor-pointer group ${s.isFeatured ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-stone-100 hover:border-stone-200 shadow-sm'}`}
+            >
+              <div className="w-12 h-12 rounded-lg bg-stone-50 flex items-center justify-center p-2 shrink-0">
+                {s.logoUrl ? <img src={s.logoUrl} alt="" className="h-full w-auto object-contain" /> : <StoreIcon className="w-6 h-6 text-stone-200" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-stone-900 truncate">{s.name}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                   <Star className={`w-3 h-3 ${s.isFeatured ? 'fill-indigo-500 text-indigo-500' : 'text-stone-300'}`} />
+                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-tighter">{s.isFeatured ? 'Na Barra' : 'Inativa'}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduct }: { products: Product[], stores: Store[], addProduct: any, updateProduct: any, deleteProduct: any }) {
   const [showForm, setShowForm] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -1678,7 +1763,11 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
             </div>
             <div className="p-4">
               <div className="flex justify-between items-start mb-1">
-                <h4 className="font-bold text-stone-900 line-clamp-1">{p.name} {p.brand && <span className="text-stone-400 font-normal">| {p.brand}</span>}</h4>
+                <h4 className="font-bold text-stone-900 line-clamp-1 flex items-center gap-2">
+                  {p.name} 
+                  {p.isFeatured && <Star className="w-3 h-3 text-rose-500 fill-rose-500" />}
+                  {p.brand && <span className="text-stone-400 font-normal">| {p.brand}</span>}
+                </h4>
               </div>
               <p className="text-xs text-stone-500 mb-3 line-clamp-2">{p.description}</p>
               <div className="flex items-center gap-2 mb-3">
@@ -1756,7 +1845,17 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
               </div>
               <div className="space-y-4">
                  <ImageInput label="Logo (URL)" value={logoUrl} onChange={setLogoUrl} />
-                 <div className="flex justify-end gap-2 pt-4">
+                 <div className="flex items-center gap-2 py-2">
+                    <input 
+                      type="checkbox" 
+                      id="storeFeatured" 
+                      checked={isFeatured} 
+                      onChange={e => setIsFeatured(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 border-stone-300 rounded focus:ring-indigo-500"
+                    />
+                    <label htmlFor="storeFeatured" className="text-sm font-bold text-stone-700">Destaque na Home (Barra de Marcas)</label>
+                 </div>
+                 <div className="flex justify-end gap-2 pt-2">
                    <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-bold">Limpar</button>
                    <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold">Salvar Loja</button>
                  </div>
@@ -1771,7 +1870,10 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
             <div className="h-16 w-full flex items-center justify-center mb-3">
               {s.logoUrl ? <img src={s.logoUrl} alt={s.name} className="h-full w-auto max-w-full object-contain grayscale group-hover:grayscale-0 transition" /> : <StoreIcon className="w-8 h-8 text-stone-200" />}
             </div>
-            <span className="font-bold text-stone-800 text-sm truncate w-full px-2">{s.name}</span>
+            <span className="font-bold text-stone-800 text-sm truncate w-full px-2 flex items-center justify-center gap-1">
+              {s.name}
+              {s.isFeatured && <Star className="w-3 h-3 text-indigo-500 fill-indigo-500" />}
+            </span>
             <div className="absolute inset-0 bg-stone-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">
                 <button onClick={() => { setEditingId(s.id); setName(s.name); setLogoUrl(s.logoUrl || ''); setDescription(s.description || ''); setIsFeatured(s.isFeatured || false); setShowForm(true); }} className="bg-white p-2 rounded-lg text-indigo-600 hover:scale-110 transition cursor-pointer"><Edit2 className="w-4 h-4" /></button>
                 <button onClick={() => deleteStore(s.id)} className="bg-white p-2 rounded-lg text-rose-600 hover:scale-110 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>
