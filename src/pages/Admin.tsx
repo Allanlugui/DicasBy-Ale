@@ -15,9 +15,11 @@ import { AdminDriveTab } from './AdminDriveTab';
 import { AdminCustomersTab } from './AdminCustomersTab';
 
 export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updateTicket: any }) {
+  const { learnFromTicket } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [reply, setReply] = useState('');
+  const [isLearning, setIsLearning] = useState(false);
 
   const filteredTickets = tickets.filter(t => t.protocol.includes(searchTerm) || t.customerName.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -36,6 +38,19 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
     if (!currentTicket || currentTicket.status === 'CLOSED') return;
     const closedMsg: TicketMessage = { role: 'bot', text: 'Atendimento encerrado pelo administrador.', timestamp: new Date().toISOString() };
     await updateTicket(currentTicket.id, [...currentTicket.messages, closedMsg], 'CLOSED');
+  };
+
+  const handleManualLearn = async () => {
+    if (!currentTicket) return;
+    setIsLearning(true);
+    try {
+      await learnFromTicket(currentTicket.id);
+      alert('A IA analisou esta conversa e extraiu novos aprendizados (se aplicável). Verifique a aba IA Regenerativa.');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLearning(false);
+    }
   };
 
   return (
@@ -95,15 +110,27 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
                 </div>
                 <p className="text-xs text-stone-500">Cliente: {currentTicket.customerName}</p>
               </div>
-              {currentTicket.status === 'CLOSED' ? (
-                <span className="px-3 py-1 bg-stone-100 text-stone-500 rounded-lg text-xs font-bold uppercase">
-                  Encerrado
-                </span>
-              ) : (
-                <button onClick={handleClose} className="px-3 py-1 bg-rose-100 text-rose-600 rounded-lg text-xs font-bold hover:bg-rose-200">
-                  Encerrar
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleManualLearn} 
+                  disabled={isLearning || currentTicket.messages.length < 3}
+                  title="Extrair aprendizados desta conversa para a IA"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isLearning ? 'bg-amber-100 text-amber-600 animate-pulse' : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200'}`}
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  <span>{isLearning ? 'Analisando...' : 'Ensinar para IA'}</span>
                 </button>
-              )}
+
+                {currentTicket.status === 'CLOSED' ? (
+                  <span className="px-3 py-1.5 bg-stone-100 text-stone-500 rounded-lg text-xs font-bold uppercase border border-stone-200">
+                    Encerrado
+                  </span>
+                ) : (
+                  <button onClick={handleClose} className="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 shadow-sm transition-colors">
+                    Encerrar
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                {currentTicket.messages.map((m, i) => (

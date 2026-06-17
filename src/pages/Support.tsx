@@ -267,7 +267,14 @@ export function Support() {
        }).catch(console.error);
     }
     
-    // Now trigger bot
+    // Now trigger bot only if no human agent has joined yet
+    const hasAgentJoined = newMessages.some(m => m.role === 'bot' && m.isAgent === true);
+    
+    if (hasAgentJoined) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const userOrders = orders.filter(o => o.userId === user?.uid);
       const res = await fetch('/api/chat', {

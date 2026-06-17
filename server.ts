@@ -326,7 +326,7 @@ app.post("/api/extract-product", async (req, res) => {
         `;
 
         const aiResponse = await generateContentWithRetry(ai, {
-          model: "gemini-3.5-flash",
+          model: "gemini-1.5-flash",
           contents: prompt,
           config: {
             tools: [{ googleSearch: {} }] // Dynamic Google Search grounding enabled!
@@ -431,7 +431,7 @@ app.post("/api/search-internet", async (req, res) => {
     - Siga o formato JSON rigorosamente. Não adicione texto conversacional.`;
 
     const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }], 
@@ -637,7 +637,7 @@ ${productsInfo}`;
     }
 
     const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents,
       config: {
         systemInstruction: systemInstruction
@@ -783,7 +783,7 @@ app.post("/api/notify-ticket", async (req, res) => {
     } else {
       try {
         const aiResponse = await generateContentWithRetry(ai, {
-          model: "gemini-3.5-flash",
+          model: "gemini-1.5-flash",
           contents: prompt
         });
         summaryText = aiResponse.text;
@@ -1001,25 +1001,19 @@ ${conversationText}`;
 
     try {
       const aiResponse = await generateContentWithRetry(ai, {
-        model: "gemini-3.5-flash",
-        contents: prompt
+        model: "gemini-1.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
       });
 
       const responseText = aiResponse.text;
-      
-      // Attempt to extract JSON from response text
-      let jsonStr = responseText;
-      const jsonStart = responseText.indexOf('[');
-      const jsonEnd = responseText.lastIndexOf(']');
-      if (jsonStart !== -1 && jsonEnd !== -1) {
-        jsonStr = responseText.substring(jsonStart, jsonEnd + 1);
-      }
-
       let parsedKnowledge = [];
       try {
-        parsedKnowledge = JSON.parse(jsonStr);
+        parsedKnowledge = JSON.parse(responseText);
       } catch (err) {
-        console.warn("[Register Knowledge] Failed to parse JSON reply from Gemini, response was:", responseText);
+        console.warn("[Register Knowledge] Failed to parse JSON reply from Gemini:", err);
       }
 
       return res.json({ result: Array.isArray(parsedKnowledge) ? parsedKnowledge : [] });
