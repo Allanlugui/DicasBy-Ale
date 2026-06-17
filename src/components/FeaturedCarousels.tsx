@@ -44,26 +44,26 @@ export function StoreCarousel({ items, onItemClick }: StoreCarouselProps) {
   if (items.length === 0) return null;
 
   // We repeat items multiple times to ensure the carousel is filled even on wide screens
-  const duplicatedItems = [...items, ...items, ...items, ...items, ...items, ...items];
+  const duplicatedItems = [...items, ...items, ...items, ...items, ...items];
 
   return (
-    <div className="w-full overflow-hidden bg-[#131921] py-8 sm:py-12 border-y border-[#232f3e]">
-      <div className="flex animate-scroll whitespace-nowrap gap-12 sm:gap-32 hover:[animation-play-state:paused] items-center">
+    <div className="w-full overflow-hidden bg-white py-10 sm:py-16 border-y border-stone-100">
+      <div className="flex animate-scroll whitespace-nowrap gap-16 sm:gap-40 hover:[animation-play-state:paused] items-center">
         {duplicatedItems.map((store, idx) => (
           <button
             key={`${store.id}-${idx}`}
             onClick={() => onItemClick(store.id)}
             className="inline-flex items-center group cursor-pointer shrink-0"
           >
-            <div className="h-12 sm:h-24 w-auto transition-all duration-500">
+            <div className="h-10 sm:h-20 w-auto transition-all duration-500">
               {store.logoUrl ? (
                 <img 
                   src={store.logoUrl} 
                   alt={store.name} 
-                  className="h-full w-auto object-contain opacity-50 group-hover:opacity-100 group-hover:scale-110 transition-all filter grayscale invert brightness-200" 
+                  className="h-full w-auto object-contain opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all" 
                 />
               ) : (
-                <span className="text-stone-500 group-hover:text-white font-black text-2xl sm:text-4xl uppercase tracking-tighter transition-colors">{store.name}</span>
+                <span className="text-stone-300 group-hover:text-rose-600 font-black text-2xl sm:text-4xl uppercase tracking-tighter transition-colors">{store.name}</span>
               )}
             </div>
           </button>

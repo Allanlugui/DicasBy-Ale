@@ -24,8 +24,8 @@ export function Footer() {
 
       {/* Store Carousel Integration */}
       {featuredStores.length > 0 && (
-        <div className="border-b border-[#232f3e]">
-          <div className="max-w-7xl mx-auto py-1">
+        <div className="bg-white border-b border-stone-200">
+          <div className="max-w-7xl mx-auto">
              <StoreCarousel 
                items={featuredStores} 
                onItemClick={() => {}} 
@@ -104,12 +104,12 @@ export function Footer() {
       <div className="bg-[#131a22] py-8 border-t border-[#232f3e]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
           <div className="space-y-2 text-[11px] text-[#888888]">
-            <p>© 2021-2026 {companySettings?.companyName || 'ImportaGringa VIP'}. Todos os direitos reservados.</p>
+            <p>© 2021-2026 {companySettings?.companyName || 'Dicas by Alê VIP'}. Todos os direitos reservados.</p>
             {companySettings?.companyCnpj && (
               <p>CNPJ: {companySettings.companyCnpj}</p>
             )}
-            <p className="max-w-2xl mx-auto opacity-60">Sua Personal Shopper VIP nos Estados Unidos. Compre nas melhores marcas americanas e receba com segurança no conforto da sua casa no Brasil.</p>
-            <p className="mt-2 text-[#666666]">Dicas by Alê - Assessoria de Compras e Redirecionamento Internacional.</p>
+            <p className="max-w-2xl mx-auto opacity-60">Especialistas em Personal Shopper e Redirecionamento Internacional Estados Unidos para Brasil. Qualidade, segurança e economia para suas compras no exterior.</p>
+            <p className="mt-2 text-[#666666]">Dicas by Alê - Assessoria de Compras e Logística Internacional.</p>
           </div>
 
           <div className="pt-4 border-t border-[#232f3e] max-w-lg mx-auto">

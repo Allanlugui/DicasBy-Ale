@@ -51,13 +51,13 @@ function isModelOverloaded(modelName: string): boolean {
 
 // Resilient wrapper with automatic retry and model fallback for transient high-demand API issues (like 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED)
 async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 3, delayMs = 500): Promise<any> {
-  const requestedModel = params.model || "gemini-3.5-flash";
+  const requestedModel = params.model || "gemini-1.5-flash";
   
   // List of valid models from current skill guidelines
   const fallbackList = [
     requestedModel,
     "gemini-1.5-flash",
-    "gemini-1.5-pro"
+    "gemini-2.0-flash"
   ];
   
   // Filter out duplicates and maintain order
