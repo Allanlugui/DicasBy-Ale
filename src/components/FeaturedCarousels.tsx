@@ -43,24 +43,27 @@ interface StoreCarouselProps {
 export function StoreCarousel({ items, onItemClick }: StoreCarouselProps) {
   if (items.length === 0) return null;
 
+  // We repeat items multiple times to ensure the carousel is filled even on wide screens
+  const duplicatedItems = [...items, ...items, ...items, ...items, ...items, ...items];
+
   return (
-    <div className="w-full overflow-hidden bg-white py-6 border-y border-stone-100">
-      <div className="flex animate-scroll-reverse whitespace-nowrap gap-12 sm:gap-24 hover:[animation-play-state:paused] items-center">
-        {[...items, ...items, ...items].map((store, idx) => (
+    <div className="w-full overflow-hidden bg-[#131921] py-8 sm:py-12 border-y border-[#232f3e]">
+      <div className="flex animate-scroll whitespace-nowrap gap-12 sm:gap-32 hover:[animation-play-state:paused] items-center">
+        {duplicatedItems.map((store, idx) => (
           <button
             key={`${store.id}-${idx}`}
             onClick={() => onItemClick(store.id)}
-            className="inline-flex items-center group cursor-pointer"
+            className="inline-flex items-center group cursor-pointer shrink-0"
           >
-            <div className="h-10 sm:h-16 w-auto transition-all duration-300">
+            <div className="h-12 sm:h-24 w-auto transition-all duration-500">
               {store.logoUrl ? (
                 <img 
                   src={store.logoUrl} 
                   alt={store.name} 
-                  className="h-full w-auto object-contain opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all filter grayscale group-hover:grayscale-0" 
+                  className="h-full w-auto object-contain opacity-50 group-hover:opacity-100 group-hover:scale-110 transition-all filter grayscale invert brightness-200" 
                 />
               ) : (
-                <span className="text-stone-300 group-hover:text-stone-900 font-black text-lg uppercase tracking-widest transition-colors">{store.name}</span>
+                <span className="text-stone-500 group-hover:text-white font-black text-2xl sm:text-4xl uppercase tracking-tighter transition-colors">{store.name}</span>
               )}
             </div>
           </button>

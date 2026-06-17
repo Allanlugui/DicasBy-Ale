@@ -22,58 +22,63 @@ export function Footer() {
         Voltar ao início
       </button>
 
-      {/* Store Carousel Integration (The requested "same model" in the footer) */}
+      {/* Store Carousel Integration */}
       {featuredStores.length > 0 && (
-        <div className="bg-white border-b border-stone-200">
-          <StoreCarousel 
-            items={featuredStores} 
-            onItemClick={() => {}} 
-          />
+        <div className="border-b border-[#232f3e]">
+          <div className="max-w-7xl mx-auto py-1">
+             <StoreCarousel 
+               items={featuredStores} 
+               onItemClick={() => {}} 
+             />
+          </div>
         </div>
       )}
 
       {/* Main Footer Links */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12 text-sm text-center sm:text-left">
+      <div className="max-w-7xl mx-auto px-6 py-16 sm:py-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 text-base text-center sm:text-left">
           {/* Column 1 */}
-          <div className="space-y-4">
-            <h4 className="font-bold text-base">Minha Conta</h4>
-            <ul className="space-y-2 text-[#cccccc]">
-              <li><Link to="/perfil" className="hover:underline">Seu Perfil</Link></li>
-              <li><Link to="/rastreio" className="hover:underline">Seus Pedidos</Link></li>
-              <li><Link to="/carrinho" className="hover:underline">Seu Carrinho</Link></li>
+          <div className="space-y-6">
+            <h4 className="font-black text-xl uppercase tracking-tighter text-rose-500">Minha Conta</h4>
+            <ul className="space-y-4 text-stone-300">
+              <li><Link to="/perfil" className="hover:text-white transition-colors">Seu Perfil VIP</Link></li>
+              <li><Link to="/rastreio" className="hover:text-white transition-colors">Acompanhar Pedidos</Link></li>
+              <li><Link to="/carrinho" className="hover:text-white transition-colors">Carrinho de Compras</Link></li>
             </ul>
           </div>
 
           {/* Column 2 */}
-          <div className="space-y-4">
-            <h4 className="font-bold text-base">Atendimento</h4>
-            <ul className="space-y-2 text-[#cccccc]">
-              <li><Link to="/suporte" className="hover:underline">Fale Conosco</Link></li>
-              <li><Link to="/suporte" className="hover:underline">Dúvidas Frequentes</Link></li>
-              <li><Link to="/suporte" className="hover:underline">Termos de Uso</Link></li>
-              <li><Link to="/suporte" className="hover:underline">Privacidade</Link></li>
+          <div className="space-y-6">
+            <h4 className="font-black text-xl uppercase tracking-tighter text-rose-500">Atendimento</h4>
+            <ul className="space-y-4 text-stone-300">
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Fale Conosco (WhatsApp)</Link></li>
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Central de Ajuda</Link></li>
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Termos e Condições</Link></li>
             </ul>
           </div>
 
           {/* Column 3 */}
-          <div className="space-y-4">
-            <h4 className="font-bold text-base">Importação</h4>
-            <ul className="space-y-2 text-[#cccccc]">
-              <li><Link to="/suporte" className="hover:underline">Como Funciona</Link></li>
-              <li><Link to="/suporte" className="hover:underline">Taxas e Impostos</Link></li>
-              <li><Link to="/suporte" className="hover:underline">Prazos de Entrega</Link></li>
+          <div className="space-y-6">
+            <h4 className="font-black text-xl uppercase tracking-tighter text-rose-500">Importação</h4>
+            <ul className="space-y-4 text-stone-300">
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Como Comprar nos EUA</Link></li>
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Custos e Prazos</Link></li>
+              <li><Link to="/suporte" className="hover:text-white transition-colors">Seguro de Carga</Link></li>
             </ul>
           </div>
 
           {/* Column 4 */}
-          <div className="space-y-4">
-            <h4 className="font-bold text-base">Pagamento</h4>
-            <ul className="space-y-2 text-[#cccccc]">
-              <li><span className="block italic opacity-70">Aceitamos:</span></li>
-              <li className="text-white font-bold">PIX, Cartão de Crédito</li>
-              <li><span className="text-[10px] opacity-50">Parcelamento em até 12x</span></li>
-            </ul>
+          <div className="space-y-6">
+            <h4 className="font-black text-xl uppercase tracking-tighter text-rose-500">Pagamento</h4>
+            <div className="p-4 bg-[#232f3e] rounded-2xl border border-[#37475a] space-y-3">
+              <p className="text-xs text-stone-400 font-bold uppercase tracking-widest">Métodos Aceitos</p>
+              <div className="flex flex-wrap justify-center sm:justify-start gap-3">
+                 <span className="bg-stone-800 px-3 py-1 rounded text-xs font-bold">PIX</span>
+                 <span className="bg-stone-800 px-3 py-1 rounded text-xs font-bold">CRÉDITO</span>
+                 <span className="bg-stone-800 px-3 py-1 rounded text-xs font-bold">BOLETO</span>
+              </div>
+              <p className="text-[10px] text-rose-400 font-bold">Parcelamento em até 12x</p>
+            </div>
           </div>
         </div>
 
