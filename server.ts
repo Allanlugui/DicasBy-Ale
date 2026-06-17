@@ -51,13 +51,14 @@ function isModelOverloaded(modelName: string): boolean {
 
 // Resilient wrapper with automatic retry and model fallback for transient high-demand API issues (like 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED)
 async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 3, delayMs = 500): Promise<any> {
-  const requestedModel = params.model || "gemini-1.5-flash";
+  const requestedModel = params.model || "gemini-3.5-flash";
   
   // List of valid models from current skill guidelines
   const fallbackList = [
     requestedModel,
-    "gemini-1.5-flash",
-    "gemini-2.0-flash"
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
   ];
   
   // Filter out duplicates and maintain order
@@ -326,7 +327,7 @@ app.post("/api/extract-product", async (req, res) => {
         `;
 
         const aiResponse = await generateContentWithRetry(ai, {
-          model: "gemini-1.5-flash",
+          model: "gemini-3.5-flash",
           contents: prompt,
           config: {
             tools: [{ googleSearch: {} }] // Dynamic Google Search grounding enabled!
@@ -431,7 +432,7 @@ app.post("/api/search-internet", async (req, res) => {
     - Siga o formato JSON rigorosamente. Não adicione texto conversacional.`;
 
     const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-1.5-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }], 
@@ -637,7 +638,7 @@ ${productsInfo}`;
     }
 
     const aiResponse = await generateContentWithRetry(ai, {
-      model: "gemini-1.5-flash",
+      model: "gemini-3.5-flash",
       contents,
       config: {
         systemInstruction: systemInstruction
@@ -783,7 +784,7 @@ app.post("/api/notify-ticket", async (req, res) => {
     } else {
       try {
         const aiResponse = await generateContentWithRetry(ai, {
-          model: "gemini-1.5-flash",
+          model: "gemini-3.5-flash",
           contents: prompt
         });
         summaryText = aiResponse.text;
@@ -1001,7 +1002,7 @@ ${conversationText}`;
 
     try {
       const aiResponse = await generateContentWithRetry(ai, {
-        model: "gemini-1.5-flash",
+        model: "gemini-3.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
