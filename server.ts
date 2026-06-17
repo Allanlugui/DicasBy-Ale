@@ -152,7 +152,7 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 
 const app = express();
 export const viteNodeApp = app; // For Vercel/Vite plugins if needed
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Robust RegExp scraper helpers (prevents massive memory usage or binary require failures of JSDOM on Vercel Node runtime)
 function extractTitle(html: string): string {
