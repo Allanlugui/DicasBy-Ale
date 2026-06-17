@@ -44,22 +44,25 @@ export function StoreCarousel({ items, onItemClick }: StoreCarouselProps) {
   if (items.length === 0) return null;
 
   return (
-    <div className="w-full overflow-hidden bg-stone-900 py-1.5">
-      <div className="flex animate-scroll-reverse whitespace-nowrap gap-10 hover:[animation-play-state:paused] items-center">
+    <div className="w-full overflow-hidden bg-white py-6 border-y border-stone-100">
+      <div className="flex animate-scroll-reverse whitespace-nowrap gap-12 sm:gap-24 hover:[animation-play-state:paused] items-center">
         {[...items, ...items, ...items].map((store, idx) => (
           <button
             key={`${store.id}-${idx}`}
             onClick={() => onItemClick(store.id)}
-            className="inline-flex items-center gap-4 group cursor-pointer"
+            className="inline-flex items-center group cursor-pointer"
           >
-            <div className="h-4 w-auto opacity-40 group-hover:opacity-100 transition duration-300">
+            <div className="h-10 sm:h-16 w-auto transition-all duration-300">
               {store.logoUrl ? (
-                <img src={store.logoUrl} alt={store.name} className="h-full w-auto object-contain grayscale invert" />
+                <img 
+                  src={store.logoUrl} 
+                  alt={store.name} 
+                  className="h-full w-auto object-contain opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all filter grayscale group-hover:grayscale-0" 
+                />
               ) : (
-                <span className="text-white font-bold text-[10px] uppercase tracking-widest">{store.name}</span>
+                <span className="text-stone-300 group-hover:text-stone-900 font-black text-lg uppercase tracking-widest transition-colors">{store.name}</span>
               )}
             </div>
-            <span className="w-1 h-1 rounded-full bg-stone-700"></span>
           </button>
         ))}
       </div>
