@@ -1386,6 +1386,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
   const [stockType, setStockType] = useState<'IN_STOCK' | 'PARTNER_STORE'>('IN_STOCK');
   const [inventory, setInventory] = useState(0);
   const [tags, setTags] = useState('');
+  const [isFeatured, setIsFeatured] = useState(false);
   const [specifications, setSpecifications] = useState<{key: string, value: string}[]>([]);
   const [variants, setVariants] = useState<{name: string, sku: string, stock: number, priceUSD: number, priceBRL: number}[]>([]);
 
@@ -1408,6 +1409,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setStockType('IN_STOCK');
     setInventory(0);
     setTags('');
+    setIsFeatured(false);
     setSpecifications([]);
     setVariants([]);
     setProductUrl('');
@@ -1421,7 +1423,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
 
     const productData = { 
       storeId, name, description, priceUSD, priceBRL, imageUrl, 
-      sku, category, brand, stockType, inventory, 
+      sku, category, brand, stockType, inventory, isFeatured,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
       specifications: specsMap,
       variants: variants.map((v, idx) => ({
@@ -1456,6 +1458,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setBrand(p.brand || '');
     setStockType(p.stockType || 'IN_STOCK');
     setInventory(p.inventory || 0);
+    setIsFeatured(p.isFeatured || false);
     setTags(p.tags?.join(', ') || '');
     setSpecifications(Object.entries(p.specifications || {}).map(([key, value]) => ({ key, value })));
     setVariants((p.variants || []).map(v => ({
@@ -1554,6 +1557,16 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
                 <div>
                   <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">Tags (separadas por vírgula)</label>
                   <input type="text" value={tags} onChange={e => setTags(e.target.value)} placeholder="promocao, lancamento, apple" className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50" />
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <input 
+                    type="checkbox" 
+                    id="isFeatured" 
+                    checked={isFeatured} 
+                    onChange={e => setIsFeatured(e.target.checked)}
+                    className="w-4 h-4 text-rose-500 border-stone-300 rounded focus:ring-rose-500"
+                  />
+                  <label htmlFor="isFeatured" className="text-sm font-bold text-stone-700">Produto em Destaque (Carrossel)</label>
                 </div>
               </div>
             </div>
@@ -1692,20 +1705,22 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [isFeatured, setIsFeatured] = useState(false);
 
   const resetForm = () => {
     setEditingId('');
     setName('');
     setLogoUrl('');
     setDescription('');
+    setIsFeatured(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId) {
-      await updateStore(editingId, { name, logoUrl, description });
+      await updateStore(editingId, { name, logoUrl, description, isFeatured });
     } else {
-      await addStore({ name, logoUrl, description });
+      await addStore({ name, logoUrl, description, isFeatured });
     }
     resetForm();
     setShowForm(false);
@@ -1758,7 +1773,7 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
             </div>
             <span className="font-bold text-stone-800 text-sm truncate w-full px-2">{s.name}</span>
             <div className="absolute inset-0 bg-stone-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">
-                <button onClick={() => { setEditingId(s.id); setName(s.name); setLogoUrl(s.logoUrl || ''); setDescription(s.description || ''); setShowForm(true); }} className="bg-white p-2 rounded-lg text-indigo-600 hover:scale-110 transition cursor-pointer"><Edit2 className="w-4 h-4" /></button>
+                <button onClick={() => { setEditingId(s.id); setName(s.name); setLogoUrl(s.logoUrl || ''); setDescription(s.description || ''); setIsFeatured(s.isFeatured || false); setShowForm(true); }} className="bg-white p-2 rounded-lg text-indigo-600 hover:scale-110 transition cursor-pointer"><Edit2 className="w-4 h-4" /></button>
                 <button onClick={() => deleteStore(s.id)} className="bg-white p-2 rounded-lg text-rose-600 hover:scale-110 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>

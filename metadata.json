@@ -1,6 +1,6 @@
 {
   "name": "Dicas by Alê",
   "description": "Compre nos EUA e receba no Brasil. Lojas originais, acompanhamento e importação sob demanda por Dicas by Alê.",
-  "requestFramePermissions": ["camera"],
+  "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

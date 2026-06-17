@@ -38,6 +38,7 @@ export type Store = {
   name: string;
   logoUrl?: string;
   description?: string;
+  isFeatured?: boolean;
 };
 
 export type ProductVariant = {
@@ -65,6 +66,7 @@ export type Product = {
   stockType: 'IN_STOCK' | 'PARTNER_STORE';
   inventory: number;
   tags?: string[];
+  isFeatured?: boolean;
 };
 
 export type ShippingMethod = {
@@ -212,6 +214,8 @@ export type QuoteRequest = {
   productDescription?: string;
   productImageUrl?: string;
   priceUSD: number;
+  priceBRL?: number;
+  currency?: string;
   quotedPriceUSD?: number;
   quotedPriceBRL?: number;
   storeLocationUS?: string;

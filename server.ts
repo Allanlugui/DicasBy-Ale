@@ -49,20 +49,31 @@ function isModelOverloaded(modelName: string): boolean {
   return true;
 }
 
-// Resilient wrapper with automatic retry and model fallback for transient high-demand API issues (like 503 UNAVAILABLE)
+// Resilient wrapper with automatic retry and model fallback for transient high-demand API issues (like 503 UNAVAILABLE or 429 RESOURCE_EXHAUSTED)
 async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 3, delayMs = 500): Promise<any> {
   const requestedModel = params.model || "gemini-3.5-flash";
-  const defaultList = [
+  
+  // List of valid models from current skill guidelines
+  const fallbackList = [
     requestedModel,
+    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
-    "gemini-flash-latest"
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
   ];
   
-  // Filter out duplicates
-  const uniqueModels = Array.from(new Set(defaultList));
+  // Filter out duplicates and maintain order
+  const modelsToTry: string[] = [];
+  const seen = new Set<string>();
+  for (const m of fallbackList) {
+    if (!seen.has(m)) {
+      modelsToTry.push(m);
+      seen.add(m);
+    }
+  }
   
-  // Sort models dynamically so non-overloaded models have higher precedence
-  const modelsToTry = uniqueModels.sort((a, b) => {
+  // Re-sort to prioritize non-overloaded models
+  const sortedModels = modelsToTry.sort((a, b) => {
     const aOverloaded = isModelOverloaded(a) ? 1 : 0;
     const bOverloaded = isModelOverloaded(b) ? 1 : 0;
     return aOverloaded - bOverloaded;
@@ -70,28 +81,37 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 
 
   let lastError: any = null;
 
-  for (const modelName of modelsToTry) {
-    // If the model is marked overloaded and we have other options left, skip it to save latency
-    if (isModelOverloaded(modelName) && modelName !== modelsToTry[modelsToTry.length - 1]) {
-      console.log(`[Gemini SDK] Skipping overloaded/exhausted model '${modelName}'...`);
+  for (const modelName of sortedModels) {
+    // If the model is marked overloaded but it's the very last one we have, still try it
+    if (isModelOverloaded(modelName) && modelName !== sortedModels[sortedModels.length - 1]) {
+      console.log(`[Gemini SDK] Skipping overloaded model '${modelName}'...`);
       continue;
     }
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        console.log(`[Gemini SDK] Attempting to call ${modelName} (attempt ${attempt}/${retries})...`);
+        console.log(`[Gemini SDK] Calling ${modelName} (attempt ${attempt}/${retries})...`);
+        
+        // Prepare contents: handle both string prompt and multi-turn message array
+        let finalContents = params.contents;
+        if (typeof params.contents === 'string' || !params.contents) {
+          finalContents = params.contents || params.prompt || "";
+        }
+        
+        // CORRECT SDK USAGE: ai.models.generateContent
         const result = await ai.models.generateContent({
-          ...params,
-          model: modelName
+          model: modelName,
+          contents: finalContents,
+          config: params.config // Pass config as a property, not spread
         });
+        
         return result;
       } catch (err: any) {
         lastError = err;
         const msg = err?.message || String(err);
         const status = err?.status;
-        console.warn(`[Gemini SDK] Failed calling ${modelName} on attempt ${attempt}:`, msg);
+        console.warn(`[Gemini SDK] Error ${modelName} [${status}] attempt ${attempt}:`, msg);
 
-        // Treat 503, 429 and any message mentioning demand, quota, unavailable or status 503/429 as transient
         const isQuotaExhausted = 
           status === 429 || 
           msg.includes("429") || 
@@ -106,35 +126,28 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, retries = 
           msg.includes("503") || 
           msg.includes("UNAVAILABLE") || 
           msg.includes("high demand") ||
-          msg.includes("temporary") ||
-          msg.includes("experiencing high demand");
+          msg.includes("temporary");
 
         if (isTemporary) {
-          // If a model is experiencing high demand / 503 / 429, also mark it as overloaded to protect future queries
           markModelOverloaded(modelName);
         }
 
         if (isQuotaExhausted) {
-          // If quota is exhausted or rate limit is hit, do not waste time retrying this model.
-          // Switch to the fallback model immediately.
-          console.log(`[Gemini SDK] Quota exhausted/rate limited for ${modelName}. Switching immediately to fallback.`);
-          break;
+          break; // Move to next model
         }
 
         if (!isTemporary) {
-          // Non-transient error, break the retry for this model and let it proceed to fallback model or throw
-          break;
+          break; // Stop retrying this model
         }
 
         if (attempt < retries) {
-          console.log(`[Gemini SDK] Transient error detected. Retrying in ${delayMs}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          await new Promise(r => setTimeout(r, delayMs * attempt));
         }
       }
     }
   }
 
-  throw lastError;
+  throw lastError || new Error("All Gemini models failed.");
 }
 
 const app = express();
@@ -370,7 +383,7 @@ app.post("/api/extract-product", async (req, res) => {
 
 // Route to perform real internet product search using Gemini & Search Grounding
 app.post("/api/search-internet", async (req, res) => {
-  const { query: searchQuery } = req.body;
+  const { query: searchQuery, userLocation } = req.body;
   if (!searchQuery || typeof searchQuery !== 'string') {
     return res.status(400).json({ error: "Query is required" });
   }
@@ -385,32 +398,46 @@ app.post("/api/search-internet", async (req, res) => {
   }
 
   try {
-    const prompt = `Perform a real active internet search using Google Search to find the product: "${searchQuery}" on popular, official US e-commerce stores (such as Amazon, Walmart, Target, Best Buy, Sephora, Macy's, Nike, Nordstrom, etc.).
-    Identify up to 4 real, currently available matching items listed online in US stores.
+    // Determine context based on userLocation if provided
+    const locationContext = userLocation ? `O usuário está atualmente em: ${JSON.stringify(userLocation)}.` : "Localização do usuário não fornecida, assuma um contexto global (entre Brasil e Estados Unidos).";
+
+    const prompt = `Você é um Personal Shopper Global especializado em economizar o tempo do cliente e aumentar sua produtividade.
     
-    You MUST return a valid, parsable JSON array of objects representing these matching items. 
-    Each object in the array MUST have this exact shape:
+    TAREFA: Realize uma pesquisa ativa na internet via Google Search para encontrar o produto: "${searchQuery}".
+    
+    DIRETRIZES GLOBAIS:
+    1. Pesquise em lojas oficiais e confiáveis nos ESTADOS UNIDOS (ex: Amazon.com, eBay.com, Walmart, Apple, Nike US, Sephora US, etc.) E no BRASIL (ex: Amazon.com.br, Mercado Livre, Magalu, lojas oficiais locais).
+    2. Identifique onde o produto está disponível de forma mais vantajosa (menor preço, disponibilidade ou conveniência).
+    3. Se o usuário estiver nos EUA, prioritize resultados de lojas nos EUA para compra local OU no Brasil se ele desejar enviar para lá (vice-versa se estiver no Brasil).
+    4. ${locationContext}
+    
+    OBJETIVO: Facilitar a vida do cliente. Ele não quer perder tempo viajando apenas para comprar. Mostre que através do seu serviço, ele pode focar na produtividade dele enquanto nós cuidamos da logística.
+
+    Identifique até 6 itens reais e disponíveis que correspondam à pesquisa do usuário.
+    
+    Retorne um JSON array de objetos com este formato exato:
     {
-      "name": "Full real product name as found on the store",
-      "description": "Short clean description of this product (about 1-2 sentences) in Portuguese.",
-      "priceUSD": 29.99, // approximate price in USD as a number (must be a number, do not include symbols)
-      "imageUrl": "https://images.unsplash.com/... or a real direct image found", // standard product image or Unsplash placeholder
-      "storeName": "Store Name", // e.g. Amazon, Best Buy, Sephora, Nordstrom, Target, Walmart...
-      "url": "https://www.store.com/item" // the actual web link/URL to this product page found in the search results
+      "name": "Nome real e completo do produto",
+      "description": "Explicação em português de por que esta é uma ótima opção para o cliente (inclua se é nos EUA ou Brasil e o benefício de conveniência/tempo).",
+      "priceUSD": 0.0, // Preço aproximado em DÓLAR (converta se for no BR, assuma 1 USD = 5 BRL aprox para fins informativos se necessário)
+      "priceBRL": 0.0, // Preço aproximado em REAIS
+      "imageUrl": "URL real de imagem do produto ou Unsplash correspondente",
+      "storeName": "Nome da Loja (País)", // ex: "Amazon (EUA)", "Apple (Brasil)", "Nike (FL, EUA)"
+      "url": "Link real oficial para o produto",
+      "currency": "USD" // Moeda original da loja ("USD" ou "BRL")
     }
     
-    CRITICAL requirements:
-    1. For the "url" field, you MUST extract the actual e-commerce product links from the Google search grounding results. Do NOT use fake domain links or "https://example.com" or "https://amazon.com/product" — the link must be real and correct.
-    2. For "imageUrl", use a real image if available or a high-quality category specific Unsplash URL (e.g. for sneakers/shoes select elegant Unsplash shoe photos, for cosmetics/makeup select elegant cosmetic brush/lipstick Unsplash photos).
-    
-    Constraint: Your entire response must be a valid raw JSON array of up to 4 objects. Do not wrap in conversational text.`;
+    CRÍTICO: 
+    - O campo "url" deve ser o link real do site da loja.
+    - O campo "description" deve reforçar a economia de tempo e praticidade.
+    - Siga o formato JSON rigorosamente. Não adicione texto conversacional.`;
 
     const aiResponse = await generateContentWithRetry(ai, {
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        tools: [{ googleSearch: {} }], // Enable Google Search Grounding!
-        responseMimeType: "application/json" // Force JSON output compliance
+        tools: [{ googleSearch: {} }], 
+        responseMimeType: "application/json" 
       }
     });
 
@@ -426,14 +453,34 @@ app.post("/api/search-internet", async (req, res) => {
                            .trim();
     
     // Extract everything inside [ ... ]
-    const arrayMatch = textResult.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    const arrayMatch = textResult.match(/\[\s*\{?[\s\S]*\}?\s*\]/);
     if (arrayMatch) {
       textResult = arrayMatch[0];
     }
 
-    const results = JSON.parse(textResult);
+    let results = [];
+    try {
+      results = JSON.parse(textResult);
+    } catch (e) {
+      console.error("[Search Internet] Failed to parse JSON:", textResult.substring(0, 500));
+      // Try to find any array if the previous match was too loose
+      const secondMatch = textResult.match(/\[[\s\S]*\]/);
+      if (secondMatch) {
+        try {
+          results = JSON.parse(secondMatch[0]);
+        } catch (e2) {
+          throw new Error("JSON parsing failed twice.");
+        }
+      } else {
+        throw new Error("Could not find JSON array in response.");
+      }
+    }
 
-    if (Array.isArray(results) && results.length > 0) {
+    if (Array.isArray(results)) {
+      if (results.length === 0) {
+        console.warn("[Search Internet] Gemini returned an empty array for query:", searchQuery);
+      }
+      
       // Validate and clean up each returned item to prevent any user-facing example.com links or bad images
       const validatedResults = results.map(item => {
         let name = (item.name || `${searchQuery} - Importação`).trim();
@@ -479,7 +526,7 @@ app.post("/api/search-internet", async (req, res) => {
 
       return res.json({ results: validatedResults, isFallback: false });
     } else {
-      throw new Error("Parsed results was not an array or has length of 0");
+      throw new Error("Parsed results was not an array");
     }
 
   } catch (error: any) {

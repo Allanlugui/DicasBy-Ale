@@ -86,7 +86,7 @@ interface AppContextType {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   quoteRequests: QuoteRequest[];
-  createQuoteRequest: (productName: string, productDescription?: string, productImageUrl?: string, priceUSD?: number, customerPhone?: string) => Promise<string>;
+  createQuoteRequest: (productName: string, productDescription?: string, productImageUrl?: string, priceUSD?: number, priceBRL?: number, currency?: string, customerPhone?: string) => Promise<string>;
   updateQuoteRequest: (id: string, quoteData: Partial<QuoteRequest>) => Promise<void>;
   approveQuoteAndCreateOrder: (quote: QuoteRequest) => Promise<void>;
   folders: DriveFolder[];
@@ -680,6 +680,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     productDescription?: string,
     productImageUrl?: string,
     priceUSD?: number,
+    priceBRL?: number,
+    currency?: string,
     customerPhone?: string
   ): Promise<string> => {
     if (!user) throw new Error("Need to be logged in to request a quote");
@@ -694,6 +696,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       productDescription: productDescription || '',
       productImageUrl: productImageUrl || '',
       priceUSD: priceUSD || 0,
+      priceBRL: priceBRL || 0,
+      currency: currency || 'USD',
       status: 'PENDING',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

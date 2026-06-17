@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context';
-import { ShoppingBag, Star, Share2, Copy, CheckCircle2, Search, Sparkles, HelpCircle, DollarSign, Clock, MapPin, Check, X, LogIn, Loader2 } from 'lucide-react';
+import { ShoppingBag, Star, Share2, Copy, CheckCircle2, Search, Sparkles, HelpCircle, DollarSign, Clock, MapPin, Check, X, LogIn, Loader2, SlidersHorizontal, ChevronRight, Store as StoreIcon, Filter } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { Product } from '../types';
+import { ProductCarousel, StoreCarousel } from '../components/FeaturedCarousels';
 
 export function Home() {
   const { user, stores, products, reviews, addToCart, orders, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, loginWithGoogle } = useAppContext();
@@ -13,6 +14,7 @@ export function Home() {
   const [sortBy, setSortBy] = useState<'name' | 'price_asc' | 'price_desc'>('name');
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   const categories = [
     'Eletrônicos', 'Informática', 'Eletrodomésticos', 'Vestuário', 'Calçados', 
@@ -62,11 +64,26 @@ export function Home() {
     setInternetResults([]);
     setShowManualForm(false);
     setLocalSuccessMsg(null);
+    
     try {
+      // Tenta obter a localização do usuário para melhorar o contexto da busca
+      let userLocation = null;
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+        });
+        userLocation = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+      } catch (locErr) {
+        console.warn("Location not available:", locErr);
+      }
+
       const response = await fetch('/api/search-internet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: searchQuery })
+        body: JSON.stringify({ query: searchQuery, userLocation })
       });
       
       let data: any = {};
@@ -114,6 +131,8 @@ export function Home() {
         promptQuote.description || 'Solicitado via busca automática de produto',
         promptQuote.imageUrl || '',
         promptQuote.priceUSD || 0,
+        promptQuote.priceBRL || 0,
+        promptQuote.currency || 'USD',
         customerPhone
       );
       setLocalSuccessMsg("Solicitação enviada com sucesso! Nossa equipe de compras irá procurar este produto e fornecerá a cotação em breve.");
@@ -144,6 +163,8 @@ export function Home() {
         manualDescription.trim(),
         manualImageUrl.trim(),
         parseFloat(manualPriceUSD) || 0,
+        0,
+        'USD',
         customerPhone
       );
       setLocalSuccessMsg("Solicitação enviada com sucesso! Procuraremos o produto nas lojas e retornaremos com a melhor cotação.");
@@ -162,9 +183,23 @@ export function Home() {
     }
   };
 
+  useEffect(() => {
+    const handleOpenModal = () => setShowManualForm(true);
+    window.addEventListener('open-quote-modal', handleOpenModal);
+    return () => window.removeEventListener('open-quote-modal', handleOpenModal);
+  }, []);
+
   // Filter in-store products dynamically
   const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)));
   const allSizes = Array.from(new Set(products.flatMap(p => p.variants?.map(v => v.name.includes('Size') ? v.name.split(':').pop()?.trim() : null)).filter(Boolean)));
+
+  // Clear internet results when search query is emptied
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setInternetResults([]);
+      setSearchError(null);
+    }
+  }, [searchQuery]);
 
   const filteredProducts = products.filter(p => {
     const matchesStore = selectedStore ? p.storeId === selectedStore : true;
@@ -191,157 +226,274 @@ export function Home() {
 
   const successfulReferrals = user ? orders.filter(o => o.referredBy === user.uid && o.userId !== user.uid && o.status !== 'CANCELLED') : [];
 
+  const featuredProducts = products.filter(p => p.isFeatured);
+  const featuredStores = stores.filter(s => s.isFeatured);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
-      {/* Hero Section - Parallel Commerce */}
-      <div className="bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 rounded-3xl p-8 md:p-12 text-white shadow-2xl relative overflow-hidden">
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-6">
-             <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border border-white/30">
-               <Sparkles className="w-3.5 h-3.5" />
-               E-commerce Global Especializado
-             </div>
-             <h1 className="text-4xl md:text-6xl font-display font-black leading-tight">
-               EUA para Brasil<br/>
-               <span className="text-rose-200">& vice-versa.</span>
-             </h1>
-             <p className="text-lg md:text-xl text-rose-50 font-medium max-w-md">
-               Compramos e enviamos produtos entre Brasil e Estados Unidos com total segurança, transparência e taxas competitivas.
-             </p>
-             <div className="flex flex-wrap gap-4">
-                <button onClick={() => { setShowManualForm(true); setModalError(null); }} className="bg-rose-400/30 backdrop-blur-md text-white border border-white/30 px-8 py-4 rounded-2xl font-bold hover:bg-rose-400/40 transition">
-                   Pedir um Orçamento
-                </button>
-             </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
+      {/* Global Search - Simplified Marketplace Style */}
+      <div className="max-w-2xl mx-auto w-full">
+        <div className="flex items-center gap-2">
+          <div className="flex-grow min-w-0">
+            <input 
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim() && !searchingInternet) {
+                  handleInternetSearch();
+                }
+              }}
+              placeholder="O que você quer comprar hoje? (Ex: Nike, iPhone...)"
+              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-6 py-4 text-sm font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-sm focus:shadow-md"
+            />
           </div>
-          <div className="hidden md:flex justify-end gap-4 relative">
-             {/* Visual elements representing global trade */}
-             <div className="w-64 h-64 bg-white/10 rounded-full border border-white/20 flex flex-col items-center justify-center animate-pulse">
-                <MapPin className="w-12 h-12 mb-2" />
-                <span className="font-bold text-sm">Logística Direta</span>
-                <span className="text-[10px] text-rose-200">Brasil ↔ USA</span>
-             </div>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 -translate-y-4 translate-x-1/4 opacity-10">
-          <Star size={400} />
+          <button
+              onClick={handleInternetSearch}
+              disabled={searchingInternet || !searchQuery.trim()}
+              className="bg-stone-900 hover:bg-black disabled:bg-stone-100 disabled:text-stone-400 text-white font-black px-6 py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-sm shrink-0 shadow-lg shadow-stone-100"
+            >
+              {searchingInternet ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-rose-500" />}
+              <span className="hidden sm:inline">Buscar</span>
+            </button>
         </div>
       </div>
 
-      {/* Modern High-Contrast Dynamic Product Search Bar */}
-      <div id="vitrine" className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-100 shadow-xl shadow-stone-200/50 space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-           <div className="space-y-1">
-              <h3 className="font-display font-black text-stone-900 text-xl flex items-center gap-2">
-                <Search className="h-5 w-5 text-rose-500" />
-                O que você está procurando?
-              </h3>
-              <p className="text-sm text-stone-500">Filtrando entre produtos e serviços de importação direta.</p>
-           </div>
-           
-           <div className="flex items-center gap-3">
-              <label className="text-xs font-bold text-stone-400 uppercase tracking-widest">Ordenar por:</label>
+      {/* Featured Product Carousel (Destaques) */}
+      <ProductCarousel 
+        items={featuredProducts} 
+        onItemClick={(p) => setSelectedProductForModal(p)} 
+      />
+
+      {/* Storefront / Product Section Headings */}
+      <div className="flex items-center justify-between border-b border-stone-100 pb-2 pt-4">
+        <div className="flex items-center gap-2">
+          <StoreIcon className="w-5 h-5 text-stone-400" />
+          <h2 className="text-xl font-display font-black text-stone-900">Vitrine <span className="text-rose-500">Shop</span></h2>
+        </div>
+        
+        {/* Discreet Filter Trigger */}
+        <button
+          onClick={() => setIsFilterSheetOpen(true)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${
+            selectedCategory || selectedStore || selectedBrand || selectedSize 
+            ? 'bg-rose-50 border-rose-200 text-rose-600' 
+            : 'bg-white border-stone-200 text-stone-500 hover:border-stone-300'
+          }`}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>Filtros</span>
+          {(selectedCategory || selectedStore || selectedBrand || selectedSize) && (
+            <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse" />
+          )}
+        </button>
+      </div>
+
+      {/* Products Grid */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+           <span className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">Todos os Produtos ({sortedProducts.length})</span>
+           <div className="flex items-center gap-2">
+              <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Ordenar:</label>
               <select 
                 value={sortBy} 
                 onChange={e => setSortBy(e.target.value as any)}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-bold text-stone-700 outline-none focus:ring-2 focus:ring-rose-500"
+                className="bg-transparent border-0 text-xs font-bold text-stone-700 outline-none focus:ring-0 cursor-pointer"
               >
-                <option value="name">Nome (A-Z)</option>
+                <option value="name">A-Z</option>
                 <option value="price_asc">Menor Preço</option>
                 <option value="price_desc">Maior Preço</option>
               </select>
            </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-grow">
-            <input 
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Ex: iPhone 15, Stanley Quencher, Sephora, Link Externo..."
-              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-6 py-4 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all"
-            />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {sortedProducts.slice(0, 8).map(product => (
+            <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
+          ))}
+        </div>
+
+        {/* Store Carousel in the Middle */}
+        {featuredStores.length > 0 && (
+          <div className="-mx-4 sm:-mx-6 lg:-mx-8 my-12">
+             <StoreCarousel 
+              items={featuredStores} 
+              onItemClick={(storeId) => setSelectedStore(storeId === selectedStore ? null : storeId)} 
+             />
           </div>
-          <button
-            onClick={handleInternetSearch}
-            disabled={searchingInternet || !searchQuery.trim()}
-            className="bg-[#ff004a] hover:bg-[#e60042] disabled:bg-stone-100 disabled:text-stone-400 text-white font-bold px-8 py-4 rounded-2xl transition shadow-lg shadow-rose-200 flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-rose-500 text-sm cursor-pointer whitespace-nowrap"
-          >
-            {searchingInternet ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Buscando...
-              </>
-            ) : (
-              'Buscar EUA'
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {sortedProducts.slice(8).map(product => (
+            <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
+          ))}
+        </div>
+
+        {sortedProducts.length === 0 && (
+          <div className="py-24 text-center text-stone-500 bg-stone-50 rounded-[3rem] border border-stone-100 p-8 space-y-4">
+            <Sparkles className="w-12 h-12 text-stone-200 mx-auto" />
+            <p className="font-bold text-lg text-stone-800 tracking-tight">Nenhum produto encontrado</p>
+            <p className="text-sm max-w-xs mx-auto">Tente ajustar seus filtros ou faça uma busca global por qualquer item nos EUA.</p>
+            {searchQuery.trim() !== '' && (
+              <button
+                onClick={handleInternetSearch}
+                disabled={searchingInternet}
+                className="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white px-8 py-4 rounded-2xl text-sm font-black transition mx-auto flex items-center gap-2 shadow-xl shadow-rose-100"
+              >
+                {searchingInternet ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="w-4 h-4" />}
+                {searchingInternet ? "Buscando nos EUA..." : `Buscar "${searchQuery}" nos Estados Unidos`}
+              </button>
             )}
-          </button>
-        </div>
-
-        {/* Categories Carousel/List */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-           <button
-             onClick={() => setSelectedCategory(null)}
-             className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-               selectedCategory === null 
-                 ? 'bg-rose-500 border-rose-500 text-white shadow-md' 
-                 : 'bg-white border-stone-100 text-stone-500 hover:bg-stone-50'
-             }`}
-           >
-             Tudo
-           </button>
-           {categories.map(cat => (
-             <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                  selectedCategory === cat 
-                    ? 'bg-rose-500 border-rose-500 text-white shadow-md' 
-                    : 'bg-white border-stone-100 text-stone-500 hover:bg-stone-50 text-stone-500'
-                }`}
-             >
-               {cat}
-             </button>
-           ))}
-        </div>
-
-        {/* Brand and Size Filters */}
-        <div className="flex flex-wrap gap-4 items-center">
-           {brands.length > 0 && (
-             <div className="flex items-center gap-2">
-               <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Marca:</label>
-               <select 
-                 value={selectedBrand || ''} 
-                 onChange={e => setSelectedBrand(e.target.value || null)}
-                 className="bg-stone-50 border border-stone-100 rounded-lg px-2 py-1 text-[11px] font-bold text-stone-600 outline-none focus:ring-1 focus:ring-rose-500"
-               >
-                 <option value="">Todas</option>
-                 {brands.map(brand => <option key={brand} value={brand!}>{brand}</option>)}
-               </select>
-             </div>
-           )}
-
-           {allSizes.length > 0 && (
-             <div className="flex items-center gap-2">
-               <label className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Tamanho:</label>
-               <select 
-                 value={selectedSize || ''} 
-                 onChange={e => setSelectedSize(e.target.value || null)}
-                 className="bg-stone-50 border border-stone-100 rounded-lg px-2 py-1 text-[11px] font-bold text-stone-600 outline-none focus:ring-1 focus:ring-rose-500"
-               >
-                 <option value="">Todos</option>
-                 {allSizes.map(size => <option key={size} value={size!}>{size}</option>)}
-               </select>
-             </div>
-           )}
-        </div>
+          </div>
+        )}
       </div>
+      {isFilterSheetOpen && (
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setIsFilterSheetOpen(false)} />
+          <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col p-6 animate-slide-in-right">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-xl font-display font-black text-stone-900">Refinar Busca</h3>
+              <button onClick={() => setIsFilterSheetOpen(false)} className="p-2 hover:bg-stone-100 rounded-full transition">
+                <X className="w-6 h-6 text-stone-400" />
+              </button>
+            </div>
+
+            <div className="flex-grow overflow-y-auto space-y-8 pr-2 custom-scrollbar">
+              {/* Category Filter */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Categorias</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      selectedCategory === null 
+                        ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
+                        : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                    }`}
+                  >
+                    Tudo
+                  </button>
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        selectedCategory === cat 
+                          ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-100' 
+                          : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Store Filter */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Lojas</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedStore(null)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      selectedStore === null 
+                        ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
+                        : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {sortedStores.map(store => (
+                    <button
+                      key={store.id}
+                      onClick={() => setSelectedStore(store.id === selectedStore ? null : store.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                        selectedStore === store.id 
+                          ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
+                          : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                      }`}
+                    >
+                      {store.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Brand Filter */}
+              {brands.length > 0 && (
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Marcas</label>
+                  <select 
+                    value={selectedBrand || ''} 
+                    onChange={e => setSelectedBrand(e.target.value || null)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-sm font-bold text-stone-700 outline-none focus:ring-2 focus:ring-rose-500 transition-all appearance-none"
+                  >
+                    <option value="">Todas</option>
+                    {brands.map(brand => <option key={brand} value={brand!}>{brand}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Size Filter */}
+              {allSizes.length > 0 && (
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">Tamanho</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setSelectedSize(null)}
+                      className={`px-3 py-2 min-w-[3rem] rounded-xl text-xs font-bold transition-all border ${
+                        selectedSize === null 
+                          ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
+                          : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {allSizes.map(size => (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size === selectedSize ? null : size)}
+                        className={`px-3 py-2 min-w-[3rem] rounded-xl text-xs font-bold transition-all border ${
+                          selectedSize === size 
+                            ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
+                            : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-6 border-t border-stone-100 mt-6 space-y-3">
+              <button 
+                onClick={() => setIsFilterSheetOpen(false)}
+                className="w-full bg-stone-900 text-white font-black py-4 rounded-2xl shadow-lg transition active:scale-95"
+              >
+                Ver {sortedProducts.length} Resultados
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedCategory(null);
+                  setSelectedStore(null);
+                  setSelectedBrand(null);
+                  setSelectedSize(null);
+                  setSortBy('name');
+                }}
+                className="w-full text-stone-400 font-bold py-2 text-xs hover:text-stone-600 transition"
+              >
+                Limpar Todos os Filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
         {/* Dynamic Internet Listing & Manual quote button fallback */}
         {searchQuery.trim() !== '' && (
-          <div className="pt-2 text-xs text-stone-400 flex flex-wrap items-center justify-between gap-2">
-            <span>Filtrando produtos disponíveis na vitrine...</span>
+          <div className="pt-2 text-xs text-stone-400 flex flex-wrap items-center justify-end gap-2">
             <button
               onClick={() => {
                 setShowManualForm(prev => !prev);
@@ -534,7 +686,7 @@ export function Home() {
           <div className="flex items-center justify-between border-b border-stone-100 pb-2">
             <h3 className="font-display font-bold text-stone-900 text-lg flex items-center gap-1.5">
               <Sparkles className="h-5 w-5 text-rose-500" />
-              Produtos Localizados nos Estados Unidos
+              Produtos Sugeridos Localizados
             </h3>
             <button 
               onClick={() => setInternetResults([])}
@@ -545,7 +697,7 @@ export function Home() {
           </div>
 
           <p className="text-xs text-stone-500 leading-normal">
-            Estes produtos foram localizados na internet americana com Inteligência Artificial. Selecione o que deseja para solicitar cotação com todas as taxas de importação!
+            Estes produtos foram localizados na internet global com Inteligência Artificial. Selecione o que deseja para solicitar cotação com todas as taxas e logística garantida!
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -561,6 +713,12 @@ export function Home() {
                   <div className="absolute top-2.5 left-2.5 bg-rose-500 text-white font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-sm">
                     {result.storeName || "Importados"}
                   </div>
+                  {(result.storeName?.toLowerCase().includes('florida') || result.description?.toLowerCase().includes('florida')) && (
+                    <div className="absolute top-2.5 right-2.5 bg-green-500 text-white font-bold text-[9px] px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                      Melhor Disponibilidade
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 flex flex-col flex-grow space-y-2">
                   <h4 className="font-bold text-stone-900 text-sm leading-snug line-clamp-2">{result.name}</h4>
@@ -568,8 +726,8 @@ export function Home() {
                   
                   <div className="pt-2 mt-auto flex items-end justify-between gap-1.5">
                     <div>
-                      <span className="text-[10px] text-stone-400 block font-medium">Estimado nos EUA</span>
-                      <span className="font-bold text-stone-800 text-base">${result.priceUSD > 0 ? result.priceUSD.toFixed(2) : "Sob consulta"}</span>
+                      <span className="text-[10px] text-stone-400 block font-medium">Preço Estimado</span>
+                      <span className="font-bold text-stone-800 text-base">{result.currency === 'BRL' ? formatCurrency(result.priceBRL) : `$${result.priceUSD.toFixed(2)}`}</span>
                     </div>
                     <button
                       onClick={() => {
@@ -795,63 +953,7 @@ export function Home() {
         </div>
       )}
 
-      {/* Stores Filter */}
-      <div>
-        <h2 className="text-xl font-display font-bold text-stone-900 mb-4">Lojas Disponíveis</h2>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => {
-              setSelectedStore(null);
-            }}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              selectedStore === null 
-                ? 'bg-stone-900 text-white shadow-md' 
-                : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-300'
-            }`}
-          >
-            Todas as Lojas
-          </button>
-          {sortedStores.map(store => (
-            <button
-              key={store.id}
-              onClick={() => setSelectedStore(store.id === selectedStore ? null : store.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                selectedStore === store.id
-                  ? 'bg-rose-500 text-white shadow-md shadow-rose-100'
-                  : 'bg-white text-stone-600 border border-stone-200 hover:border-stone-300'
-              }`}
-            >
-              {store.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Products Grid */}
-      <div>
-        <h2 className="text-xl font-display font-bold text-stone-900 mb-6">Destaques Selecionados</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {sortedProducts.map(product => (
-            <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
-          ))}
-          {sortedProducts.length === 0 && (
-            <div className="col-span-full py-12 text-center text-stone-500 bg-white rounded-3xl border border-stone-100 p-8 space-y-4">
-              <Sparkles className="w-12 h-12 text-stone-200 mx-auto" />
-              <p className="font-medium">Nenhum produto encontrado nesta categoria ou loja.</p>
-              {searchQuery.trim() !== '' && (
-                <button
-                  onClick={handleInternetSearch}
-                  disabled={searchingInternet}
-                  className="bg-rose-500 hover:bg-rose-600 text-white px-8 py-3 rounded-2xl text-sm font-bold transition mx-auto inline-flex items-center gap-2 shadow-lg shadow-rose-100"
-                >
-                  {searchingInternet ? <Loader2 className="animate-spin" /> : <Search className="w-4 h-4" />}
-                  {searchingInternet ? "Buscando nos EUA..." : `Buscar "${searchQuery}" em lojas Americanas`}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Products Selection Header Removal */}
 
       {/* Product Detail Modal */}
       {selectedProductForModal && (
@@ -861,75 +963,26 @@ export function Home() {
         />
       )}
 
-      {/* Testimonials */}
-
-      {/* Testimonials */}
+      {/* Testimonials Section */}
       {reviews.length > 0 && (
-        <div className="pt-8 border-t border-stone-100">
-          <h2 className="text-xl font-display font-bold text-stone-900 mb-8 text-center">O que nossos clientes dizem</h2>
+        <div className="pt-12 border-t border-stone-100">
+          <div className="flex flex-col items-center text-center space-y-2 mb-10">
+            <div className="flex gap-1 text-rose-500">
+               {[...Array(5)].map((_,i) => <Star key={i} className="w-4 h-4 fill-current" />)}
+            </div>
+            <h2 className="text-xl font-display font-black text-stone-900 tracking-tight">O que dizem nossos clientes</h2>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
              {reviews.slice(0, 3).map(r => (
-                <div key={r.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col items-center text-center">
-                  <div className="flex gap-1 mb-4 text-orange-400">
-                     {[...Array(5)].map((_,i) => <Star key={i} className={`w-5 h-5 ${i < r.rating ? 'fill-current' : 'text-stone-200'}`} />)}
-                  </div>
-                  <p className="font-medium text-stone-700 italic mb-4 line-clamp-4">"{r.comment}"</p>
-                  <p className="font-bold text-stone-900 mt-auto">{r.customerName}</p>
+                <div key={r.id} className="bg-stone-50/50 p-6 rounded-2xl border border-stone-100/50 flex flex-col items-center text-center">
+                  <p className="text-xs font-medium text-stone-600 italic mb-4 line-clamp-4 leading-relaxed">"{r.comment}"</p>
+                  <p className="font-bold text-stone-900 text-xs mt-auto uppercase tracking-widest">{r.customerName}</p>
                 </div>
              ))}
           </div>
         </div>
       )}
-
-      {/* Refer & Earn Section (Small) */}
-      <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/50 border border-emerald-100/75 rounded-2xl p-4 md:p-5 flex flex-col md:flex-row flex-wrap items-center justify-between gap-4 shadow-sm text-xs mt-8">
-         <div className="flex flex-1 items-center gap-3">
-            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
-               <Share2 className="w-5 h-5" />
-            </div>
-            <div>
-               <h3 className="font-bold text-emerald-950 text-sm">Indique e Ganhe Cupons!</h3>
-               <p className="text-emerald-700 leading-tight">
-                  Ganhe cupons especiais de 15% de desconto quando novos amigos se cadastrarem e comprarem conosco usando seu link de convite.
-               </p>
-            </div>
-         </div>
-         <div className="w-full md:w-auto shrink-0 flex flex-col sm:flex-row gap-2 items-center justify-end">
-            {user ? (
-               <>
-                 <div className="bg-white px-3 py-1.5 rounded-lg border border-emerald-100 text-stone-500 font-mono text-[11px] break-all select-all">
-                    https://dicas-by-ale.vercel.app/?ref={user.uid}
-                 </div>
-                 <button 
-                   onClick={handleCopyRef}
-                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap text-xs shadow-sm shadow-emerald-50"
-                 >
-                   {copied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                   {copied ? 'Copiado!' : 'Copiar Link'}
-                 </button>
-               </>
-            ) : (
-               <a href="/login" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg transition text-center whitespace-nowrap text-xs shadow-sm shadow-emerald-50">
-                  Fazer Login para Compartilhar
-               </a>
-            )}
-         </div>
-
-         {/* List of successfully earned referral coupons */}
-         {successfulReferrals.length > 0 && (
-            <div className="w-full mt-2 pt-2 border-t border-emerald-100/50 flex flex-wrap gap-2 items-center">
-               <span className="text-emerald-900 font-bold text-[11px]">Seus Cupons de Desconto Ganhos:</span>
-               {successfulReferrals.map((refOrder) => {
-                  const couponCode = `IND-${refOrder.id.substring(0, 6).toUpperCase()}`;
-                  return (
-                     <div key={refOrder.id} className="inline-flex items-center gap-1 bg-white border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-mono text-emerald-700" title="15% de desconto!">
-                        <strong>{couponCode}</strong> (15% OFF)
-                     </div>
-                  );
-               })}
-            </div>
-         )}
-      </div>
     </div>
   );
 }

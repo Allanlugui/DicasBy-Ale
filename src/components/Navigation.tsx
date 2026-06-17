@@ -72,10 +72,16 @@ export function Navigation() {
             
             <div className="hidden sm:ml-8 sm:flex sm:space-x-4">
               <Link to="/" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/') ? 'bg-rose-50 text-rose-700' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-50'}`}>
-                Lojas & Produtos
+                Início
               </Link>
+              <button 
+                onClick={() => window.dispatchEvent(new CustomEvent('open-quote-modal'))}
+                className="px-3 py-2 rounded-md text-sm font-medium text-stone-500 hover:text-stone-900 hover:bg-stone-50 transition-colors cursor-pointer"
+              >
+                Pedir Orçamento
+              </button>
               <Link to="/rastreio" className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/rastreio') ? 'bg-rose-50 text-rose-700' : 'text-stone-500 hover:text-stone-900 hover:bg-stone-50'}`}>
-                Rastrear Pedido
+                Rastreio
               </Link>
               {!isInstalled && (
                 <button 
@@ -161,11 +167,18 @@ export function Navigation() {
                         <p className="px-3 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-widest">Navegação</p>
                         <Link to="/" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive('/') ? 'text-rose-600 bg-rose-50' : 'text-stone-600 hover:bg-stone-50'}`}>
                           <PackageSearch className="h-4 w-4" /> 
-                          <span className="font-medium">Lojas & Produtos</span>
+                          <span className="font-medium">Início</span>
                         </Link>
+                        <button 
+                          onClick={() => window.dispatchEvent(new CustomEvent('open-quote-modal'))}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
+                        >
+                          <ShoppingBag className="h-4 w-4" /> 
+                          <span className="font-medium">Pedir Orçamento</span>
+                        </button>
                         <Link to="/rastreio" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive('/rastreio') ? 'text-rose-600 bg-rose-50' : 'text-stone-600 hover:bg-stone-50'}`}>
                           <Package className="h-4 w-4" /> 
-                          <span className="font-medium">Rastrear Pedido</span>
+                          <span className="font-medium">Rastreio</span>
                         </Link>
                       </div>
 
@@ -218,15 +231,21 @@ export function Navigation() {
                     </>
                   ) : (
                     <>
-                      {/* Guest Navigation Section */}
                       <div className="sm:hidden px-2 pb-2 mb-2 border-b border-stone-100">
                         <Link to="/" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive('/') ? 'text-rose-600 bg-rose-50' : 'text-stone-600 hover:bg-stone-50'}`}>
                           <PackageSearch className="h-4 w-4" /> 
-                          <span className="font-medium">Lojas & Produtos</span>
+                          <span className="font-medium">Início</span>
                         </Link>
+                        <button 
+                          onClick={() => window.dispatchEvent(new CustomEvent('open-quote-modal'))}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
+                        >
+                          <ShoppingBag className="h-4 w-4" /> 
+                          <span className="font-medium">Pedir Orçamento</span>
+                        </button>
                         <Link to="/rastreio" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors ${isActive('/rastreio') ? 'text-rose-600 bg-rose-50' : 'text-stone-600 hover:bg-stone-50'}`}>
                           <Package className="h-4 w-4" /> 
-                          <span className="font-medium">Rastrear Pedido</span>
+                          <span className="font-medium">Rastreio</span>
                         </Link>
                       </div>
 
