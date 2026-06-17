@@ -50,19 +50,17 @@ export function Support() {
 
     const interval = setInterval(() => {
       const now = Date.now();
+      const hasAgentJoined = activeTicket.messages.some(m => m.role === 'bot' && m.isAgent === true);
 
-      // Check if human support was requested
-      if (activeTicket.needsHuman) {
-        // Has the agent joined? The agent has joined if there's any message marked with isAgent === true from bot
-        const hasAgentJoined = activeTicket.messages.some(m => m.role === 'bot' && m.isAgent === true);
-        
+      // RULE 1: If human support is active (or requested and joined), be more lenient with inactivity
+      if (activeTicket.needsHuman || hasAgentJoined) {
         if (!hasAgentJoined) {
-          // RULE 1: If the chat is forwarded to a human agent, pause the inactivity timer until the agent Joins (sends reply)
+          // If requested but hasn't joined yet, pulse timer so it never closes while waiting for agent
           lastActivityRef.current = now;
           return;
         }
 
-        // RULE 2: If the agent sends a message to the client, and the client takes more than five minutes to respond, auto-close the ticket.
+        // If agent has joined, use a more lenient timeout (10 minutes) and ONLY if last message was from agent
         const reversedMessages = [...activeTicket.messages].reverse();
         const lastAgentMsgIndex = reversedMessages.findIndex(m => m.role === 'bot' && m.isAgent === true);
         
@@ -71,10 +69,11 @@ export function Support() {
           const agentSentTime = new Date(lastAgentMsg.timestamp).getTime();
           const clientRespondedAfter = reversedMessages.slice(0, lastAgentMsgIndex).some(m => m.role === 'user');
 
-          if (!clientRespondedAfter && (now - agentSentTime >= 300000)) {
+          // Only auto-close if the client has been silent for 10 minutes AFTER the last agent message
+          if (!clientRespondedAfter && (now - agentSentTime >= 600000)) {
             const timeoutMsg: TicketMessage = {
               role: 'bot',
-              text: 'O atendimento foi encerrado automaticamente por falta de resposta do cliente (5 minutos após a mensagem enviada pelo atendente). Caso precise de ajuda, abra um novo chamado.',
+              text: 'O atendimento foi encerrado automaticamente por falta de resposta do cliente (10 minutos após a última mensagem do consultor).',
               timestamp: new Date().toISOString()
             };
             updateTicket(activeTicket.id, [...activeTicket.messages, timeoutMsg], 'CLOSED');
@@ -83,8 +82,11 @@ export function Support() {
             return;
           }
         }
+        
+        // Also pulse standard timer so it doesn't hit the "else" branch incorrectly
+        lastActivityRef.current = now;
       } else {
-        // Standard bot inactivity timer
+        // Standard bot inactivity timer (5 minutes)
         const diff = now - lastActivityRef.current;
         if (diff >= 300000) {
           const timeoutMsg: TicketMessage = {

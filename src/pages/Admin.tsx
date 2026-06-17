@@ -30,7 +30,7 @@ export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updat
     e.preventDefault();
     if (!currentTicket || !reply.trim() || currentTicket.status === 'CLOSED') return;
     const newMsg: TicketMessage = { role: 'bot', text: reply, timestamp: new Date().toISOString(), isAgent: true };
-    await updateTicket(currentTicket.id, [...currentTicket.messages, newMsg], undefined, false);
+    await updateTicket(currentTicket.id, [...currentTicket.messages, newMsg], undefined, true);
     setReply('');
   };
 

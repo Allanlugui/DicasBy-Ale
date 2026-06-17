@@ -975,7 +975,7 @@ Seu objetivo é extrair qualquer novo aprendizado, regra do sistema, política a
 Regras importantes:
 1. NÃO inclua dados pessoais como o nome do cliente "${customerName || 'Cliente'}", código de rastreamento do cliente, CPF ou valores exclusivos desta compra. Generalize-os em diretrizes de sistema (Ex: "Casos de cancelamento após envio requerem retenção de R$50 de taxa postal" ou "Se a transportadora X atrasar, oferecemos cupom de 5%").
 2. Foque especialmente em soluções dadas pelo "Atendente Humano", pois estas mostram como a IA deve proceder em casos similares no futuro para aumentar sua autonomia.
-3. Se a conversa for muito simples e não contiver nenhum conhecimento novo relevante (apenas saudações ou perguntas básicas já cobertas), retorne um array vazio [].
+3. Seja proativo ao identificar padrões: mesmo que a informação pareça simples, se ela define uma conduta recorrente da empresa, extraia-a como regra.
 4. Crie títulos concisos e descrições ricas, em português. Emita o resultado obedecendo estritamente o formato JSON abaixo.
 5. Retorne os aprendizados estritamente como um array de objetos JSON formatado exatamente como este exemplo:
 [
@@ -1009,12 +1009,25 @@ ${conversationText}`;
         }
       });
 
-      const responseText = aiResponse.text;
+      let responseText = aiResponse.text;
+      if (!responseText) {
+        console.warn("[Register Knowledge] Gemini returned empty response text.");
+        return res.json({ result: [] });
+      }
+
+      // Robust JSON extraction just in case
+      let jsonStr = responseText;
+      const jsonStart = responseText.indexOf('[');
+      const jsonEnd = responseText.lastIndexOf(']');
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        jsonStr = responseText.substring(jsonStart, jsonEnd + 1);
+      }
+
       let parsedKnowledge = [];
       try {
-        parsedKnowledge = JSON.parse(responseText);
+        parsedKnowledge = JSON.parse(jsonStr);
       } catch (err) {
-        console.warn("[Register Knowledge] Failed to parse JSON reply from Gemini:", err);
+        console.warn("[Register Knowledge] Failed to parse JSON reply from Gemini:", err, "Response was:", responseText);
       }
 
       return res.json({ result: Array.isArray(parsedKnowledge) ? parsedKnowledge : [] });

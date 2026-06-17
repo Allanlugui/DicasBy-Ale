@@ -3,7 +3,7 @@ import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Revi
 import { generateTrackingId, cleanUndefined } from './lib/utils';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User, signInWithEmailLink, isSignInWithEmailLink, sendSignInLinkToEmail, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 enum OperationType {
   CREATE = 'create',
@@ -585,12 +585,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const learnFromTicket = async (ticketId: string) => {
     try {
-      const latestSnap = await getDocs(query(collection(db, 'tickets')));
-      const targetTicket = latestSnap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Ticket))
-        .find(t => t.id === ticketId);
+      const ticketRef = doc(db, 'tickets', ticketId);
+      const ticketSnap = await getDoc(ticketRef);
       
-      if (!targetTicket || targetTicket.messages.length < 2) return;
+      if (!ticketSnap.exists()) return;
+      
+      const targetTicket = { id: ticketSnap.id, ...ticketSnap.data() } as Ticket;
+      if (targetTicket.messages.length < 3) return; // Need at least some interaction
 
       const res = await fetch('/api/learn-from-ticket', {
         method: 'POST',
@@ -603,7 +604,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
       });
       const data = await res.json();
-      if (data.result && Array.isArray(data.result)) {
+      
+      if (data.result && Array.isArray(data.result) && data.result.length > 0) {
         for (const fact of data.result) {
           const ref = doc(collection(db, 'systemKnowledge'));
           const item: SystemKnowledge = {
@@ -621,6 +623,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           };
           await setDoc(ref, cleanUndefined(item));
         }
+
+        // Create a notification for the administrators
+        const notifRef = doc(collection(db, 'notifications'));
+        await setDoc(notifRef, cleanUndefined({
+          id: notifRef.id,
+          type: 'SYSTEM_KNOWLEDGE_PENDING',
+          title: 'Novo Aprendizado Detectado',
+          description: `A IA extraiu ${data.result.length} novo(s) conhecimento(s) da conversa #${targetTicket.protocol}. Verifique a aba IA Regenerativa para aprovar.`,
+          targetId: targetTicket.id,
+          isResolved: false,
+          createdAt: new Date().toISOString()
+        }));
       }
     } catch (err) {
       console.error("[learnFromTicket Error]:", err);
