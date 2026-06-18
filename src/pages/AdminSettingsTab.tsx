@@ -94,6 +94,14 @@ export function AdminSettingsTab() {
     }
   }, [companySettings]);
 
+  // Auto-dismiss success message
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(false), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   const handleAddField = () => {
     const id = Math.random().toString(36).substr(2, 9);
     setFixedCosts([...fixedCosts, { id, label: '', value: 0 }]);
@@ -120,6 +128,8 @@ export function AdminSettingsTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    
     setLoading(true);
     setSuccess(false);
     setError('');
@@ -127,10 +137,12 @@ export function AdminSettingsTab() {
     if (!pixKey || !pixName || !companyName || !companyCnpj) {
       setError('Por favor, preencha os campos obrigatórios (Chave Pix, Nome do Recebedor, Razão Social e CNPJ).');
       setLoading(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     try {
+      console.log("[Settings] Saving ERP and Financial configs...");
       await saveCompanySettings({
         pixKey,
         pixName,
@@ -152,9 +164,14 @@ export function AdminSettingsTab() {
         nexusBaseUrl,
         nexusApiKey
       });
+      
+      console.log("[Settings] Successfully saved to Firestore.");
       setSuccess(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      setError(err?.message || 'Erro inesperado ao salvar configurações.');
+      console.error("[Settings] Save Error:", err);
+      setError(err?.message || 'Erro inesperado ao salvar configurações. Verifique sua conexão.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -172,7 +189,7 @@ export function AdminSettingsTab() {
       <form onSubmit={handleSave} className="space-y-8 pb-20">
         
         {success && (
-          <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold leading-none animate-scale-in">
+          <div id="settings-success" className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2 text-emerald-800 text-xs font-bold leading-none animate-scale-in">
             <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-600" />
             <span>Configurações atualizadas e integradas com total sucesso! Prontos para faturamentos e novos acessos de clientes.</span>
           </div>
@@ -543,12 +560,14 @@ export function AdminSettingsTab() {
           <button
             type="submit"
             disabled={loading}
-            className={`cursor-pointer px-8 py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md shadow-rose-100 flex items-center gap-2 transition-all ${
+            className={`cursor-pointer px-8 py-3.5 ${
+              success ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+            } text-white font-bold text-sm rounded-xl shadow-md shadow-rose-100 flex items-center gap-2 transition-all ${
               loading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
           >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {loading ? 'Salvando Configurações...' : 'Salvar Configurações Corporativas'}
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : success ? <ShieldCheck className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {loading ? 'Salvando Configurações...' : success ? 'Configurações Salvas!' : 'Salvar Configurações Corporativas'}
           </button>
         </div>
 
