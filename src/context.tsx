@@ -114,6 +114,7 @@ interface AppContextType {
   updateSystemKnowledge: (id: string, knowledge: Partial<SystemKnowledge>) => Promise<void>;
   deleteSystemKnowledge: (id: string) => Promise<void>;
   learnFromTicket: (ticketId: string) => Promise<void>;
+  syncOrderWithERPs: (orderId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -505,6 +506,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (receipt) updateData.receipt = receipt;
     await updateDoc(doc(db, 'orders', orderId), updateData);
 
+    // Trigger ERP sync if status is PAYMENT_RECEIVED
+    if (status === 'PAYMENT_RECEIVED') {
+      syncOrderWithERPs(orderId).catch(console.error);
+    }
+
     // Auto-save attachment to client drive if provided
     if (photoUrl || receipt?.url) {
        const attachmentUrl = photoUrl || (receipt as any)?.url;
@@ -518,6 +524,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
          docName, 
          attachmentUrl
        );
+    }
+  };
+
+  const syncOrderWithERPs = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    try {
+      // Initialize or update integration sync state
+      await updateDoc(doc(db, 'orders', orderId), {
+        'integrationSync.adminHub.status': 'PENDING',
+        'integrationSync.nexus.status': 'PENDING'
+      });
+
+      const res = await fetch('/api/sync-order-erps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order })
+      });
+
+      const data = await res.json();
+
+      const updateData: any = {};
+      if (data.adminHub) {
+        updateData['integrationSync.adminHub'] = {
+          ...data.adminHub,
+          syncedAt: data.adminHub.status === 'SUCCESS' ? new Date().toISOString() : undefined,
+          attempts: (order.integrationSync?.adminHub?.attempts || 0) + 1
+        };
+      }
+      if (data.nexus) {
+        updateData['integrationSync.nexus'] = {
+          ...data.nexus,
+          syncedAt: data.nexus.status === 'SUCCESS' ? new Date().toISOString() : undefined,
+          attempts: (order.integrationSync?.nexus?.attempts || 0) + 1
+        };
+      }
+
+      await updateDoc(doc(db, 'orders', orderId), updateData);
+    } catch (err) {
+      console.error("[ERP Sync Client Error]:", err);
+      await updateDoc(doc(db, 'orders', orderId), {
+        'integrationSync.adminHub.status': 'FAILED',
+        'integrationSync.adminHub.error': String(err),
+        'integrationSync.nexus.status': 'FAILED',
+        'integrationSync.nexus.error': String(err)
+      });
     }
   };
 
@@ -981,7 +1034,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, profile, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket }}>
+    <AppContext.Provider value={{ user, profile, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs }}>
       {children}
     </AppContext.Provider>
   );

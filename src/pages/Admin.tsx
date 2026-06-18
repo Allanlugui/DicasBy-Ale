@@ -1099,7 +1099,8 @@ function OrdersTab({ orders, updateOrderStatus }: { orders: any[], updateOrderSt
 }
 
 function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: any, updateOrderStatus: any }) {
-  const { companySettings, autoSaveUserDocument } = useAppContext();
+  const { companySettings, autoSaveUserDocument, syncOrderWithERPs } = useAppContext();
+  const [isSyncing, setIsSyncing] = useState(false);
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [note, setNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
@@ -1208,6 +1209,76 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
               <span className="font-bold block mb-1">Última atualização:</span>
               <span className="font-mono text-xs text-green-700">{new Date(currentEvent.date).toLocaleString()}</span>
               <p className="mt-1 font-medium">{order.status}</p>
+           </div>
+
+           {/* ERP Integrations Sync Status */}
+           <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 space-y-3">
+             <div className="flex items-center justify-between">
+               <h5 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Sincronização ERP</h5>
+               <button 
+                 type="button"
+                 onClick={async () => {
+                   setIsSyncing(true);
+                   try { await syncOrderWithERPs(order.id); } finally { setIsSyncing(false); }
+                 }}
+                 disabled={isSyncing || order.status !== 'PAYMENT_RECEIVED'}
+                 className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+               >
+                 <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                 {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+               </button>
+             </div>
+             
+             <div className="grid grid-cols-2 gap-2">
+               <div className="p-2 bg-white rounded border border-stone-100 flex flex-col gap-1">
+                 <div className="flex items-center justify-between">
+                   <span className="text-[9px] font-bold text-stone-500">AdminHub</span>
+                   {order.integrationSync?.adminHub?.status === 'SUCCESS' ? (
+                     <CheckCircle className="w-3 h-3 text-emerald-500" />
+                   ) : order.integrationSync?.adminHub?.status === 'FAILED' ? (
+                     <XCircle className="w-3 h-3 text-rose-500" />
+                   ) : (
+                     <Clock className="w-3 h-3 text-amber-500" />
+                   )}
+                 </div>
+                 <div className="text-[10px] font-bold text-stone-800">
+                   {order.integrationSync?.adminHub?.status || 'PENDENTE'}
+                 </div>
+                 {order.integrationSync?.adminHub?.syncedAt && (
+                   <div className="text-[8px] text-stone-400 mt-0.5">
+                     {new Date(order.integrationSync.adminHub.syncedAt).toLocaleString()}
+                   </div>
+                 )}
+               </div>
+
+               <div className="p-2 bg-white rounded border border-stone-100 flex flex-col gap-1">
+                 <div className="flex items-center justify-between">
+                   <span className="text-[9px] font-bold text-stone-500">Nexus ERP</span>
+                   {order.integrationSync?.nexus?.status === 'SUCCESS' ? (
+                     <CheckCircle className="w-3 h-3 text-emerald-500" />
+                   ) : order.integrationSync?.nexus?.status === 'FAILED' ? (
+                     <XCircle className="w-3 h-3 text-rose-500" />
+                   ) : (
+                     <Clock className="w-3 h-3 text-amber-500" />
+                   )}
+                 </div>
+                 <div className="text-[10px] font-bold text-stone-800">
+                   {order.integrationSync?.nexus?.status || 'PENDENTE'}
+                 </div>
+                 {order.integrationSync?.nexus?.syncedAt && (
+                   <div className="text-[8px] text-stone-400 mt-0.5">
+                     {new Date(order.integrationSync.nexus.syncedAt).toLocaleString()}
+                   </div>
+                 )}
+               </div>
+             </div>
+             
+             {(order.integrationSync?.adminHub?.error || order.integrationSync?.nexus?.error) && (
+               <div className="bg-rose-50 p-2 rounded text-[10px] text-rose-600 border border-rose-100">
+                 <span className="font-bold block">Erro na última tentativa:</span>
+                 <p className="line-clamp-2">{order.integrationSync?.adminHub?.error || order.integrationSync?.nexus?.error}</p>
+               </div>
+             )}
            </div>
            
            <div className="pt-4 space-y-4">

@@ -54,6 +54,12 @@ export function AdminSettingsTab() {
   const [termsOfUse, setTermsOfUse] = useState('');
   const [privacyPolicy, setPrivacyPolicy] = useState('');
 
+  // ERP Integration fields
+  const [adminHubBaseUrl, setAdminHubBaseUrl] = useState('');
+  const [adminHubApiKey, setAdminHubApiKey] = useState('');
+  const [nexusBaseUrl, setNexusBaseUrl] = useState('');
+  const [nexusApiKey, setNexusApiKey] = useState('');
+
   // New operational costs fields
   const [serviceFeePercent, setServiceFeePercent] = useState(30);
   const [storageRatePerM2, setStorageRatePerM2] = useState(150);
@@ -78,6 +84,10 @@ export function AdminSettingsTab() {
       setStorageRatePerM2(companySettings.storageRatePerM2 ?? 150);
       setAppFeeFixedBRL(companySettings.appFeeFixedBRL ?? 20);
       setFixedCosts(companySettings.fixedCosts || []);
+      setAdminHubBaseUrl(companySettings.adminHubBaseUrl || '');
+      setAdminHubApiKey(companySettings.adminHubApiKey || '');
+      setNexusBaseUrl(companySettings.nexusBaseUrl || '');
+      setNexusApiKey(companySettings.nexusApiKey || '');
     } else {
       setTermsOfUse(DEFAULT_TERMS);
       setPrivacyPolicy(DEFAULT_PRIVACY);
@@ -136,7 +146,11 @@ export function AdminSettingsTab() {
         serviceFeePercent,
         storageRatePerM2,
         appFeeFixedBRL,
-        fixedCosts
+        fixedCosts,
+        adminHubBaseUrl,
+        adminHubApiKey,
+        nexusBaseUrl,
+        nexusApiKey
       });
       setSuccess(true);
     } catch (err: any) {
@@ -332,11 +346,75 @@ export function AdminSettingsTab() {
           </div>
         </div>
 
-        {/* 4. CORPORATE LEGAL DATA */}
+        {/* 4. ERP INTEGRATION CONFIG */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 space-y-6 shadow-xs">
+          <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
+            <RefreshCw className="w-5 h-5 text-indigo-500" />
+            <h3 className="text-sm font-bold text-stone-900">4. Configurações de Integração ERP (AdminHub & Nexus)</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* AdminHub Section */}
+            <div className="space-y-4 p-4 bg-indigo-50/30 rounded-xl border border-indigo-100">
+              <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider">AdminHub Enterprise (Financeiro)</h4>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-600 block">Base URL</label>
+                <input 
+                  type="url"
+                  value={adminHubBaseUrl}
+                  onChange={e => setAdminHubBaseUrl(e.target.value)}
+                  placeholder="https://api.adminhub.example.com"
+                  className="w-full px-4 py-2 bg-white border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-600 block">API Key / Token</label>
+                <input 
+                  type="password"
+                  value={adminHubApiKey}
+                  onChange={e => setAdminHubApiKey(e.target.value)}
+                  placeholder="••••••••••••••••"
+                  className="w-full px-4 py-2 bg-white border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Nexus ERP Section */}
+            <div className="space-y-4 p-4 bg-emerald-50/30 rounded-xl border border-emerald-100">
+              <h4 className="text-xs font-black text-emerald-900 uppercase tracking-wider">Nexus ERP (Comercial & NF-e)</h4>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-600 block">Base URL</label>
+                <input 
+                  type="url"
+                  value={nexusBaseUrl}
+                  onChange={e => setNexusBaseUrl(e.target.value)}
+                  placeholder="https://api.nexus.example.com"
+                  className="w-full px-4 py-2 bg-white border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-stone-600 block">API Key / Token</label>
+                <input 
+                  type="password"
+                  value={nexusApiKey}
+                  onChange={e => setNexusApiKey(e.target.value)}
+                  placeholder="••••••••••••••••"
+                  className="w-full px-4 py-2 bg-white border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-stone-500 italic">
+            * Estas configurações permitem que a loja envie dados automaticamente após o recebimento dos pagamentos. 
+            As chaves cadastradas aqui têm precedência sobre variáveis de ambiente fixas.
+          </p>
+        </div>
+
+        {/* 5. CORPORATE LEGAL DATA */}
         <div className="bg-white rounded-2xl border border-stone-200 p-6 space-y-6 shadow-xs">
           <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
             <Scale className="w-5 h-5 text-stone-500" />
-            <h3 className="text-sm font-bold text-stone-900">4. Dados Jurídicos da Empresa (Legal Entity)</h3>
+            <h3 className="text-sm font-bold text-stone-900">5. Dados Jurídicos da Empresa (Legal Entity)</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

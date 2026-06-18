@@ -152,6 +152,10 @@ export type Order = {
   referredBy?: string;
   couponCode?: string;
   discountBRL?: number;
+  integrationSync?: {
+    adminHub?: { status: 'PENDING' | 'SUCCESS' | 'FAILED'; error?: string; syncedAt?: string; attempts: number };
+    nexus?: { status: 'PENDING' | 'SUCCESS' | 'FAILED'; error?: string; syncedAt?: string; attempts: number };
+  };
   createdAt: string;
 };
 
@@ -188,6 +192,10 @@ export type CompanySettings = {
   storageRatePerM2?: number; 
   appFeeFixedBRL?: number;
   fixedCosts?: { id: string; label: string; value: number }[];
+  adminHubBaseUrl?: string;
+  adminHubApiKey?: string;
+  nexusBaseUrl?: string;
+  nexusApiKey?: string;
   updatedAt?: string;
 };
 

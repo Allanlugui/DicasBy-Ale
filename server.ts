@@ -1,6 +1,14 @@
 import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
+// Initialize Firebase Admin for server-side Firestore access
+if (!getApps().length) {
+  initializeApp();
+}
+const db = getFirestore();
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -1064,7 +1072,115 @@ if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
       });
     }
 
-    app.listen(PORT, "0.0.0.0", () => {
+    // --- ERP INTEGRATION SERVICES ---
+
+async function postWithRetry(url: string, body: any, apiKey: string, erpName: string, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`[${erpName}] Attempt ${i + 1} to sync...`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'X-API-Key': apiKey // Adding as a common alternative header
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined
+      });
+
+      if (response.ok) {
+        console.log(`[${erpName}] Sync success!`);
+        return { success: true };
+      } else {
+        const errorText = await response.text();
+        console.warn(`[${erpName}] Sync error (${response.status}):`, errorText);
+        if (i === retries - 1) return { success: false, error: errorText };
+      }
+    } catch (err: any) {
+      console.error(`[${erpName}] Request failed:`, err.message);
+      if (i === retries - 1) return { success: false, error: err.message };
+    }
+    // Exponential backoff
+    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+  }
+}
+
+app.post("/api/sync-order-erps", async (req, res) => {
+  const { order } = req.body;
+  if (!order) return res.status(400).json({ error: "Missing order data" });
+
+  // 1. Fetch dynamic ERP settings from Firestore (Priority over .env)
+  let adminHubBase = process.env.ADMINHUB_BASE_URL || "https://api.adminhub.io";
+  let nexusBase = process.env.NEXUS_BASE_URL || "https://api.nexus.io";
+  let adminHubKey = process.env.ADMINHUB_API_KEY;
+  let nexusKey = process.env.NEXUS_ERP_API_KEY;
+
+  try {
+    const settingsSnap = await db.collection('settings').doc('company').get();
+    if (settingsSnap.exists) {
+      const settings = settingsSnap.data() || {};
+      if (settings.adminHubBaseUrl) adminHubBase = settings.adminHubBaseUrl;
+      if (settings.adminHubApiKey) adminHubKey = settings.adminHubApiKey;
+      if (settings.nexusBaseUrl) nexusBase = settings.nexusBaseUrl;
+      if (settings.nexusApiKey) nexusKey = settings.nexusApiKey;
+    }
+  } catch (dbErr) {
+    console.warn("[ERP Sync] Could not fetch dynamic settings from Firestore. Falling back to ENV.", dbErr);
+  }
+
+  if (!adminHubKey || !nexusKey) {
+    console.warn("[ERP Sync] API keys missing (tried Firestore and ENV).");
+    return res.status(422).json({ 
+      error: "Integration keys not configured.",
+      adminHub: { status: 'FAILED', error: 'Missing API Key' },
+      nexus: { status: 'FAILED', error: 'Missing API Key' }
+    });
+  }
+
+  // AdminHub Payload (Financial)
+  const adminHubPayload = {
+    valor: order.totalBRL,
+    origem: "Loja Dicas by Ale",
+    setor: "Vendas Online",
+    dataHora: order.createdAt,
+    status: order.status
+  };
+
+  // Nexus Payload (Sales/Commercial)
+  const nexusPayload = {
+    valorTotal: order.totalBRL,
+    valorLiquido: order.totalBRL - (order.serviceFeeBRL || 0), // Assuming service fee is what's deducted
+    clienteId: order.userId,
+    produtos: order.items.map((it: any) => ({
+      sku: it.product?.sku || it.productId,
+      nome: it.product?.name,
+      quantidade: it.quantity,
+      precoUnitario: it.product?.priceBRL
+    })),
+    autoria: "Venda Automática",
+    dataVenda: order.createdAt,
+    statusNFe: "PENDENTE",
+    statusFinal: "vendida"
+  };
+
+  try {
+    const [adminResult, nexusResult] = await Promise.all([
+      postWithRetry(`${adminHubBase}/api/integration/finance`, adminHubPayload, adminHubKey, "AdminHub"),
+      postWithRetry(`${nexusBase}/api/integration/sales/receive`, nexusPayload, nexusKey, "Nexus ERP")
+    ]);
+
+    return res.json({
+      adminHub: adminResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: adminResult?.error },
+      nexus: nexusResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: nexusResult?.error }
+    });
+  } catch (err: any) {
+    console.error("[ERP Sync Global Error]:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
   }
