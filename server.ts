@@ -1051,28 +1051,7 @@ ${conversationText}`;
 
 
 
-// Only run the server and attach Vite middleware if this file is run directly (not just imported on Vercel)
-if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
-  async function startServer() {
-    const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-
-    // Vite middleware for development
-    if (process.env.NODE_ENV !== "production") {
-      const { createServer: createViteServer } = await import("vite");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } else {
-      const distPath = path.join(process.cwd(), 'dist');
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
-    }
-
-    // --- ERP INTEGRATION SERVICES ---
+// --- ERP INTEGRATION SERVICES Helpers ---
 
 async function postWithRetry(url: string, body: any, apiKey: string, erpName: string, retries = 3) {
   for (let i = 0; i < retries; i++) {
@@ -1083,7 +1062,7 @@ async function postWithRetry(url: string, body: any, apiKey: string, erpName: st
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
-          'X-API-Key': apiKey // Adding as a common alternative header
+          'X-API-Key': apiKey // Explicitly required header
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined
@@ -1138,8 +1117,11 @@ app.post("/api/sync-order-erps", async (req, res) => {
     });
   }
 
+  // Raw payloads including both specific required fields and full order data for flexibility
+  
   // AdminHub Payload (Financial)
   const adminHubPayload = {
+    ...order, // Full order data as requested (no rigid schema filtering)
     valor: order.totalBRL,
     origem: "Loja Dicas by Ale",
     setor: "Vendas Online",
@@ -1149,10 +1131,11 @@ app.post("/api/sync-order-erps", async (req, res) => {
 
   // Nexus Payload (Sales/Commercial)
   const nexusPayload = {
+    ...order, // Full order data as requested
     valorTotal: order.totalBRL,
-    valorLiquido: order.totalBRL - (order.serviceFeeBRL || 0), // Assuming service fee is what's deducted
+    valorLiquido: order.totalBRL - (order.serviceFeeBRL || 0),
     clienteId: order.userId,
-    produtos: order.items.map((it: any) => ({
+    produtos: order.items?.map((it: any) => ({
       sku: it.product?.sku || it.productId,
       nome: it.product?.name,
       quantidade: it.quantity,
@@ -1180,8 +1163,29 @@ app.post("/api/sync-order-erps", async (req, res) => {
   }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+// Only run the server and attach Vite middleware if this file is run directly
+if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+  async function startServer() {
+    const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+    // Vite middleware for development
+    if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
   }
 
