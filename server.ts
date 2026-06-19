@@ -1,14 +1,38 @@
 import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
-import { initializeApp, getApps } from "firebase-admin/app";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
-// Initialize Firebase Admin for server-side Firestore access
-if (!getApps().length) {
-  initializeApp();
+// Initialize Firebase Admin for server-side Firestore access with explicit credentials fallback
+function initializeFirebase() {
+  if (!getApps().length) {
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+    try {
+      if (projectId && clientEmail && privateKey) {
+        initializeApp({
+          credential: cert({
+            projectId,
+            clientEmail,
+            privateKey,
+          }),
+        });
+        console.log("[Firebase Admin] Initialized with service account.");
+      } else {
+        initializeApp();
+        console.log("[Firebase Admin] Initialized with default credentials.");
+      }
+    } catch (err) {
+      console.error("[Firebase Admin] Initialization failed:", err);
+    }
+  }
+  return getFirestore();
 }
-const db = getFirestore();
+
+const db = initializeFirebase();
 
 let aiInstance: GoogleGenAI | null = null;
 
