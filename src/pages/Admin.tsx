@@ -13,6 +13,7 @@ import { AdminShippingLabelsTab } from './AdminShippingLabelsTab';
 import { AdminQuotesTab } from '../components/AdminQuotesTab';
 import { AdminDriveTab } from './AdminDriveTab';
 import { AdminCustomersTab } from './AdminCustomersTab';
+import { AdminIntegrationLogsTab } from './AdminIntegrationLogsTab';
 
 export function TicketsTab({ tickets, updateTicket }: { tickets: Ticket[], updateTicket: any }) {
   const { learnFromTicket } = useAppContext();
@@ -486,7 +487,7 @@ function ShippingMethodsTab() {
 
 export function Admin() {
   const { collaborator, user, orders, stores, products, tickets, reviews, updateOrderStatus, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, updateTicket, notifications, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'highlights' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | null>(null);
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'highlights' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | 'integration_logs' | null>(null);
 
   const hasPermission = (perm: string) => {
     if (user?.email === 'jallanluiz@gmail.com') return true;
@@ -640,6 +641,15 @@ export function Admin() {
             {activeTab === 'settings' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
           </button>
         )}
+        {hasPermission('settings') && (
+          <button 
+            onClick={() => setActiveTab('integration_logs')}
+            className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === 'integration_logs' ? 'text-rose-600' : 'text-stone-500 hover:text-stone-800'}`}
+          >
+            Auditoria / API
+            {activeTab === 'integration_logs' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
+          </button>
+        )}
         {(hasPermission('orders') || hasPermission('products')) && (
           <button 
             onClick={() => setActiveTab('quotes')}
@@ -697,6 +707,7 @@ export function Admin() {
       {activeTab === 'shipping' && hasPermission('orders') && <AdminShippingLabelsTab orders={orders} />}
       {activeTab === 'reviews' && hasPermission('reviews') && <ReviewsTab reviews={reviews} />}
       {activeTab === 'settings' && hasPermission('settings') && <AdminSettingsTab />}
+      {activeTab === 'integration_logs' && hasPermission('settings') && <AdminIntegrationLogsTab />}
       {activeTab === 'quotes' && (hasPermission('orders') || hasPermission('products')) && <AdminQuotesTab />}
       {activeTab === 'documents' && hasPermission('orders') && <AdminDriveTab />}
       {activeTab === 'notifications' && <AdminNotificationsTab />}

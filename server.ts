@@ -1172,8 +1172,30 @@ async function postWithRetry(url: string, body: any, apiKey: string, erpName: st
   }
 }
 
+async function saveIntegrationLog(service: string, endpoint: string, status: 'SUCCESS' | 'ERROR', statusCode: number, errorDescription: string | null, payload: any) {
+  try {
+    const logId = `log-${Date.now()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    await db.collection('integrationLogs').doc(logId).set({
+      id: logId,
+      timestamp: new Date().toISOString(),
+      service,
+      endpoint,
+      method: 'POST',
+      status,
+      statusCode,
+      errorDescription,
+      payload: payload || {}
+    });
+    console.log(`[Integration Log] Persistent audit log recorded: ${logId} (${status})`);
+  } catch (err) {
+    console.error("[saveIntegrationLog] Error recording audit log:", err);
+  }
+}
+
 app.post("/api/integration/finance", async (req, res) => {
   const body = req.body || {};
+  const endpoint = "/api/integration/finance";
+  const service = "Finanças";
   try {
     const configuredKey = await resolveAdminHubKey();
     const incomingKey = req.headers['x-api-key'] || 
@@ -1190,19 +1212,25 @@ app.post("/api/integration/finance", async (req, res) => {
     
     if (cleanIncoming !== cleanConfigured) {
       console.warn(`[Finance Integration Auth] Key mismatch. Received: "${cleanIncoming}", Configured: "${cleanConfigured}"`);
-      return res.status(401).json({ success: false, error: "Unauthorized: Invalid API Key" });
+      const errResponse = { error: "Acesso não autorizado. Por favor forneça uma chave de API válida..." };
+      await saveIntegrationLog(service, endpoint, "ERROR", 401, "Acesso não autorizado. Chave de API inválida.", body);
+      return res.status(401).json(errResponse);
     }
 
     const result = await executeFinanceIntegration(body);
+    await saveIntegrationLog(service, endpoint, "SUCCESS", 200, null, body);
     return res.status(200).json(result);
   } catch (err: any) {
     console.error("[Finance Integration Sync Global Error]:", err);
-    return res.status(500).json({ success: false, error: err.message });
+    await saveIntegrationLog(service, endpoint, "ERROR", 500, err.message, body);
+    return res.status(500).json({ error: err.message });
   }
 });
 
 app.post("/api/integration/sales", async (req, res) => {
   const body = req.body || {};
+  const endpoint = "/api/integration/sales";
+  const service = "Vendas";
   try {
     const configuredKey = await resolveNexusKey();
     const incomingKey = req.headers['x-api-key'] || 
@@ -1219,11 +1247,20 @@ app.post("/api/integration/sales", async (req, res) => {
     
     if (cleanIncoming !== cleanConfigured) {
       console.warn(`[Sales Integration Auth] Key mismatch. Received: "${cleanIncoming}", Configured: "${cleanConfigured}"`);
-      return res.status(401).json({ success: false, error: "Unauthorized: Invalid API Key" });
+      const errResponse = { error: "Acesso não autorizado. Por favor forneça uma chave de API válida..." };
+      await saveIntegrationLog(service, endpoint, "ERROR", 401, "Acesso não autorizado. Chave de API inválida.", body);
+      return res.status(401).json(errResponse);
+    }
+
+    // Payload validation: bruto total and identifier check
+    const valueNum = parseFloat(body.valorTotal);
+    if (isNaN(valueNum) || valueNum <= 0) {
+      const errMsg = "Campos obrigatórios ausentes ou incorretos. O campo 'valorTotal' deve ser um número positivo superior a zero.";
+      await saveIntegrationLog(service, endpoint, "ERROR", 400, errMsg, body);
+      return res.status(400).json({ error: errMsg });
     }
 
     const orderId = body.id || `ord-ext-${Date.now()}`;
-    const valueNum = parseFloat(body.valorTotal) || 0;
     const dateStr = body.dataVenda || new Date().toISOString();
     
     const productsList = Array.isArray(body.produto) ? body.produto : (body.produto ? [body.produto] : ["Venda Integrada"]);
@@ -1238,6 +1275,35 @@ app.post("/api/integration/sales", async (req, res) => {
       }
     }));
 
+    // Commission matching mechanism
+    let associatedCollaborator = "Venda Automática";
+    let isCollaboratorMatch = false;
+    if (body.autoria) {
+      const cleanAuthor = String(body.autoria).toLowerCase().trim();
+      const colSnap = await db.collection('collaborators').doc(cleanAuthor).get();
+      if (colSnap.exists) {
+        associatedCollaborator = colSnap.data()?.name || colSnap.id;
+        isCollaboratorMatch = true;
+      } else {
+        const colListSnap = await db.collection('collaborators').get();
+        for (const doc of colListSnap.docs) {
+          const data = doc.data();
+          if (
+            (data.email && String(data.email).toLowerCase().trim() === cleanAuthor) ||
+            (data.name && String(data.name).toLowerCase().trim() === cleanAuthor)
+          ) {
+            associatedCollaborator = data.name || doc.id;
+            isCollaboratorMatch = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // APROVADO vs PENDENTE based on statusOperacao
+    const isApproved = String(body.statusOperacao).toLowerCase() === "vendida";
+    const saleStatus = isApproved ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT";
+
     const newOrder = {
       id: orderId,
       userId: body.codigoCliente || "integration-user",
@@ -1246,35 +1312,126 @@ app.post("/api/integration/sales", async (req, res) => {
       customerEmail: body.autoria || "integracao@dicasbyale.com.br",
       items,
       subtotalBRL: valueNum,
-      serviceFeeBRL: valueNum - (parseFloat(body.valorLiquido) || valueNum * 0.95),
+      serviceFeeBRL: valueNum - (parseFloat(body.valorLiquido) !== undefined && !isNaN(parseFloat(body.valorLiquido)) ? parseFloat(body.valorLiquido) : valueNum),
       storageFeeBRL: 0,
       shippingFeeBRL: 0,
       appFeeBRL: 0,
       totalBRL: valueNum,
-      status: "WAITING_PAYMENT_CONFIRMATION",
+      status: saleStatus,
+      associatedSeller: associatedCollaborator,
+      isCollaboratorAssigned: isCollaboratorMatch,
       createdAt: dateStr,
       history: [
         {
-          status: "PENDING",
-          notes: `Venda recebida via API de integração de vendas de autoria: ${body.autoria || 'Desconhecido'} (NF: ${body.numeroNF || 'N/A'})`,
+          status: saleStatus,
+          notes: `Venda recebida via API de integração de vendas de autoria: ${body.autoria || 'Desconhecido'} (NF: ${body.numeroNF || 'N/A'}). Status financeiro: ${isApproved ? 'APROVADO' : 'PENDENTE DE HOMOLOGAÇÃO MANUAL'}.`,
           createdAt: dateStr
         }
       ]
     };
 
     await db.collection('orders').doc(orderId).set(newOrder);
-    console.log(`[Sales Integration] Saved external sale ${orderId} in Firestore.`);
+    console.log(`[Sales Integration] Saved external sale ${orderId} (Status: ${saleStatus})`);
+
+    await saveIntegrationLog(service, endpoint, "SUCCESS", 200, null, body);
 
     return res.status(200).json({
       success: true,
       message: "Venda integrada com sucesso no sistema local.",
-      orderId
+      orderId,
+      sellerAssigned: associatedCollaborator,
+      financialStatus: isApproved ? "APROVADO" : "PENDENTE DE HOMOLOGAÇÃO MANUAL"
     });
   } catch (err: any) {
     console.error("[Sales Integration Error]:", err);
-    return res.status(500).json({ success: false, error: err.message });
+    await saveIntegrationLog(service, endpoint, "ERROR", 500, err.message, body);
+    return res.status(500).json({ error: err.message });
   }
 });
+
+const handleHRIntegration = async (req: any, res: any) => {
+  const body = req.body || {};
+  const endpoint = req.path || "/api/integration/employees";
+  const service = "Recursos Humanos";
+  try {
+    const adminHubKey = await resolveAdminHubKey();
+    const nexusKey = await resolveNexusKey();
+    
+    const incomingKey = req.headers['x-api-key'] || 
+                       (req.headers['authorization'] ? String(req.headers['authorization']).replace(/^Bearer\s+/i, '') : null) || 
+                       req.query.api_key;
+                       
+    const cleanStr = (s: any): string => {
+      if (!s) return "";
+      return String(s).replace(/^["']|["']$/g, "").trim();
+    };
+    
+    const cleanIncoming = cleanStr(incomingKey);
+    
+    // Auth Check
+    if (cleanIncoming !== cleanStr(adminHubKey) && cleanIncoming !== cleanStr(nexusKey)) {
+      const errMsg = "Acesso não autorizado. Por favor forneça uma chave de API válida...";
+      const errResponse = { error: errMsg };
+      await saveIntegrationLog(service, endpoint, "ERROR", 401, "Acesso não autorizado. Chave de API inválida.", body);
+      return res.status(401).json(errResponse);
+    }
+    
+    // Fields Check
+    const nameVal = body.name || body.nome;
+    const emailVal = body.email;
+    const roleVal = body.role || body.position || body.papel || body.cargo;
+    
+    if (!nameVal || !emailVal || !roleVal) {
+      const errMsg = "Campos obrigatórios ausentes. Forneça pelo menos name, email, e role/position.";
+      await saveIntegrationLog(service, endpoint, "ERROR", 400, errMsg, body);
+      return res.status(400).json({ error: errMsg });
+    }
+    
+    // Normalise fields
+    const cleanEmail = String(emailVal).trim().toLowerCase();
+    const id = cleanEmail;
+    
+    let mappedRole: 'ADMIN' | 'SUPPORT' | 'LOGISTICS' | 'PACKAGING' | 'SALES' | 'PURCHASING' | 'OTHER' = 'SUPPORT';
+    const roleStr = String(roleVal).toUpperCase();
+    if (roleStr.includes("ADMIN")) mappedRole = 'ADMIN';
+    else if (roleStr.includes("SUPP") || roleStr.includes("ATEND")) mappedRole = 'SUPPORT';
+    else if (roleStr.includes("LOG") || roleStr.includes("DESP")) mappedRole = 'LOGISTICS';
+    else if (roleStr.includes("PACK") || roleStr.includes("EMBAL")) mappedRole = 'PACKAGING';
+    else if (roleStr.includes("SALE") || roleStr.includes("VEND") || roleStr.includes("COMERC")) mappedRole = 'SALES';
+    else if (roleStr.includes("PURCH") || roleStr.includes("COMP")) mappedRole = 'PURCHASING';
+    else mappedRole = 'OTHER';
+    
+    const newCollab = {
+      id,
+      name: String(nameVal).trim(),
+      email: cleanEmail,
+      phone: body.phone || body.telefone || '',
+      role: mappedRole,
+      active: body.active !== undefined ? !!body.active : true,
+      permissions: body.permissions || ['tickets'],
+      receiveQuoteNotifications: body.receiveQuoteNotifications !== undefined ? !!body.receiveQuoteNotifications : (mappedRole === 'PURCHASING' || mappedRole === 'ADMIN'),
+      createdAt: body.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await db.collection('collaborators').doc(id).set(newCollab);
+    await saveIntegrationLog(service, endpoint, "SUCCESS", 200, null, body);
+    
+    return res.status(200).json({
+      success: true,
+      message: "Colaborador sincronizado com sucesso.",
+      collaboratorId: id
+    });
+  } catch (err: any) {
+    console.error("[HR Integration Sync Global Error]:", err);
+    await saveIntegrationLog(service, endpoint, "ERROR", 500, err.message, body);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+app.post("/api/integration/employees", handleHRIntegration);
+app.post("/api/integration/hr", handleHRIntegration);
+app.post("/api/integration/collaborators", handleHRIntegration);
 
 async function executeFinanceIntegration(body: any) {
   // Extract order if nested, or support flat properties for outside integration tests
