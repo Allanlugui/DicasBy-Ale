@@ -1133,7 +1133,16 @@ async function postWithRetry(url: string, body: any, apiKey: string, erpName: st
 
 app.post("/api/integration/finance", async (req, res) => {
   const body = req.body || {};
-  
+  try {
+    const result = await executeFinanceIntegration(body);
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error("[Finance Integration Sync Global Error]:", err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+async function executeFinanceIntegration(body: any) {
   // Extract order if nested, or support flat properties for outside integration tests
   let order = body.order;
   let orderId = body.orderId;
@@ -1276,69 +1285,58 @@ app.post("/api/integration/finance", async (req, res) => {
     ...order
   };
 
+  console.log(`[Finance Integration Sync] POSTing to ${adminHubBase} & ${nexusBase}`);
+  const [adminResult, nexusResult] = await Promise.all([
+    postWithRetry(`${adminHubBase}/api/integration/finance`, adminHubPayload, adminHubKey, "AdminHub"),
+    postWithRetry(`${nexusBase}/api/integration/sales/receive`, nexusPayload, nexusKey, "Nexus ERP")
+  ]);
+
+  const adminHubStatus = adminResult?.success ? 'SUCCESS' : 'FAILED';
+  const nexusStatus = nexusResult?.success ? 'SUCCESS' : 'FAILED';
+
   try {
-    console.log(`[Finance Integration Sync] POSTing to ${adminHubBase} & ${nexusBase}`);
-    const [adminResult, nexusResult] = await Promise.all([
-      postWithRetry(`${adminHubBase}/api/integration/finance`, adminHubPayload, adminHubKey, "AdminHub"),
-      postWithRetry(`${nexusBase}/api/integration/sales/receive`, nexusPayload, nexusKey, "Nexus ERP")
-    ]);
-
-    const adminHubStatus = adminResult?.success ? 'SUCCESS' : 'FAILED';
-    const nexusStatus = nexusResult?.success ? 'SUCCESS' : 'FAILED';
-
-    try {
-      await db.collection('orders').doc(orderId).update({
-        'integrationSync.adminHub': {
-          status: adminHubStatus,
-          error: adminResult?.success ? undefined : adminResult?.error,
-          syncedAt: adminResult?.success ? new Date().toISOString() : undefined,
-          attempts: 1
-        },
-        'integrationSync.nexus': {
-          status: nexusStatus,
-          error: nexusResult?.success ? undefined : nexusResult?.error,
-          syncedAt: nexusResult?.success ? new Date().toISOString() : undefined,
-          attempts: 1
-        }
-      });
-    } catch (updateErr) {
-      console.warn(`[Finance Integration Sync] Could not write statuses back to doc ${orderId}:`, updateErr);
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Transação financeira integrada com sucesso.",
-      transactionId: orderId,
-      adminHub: adminResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: adminResult?.error },
-      nexus: nexusResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: nexusResult?.error }
+    await db.collection('orders').doc(orderId).update({
+      'integrationSync.adminHub': {
+        status: adminHubStatus,
+        error: adminResult?.success ? undefined : adminResult?.error,
+        syncedAt: adminResult?.success ? new Date().toISOString() : undefined,
+        attempts: 1
+      },
+      'integrationSync.nexus': {
+        status: nexusStatus,
+        error: nexusResult?.success ? undefined : nexusResult?.error,
+        syncedAt: nexusResult?.success ? new Date().toISOString() : undefined,
+        attempts: 1
+      }
     });
-  } catch (err: any) {
-    console.error("[Finance Integration Sync Global Error]:", err);
-    return res.status(500).json({ success: false, error: err.message });
+  } catch (updateErr) {
+    console.warn(`[Finance Integration Sync] Could not write statuses back to doc ${orderId}:`, updateErr);
   }
-});
+
+  return {
+    success: true,
+    message: "Transação financeira integrada com sucesso.",
+    transactionId: orderId,
+    adminHub: adminResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: adminResult?.error },
+    nexus: nexusResult?.success ? { status: 'SUCCESS' } : { status: 'FAILED', error: nexusResult?.error }
+  };
+}
 
 app.post("/api/sync-order-erps", async (req, res) => {
   const { order } = req.body;
   if (!order) return res.status(400).json({ error: "Missing order data" });
 
-  // Delegate directly to the unified integrated endpoint
   try {
-    const resValue = await fetch(`http://localhost:${process.env.PORT || 3000}/api/integration/finance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        value: String(order.totalBRL),
-        origin: "Loja Dicas by Ale",
-        sector: "Vendas Online",
-        date: order.createdAt,
-        transactionStatus: "confirmed",
-        auditStatus: "pending",
-        order: order
-      })
+    const result = await executeFinanceIntegration({
+      value: String(order.totalBRL),
+      origin: "Loja Dicas by Ale",
+      sector: "Vendas Online",
+      date: order.createdAt,
+      transactionStatus: "confirmed",
+      auditStatus: "pending",
+      order: order
     });
-    const data = await resValue.json();
-    return res.json(data);
+    return res.json(result);
   } catch (err: any) {
     console.error("[Delegated Sync Error]:", err);
     return res.status(500).json({ error: err.message });
