@@ -1598,14 +1598,14 @@ async function executeFinanceIntegration(body: any) {
     await db.collection('orders').doc(orderId).update({
       'integrationSync.adminHub': {
         status: adminHubStatus,
-        error: adminResult?.success ? undefined : adminResult?.error,
-        syncedAt: adminResult?.success ? new Date().toISOString() : undefined,
+        error: adminResult?.success ? null : (adminResult?.error || null),
+        syncedAt: adminResult?.success ? new Date().toISOString() : null,
         attempts: 1
       },
       'integrationSync.nexus': {
         status: nexusStatus,
-        error: nexusResult?.success ? undefined : nexusResult?.error,
-        syncedAt: nexusResult?.success ? new Date().toISOString() : undefined,
+        error: nexusResult?.success ? null : (nexusResult?.error || null),
+        syncedAt: nexusResult?.success ? new Date().toISOString() : null,
         attempts: 1
       }
     });
