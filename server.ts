@@ -1192,6 +1192,318 @@ async function saveIntegrationLog(service: string, endpoint: string, status: 'SU
   }
 }
 
+// ---------------------------------------------------------------------------------
+// EMAIL NOTIFICATIONS FOR PURCHASES & INVOICES
+// ---------------------------------------------------------------------------------
+
+async function sendNewSaleNotification(orderId: string) {
+  try {
+    const docSnap = await db.collection('orders').doc(orderId).get();
+    if (!docSnap.exists) {
+      console.error(`[sendNewSaleNotification] Order ${orderId} not found.`);
+      return false;
+    }
+    
+    const order = docSnap.data();
+    if (!order) return false;
+
+    const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.totalBRL || 0);
+    const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+    
+    // Support and Chat links
+    const whatsappLink = "https://wa.me/5511933232319";
+    const chatLink = `https://ais-pre-3kvdti3ymob2izqnppaaoa-124196819483.us-east1.run.app/#support`;
+    const trackingId = order.trackingId || "N/A";
+    const itemsList = Array.isArray(order.items) 
+      ? order.items.map((item: any) => `${item.product?.name || "Produto"} (Qtd: ${item.quantity || 1})`).join(", ")
+      : "Venda Integrada";
+
+    // 1. Email structure for the customer
+    const clientSubject = `Parabéns por sua conquista! Seu pedido #${orderId} foi registrado com sucesso 🎉`;
+    const clientHtml = `
+      <div style="font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+        <div style="background-color: #4f46e5; padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: bold;">Parabéns por sua mais nova conquista!</h2>
+          <p style="margin: 4px 0 0; opacity: 0.9; font-size: 14px;">Seu pedido já está em nosso radar.</p>
+        </div>
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0;">Olá, <strong>${order.customerName || "Cliente"}</strong>,</p>
+          <p>Estamos imensamente felizes e honrados em fazer parte deste passo! Queremos lhe parabenizar pela aquisição. Faremos tudo ao nosso alcance para que sua experiência seja fantástica.</p>
+          
+          <div style="background-color: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Resumo do Pedido</h3>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Número do Pedido:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right;">#${orderId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Código de Rastreamento:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right; color: #4f46e5; font-family: monospace;">${trackingId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Itens:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right;">${itemsList}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Valor Total:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right; font-size: 15px; color: #10b981;">${formattedValue}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Data do Registro:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right;">${dateStr}</td>
+              </tr>
+            </table>
+          </div>
+
+          <p><strong>Nota Fiscal e Regularização:</strong> Informamos que a Nota Fiscal jurídica correspondente ao seu produto será gerada e, assim que disponível homologada pelo nosso faturamento, será enviada de forma 100% automatizada com apenas um clique para você diretamente neste endereço de e-mail, legalizado para transporte entre Brasil e EUA!</p>
+          
+          <h3 style="color: #4f46e5; font-size: 15px; margin-top: 24px; margin-bottom: 8px;">Acompanhamento & Canais de Suporte</h3>
+          <p style="margin-top: 0;">Oferecemos suporte completo e personalizado até que seu produto chegue legalizado em suas mãos. Utilize os links rápidos abaixo para validar seu pagamento, tirar dúvidas ou conversar diretamente conosco:</p>
+          
+          <div style="display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap;">
+            <a href="${whatsappLink}" target="_blank" style="background-color: #25d366; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; text-align: center; flex: 1; min-width: 140px;">Falar no WhatsApp</a>
+            <a href="${chatLink}" target="_blank" style="background-color: #4f46e5; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; text-align: center; flex: 1; min-width: 140px;">Entrar no Chat / Bot</a>
+          </div>
+
+          <p style="font-size: 12px; color: #64748b; margin-top: 30px; border-t: 1px solid #f1f5f9; padding-top: 15px;">Em caso de dúvidas adicionais, responda a este e-mail ou mande uma mensagem em <strong>suporte@dicasbyale.com</strong>. Estamos ansiosos para lhe atender!</p>
+        </div>
+      </div>
+    `;
+
+    // 2. Email structure for the Sales Department
+    const salesSubject = `🚨 [NOVA VENDA REGISTRADA] Pedido #${orderId} - Confirmar Pagamento`;
+    const salesHtml = `
+      <div style="font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+        <div style="background-color: #ef4444; padding: 20px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: bold;">Nova Venda para Processar</h2>
+          <p style="margin: 4px 0 0; opacity: 0.9; font-size: 13px;">Necessário validação financeira e fiscal no painel administrativo.</p>
+        </div>
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0;">Olá Equipe de Vendas e Administração,</p>
+          <p>Uma nova venda foi criada no sistema (seja localmente ou via integração de ERPs). Abaixo estão as informações do pedido coletadas para sua análise:</p>
+          
+          <div style="background-color: #fef2f2; border: 1px solid #fee2e2; border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">ID do Pedido:</td>
+                <td style="padding: 4px 0; font-weight: bold;">#${orderId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Código de Rastreio:</td>
+                <td style="padding: 4px 0; font-weight: bold; font-family: monospace;">${trackingId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Adquirente / Cliente:</td>
+                <td style="padding: 4px 0; font-weight: bold;">${order.customerName || "Desconhecido"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">E-mail do Cliente:</td>
+                <td style="padding: 4px 0; font-weight: bold;">${order.customerEmail || "Não informado"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Status Atual:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #b91c1c;">${order.status}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Valor Consolidado:</td>
+                <td style="padding: 4px 0; font-weight: bold; color: #15803d; font-size: 14px;">${formattedValue}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Data do Registro:</td>
+                <td style="padding: 4px 0; font-weight: bold;">${dateStr}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Items:</td>
+                <td style="padding: 4px 0; font-weight: bold;">${itemsList}</td>
+              </tr>
+            </table>
+          </div>
+
+          <p><strong>Ação Recomendada:</strong> Acesse o módulo financeiro do painel para validar a entrada de valores, homologar o status do pedido e futuramente efetuar o upload e despacho da documentação legalizada para o cliente com um clique de botão!</p>
+          <p style="margin-top: 30px;"><a href="https://ais-pre-3kvdti3ymob2izqnppaaoa-124196819483.us-east1.run.app/admin" style="display: block; width: 220px; background-color: #ef4444; color: white; padding: 12px; text-decoration: none; text-align: center; font-weight: bold; border-radius: 6px; font-size: 13px;">Acessar Painel Financeiro</a></p>
+        </div>
+      </div>
+    `;
+
+    // Dispatch to Customer
+    if (order.customerEmail) {
+      console.log(`[sendNewSaleNotification] Dispatching confirmation e-mail to customer: ${order.customerEmail}`);
+      await dispatchEmail({
+        to: order.customerEmail,
+        subject: clientSubject,
+        html: clientHtml,
+        text: `Parabéns por sua conquista! Seu pedido #${orderId} foi registrado. Rastreio: ${trackingId}, Valor: ${formattedValue}`
+      });
+    }
+
+    // Dispatch to Administration / Sales team
+    const adminEmails = ["jallanluiz@gmail.com", "suporte@dicasbyale.com"];
+    for (const adminEmail of adminEmails) {
+      console.log(`[sendNewSaleNotification] Dispatching sales notification to team/admin: ${adminEmail}`);
+      await dispatchEmail({
+        to: adminEmail,
+        subject: salesSubject,
+        html: salesHtml,
+        text: `Nova venda registrada! Pedido #${orderId} no valor de ${formattedValue} comprado por ${order.customerName || "Desconhecido"}.`
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[sendNewSaleNotification] Exception:", err);
+    return false;
+  }
+}
+
+async function sendInvoiceNotificationWithAttachments(orderId: string) {
+  try {
+    const docSnap = await db.collection('orders').doc(orderId).get();
+    if (!docSnap.exists) {
+      console.error(`[sendInvoiceNotificationWithAttachments] Order ${orderId} not found.`);
+      return { success: false, error: "Pedido não localizado." };
+    }
+    
+    const order = docSnap.data();
+    if (!order) return { success: false, error: "Dados vazios do pedido." };
+
+    if (!order.customerEmail) {
+      return { success: false, error: "E-mail de cliente não cadastrado neste pedido." };
+    }
+
+    const formattedValue = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.totalBRL || 0);
+    const trackingId = order.trackingId || "N/A";
+    const itemsList = Array.isArray(order.items) 
+      ? order.items.map((item: any) => `${item.product?.name || "Produto"} (Qtd: ${item.quantity || 1})`).join(", ")
+      : "Venda Integrada";
+
+    // Set attachments array from database Base64 strings
+    const attachments: any[] = [];
+    if (order.invoiceBase64) {
+      const rawBase64 = order.invoiceBase64.includes(',') ? order.invoiceBase64.split(',')[1] : order.invoiceBase64;
+      attachments.push({
+        filename: order.invoiceName || "Nota_Fiscal.pdf",
+        content: rawBase64,
+        encoding: 'base64'
+      });
+    }
+    if (order.danfeBase64) {
+      const rawBase64 = order.danfeBase64.includes(',') ? order.danfeBase64.split(',')[1] : order.danfeBase64;
+      attachments.push({
+        filename: order.danfeName || "DANFE.pdf",
+        content: rawBase64,
+        encoding: 'base64'
+      });
+    }
+    if (order.customsBase64) {
+      const rawBase64 = order.customsBase64.includes(',') ? order.customsBase64.split(',')[1] : order.customsBase64;
+      attachments.push({
+        filename: order.customsName || "Documento_Importacao_EUA_BR.pdf",
+        content: rawBase64,
+        encoding: 'base64'
+      });
+    }
+
+    // Elegant HTML body for invoice dispatch
+    const subject = `Sua Nota Fiscal e Documentações Emitidas! Pedido #${orderId} 📄`;
+    const html = `
+      <div style="font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+        <div style="background-color: #10b981; padding: 24px; text-align: center; color: white;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: bold;">Adiantamento da Nota Fiscal & DANFE</h2>
+          <p style="margin: 4px 0 0; opacity: 0.9; font-size: 14px;">Os documentos legais e fiscais da sua compra foram gerados e anexados!</p>
+        </div>
+        <div style="padding: 24px; line-height: 1.6;">
+          <p style="margin-top: 0;">Olá, <strong>${order.customerName || "Cliente"}</strong>,</p>
+          <p>Temos o prazer de informar que a emissão da documentação jurídica e fiscal regulamentada foi efetuada com sucesso! Todos os trâmites do transporte e importação estão devidamente validados.</p>
+          
+          <p>Para sua conveniência e conformidade regulatória fiscal no Brasil e internacional, anexamos neste e-mail os documentos emitidos:</p>
+          
+          <ul style="background-color: #f0fdf4; border: 1px solid #dcfce7; border-radius: 8px; padding: 18px 18px 18px 34px; margin: 20px 0; list-style-type: square; font-size: 13px;">
+            ${order.invoiceBase64 ? `<li><strong>Nota Fiscal Eletrônica:</strong> ${order.invoiceName || "Nota_Fiscal.pdf"}</li>` : ''}
+            ${order.danfeBase64 ? `<li><strong>DANFE Governamental:</strong> ${order.danfeName || "DANFE.pdf"}</li>` : ''}
+            ${order.customsBase64 ? `<li><strong>Trâmites / Customs importação EUA-BR:</strong> ${order.customsName || "Documento_Importacao.pdf"}</li>` : ''}
+            ${(!order.invoiceBase64 && !order.danfeBase64 && !order.customsBase64) ? '<li>Documento de faturamento consolidado. Verifique os anexos do e-mail.</li>' : ''}
+          </ul>
+
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px;">
+            <p style="margin: 0;"><strong>Dados do Pedido para Conferência:</strong></p>
+            <p style="margin: 5px 0 0;">Pedido: <strong>#${orderId}</strong> | Rastreio: <strong>${trackingId}</strong></p>
+            <p style="margin: 3px 0 0;">Produtos: <strong>${itemsList}</strong></p>
+            <p style="margin: 3px 0 0;">Valor: <strong>${formattedValue}</strong></p>
+          </div>
+
+          <p>Seu produto segue em processo legalizado de encaminhamento logístico, sem contratempos. Caso necessite de qualquer assistência adicional, nosso canais oficiais permanecem à sua inteira disposição.</p>
+          <p style="font-size: 12px; color: #64748b; margin-top: 30px; border-t: 1px solid #f1f5f9; padding-top: 15px;">Dicas by Alê Intermediações Internacionais Co. Ltda.<br/>suporte@dicasbyale.com</p>
+        </div>
+      </div>
+    `;
+
+    const transporter = getMailTransporter();
+    if (!transporter) {
+      console.log(`\n=== [SIMULATED INVOICE EMAIL] To: ${order.customerEmail} ===\nSubject: ${subject}\nAttachments Count: ${attachments.length}\n==================================================\n`);
+      
+      // Update in firestore even if simulated for UX completeness
+      await db.collection('orders').doc(orderId).update({
+        invoiceEmailSent: true,
+        invoiceEmailSentAt: new Date().toISOString()
+      });
+      return { success: true, simulated: true };
+    }
+
+    const fromAddress = process.env.COMPANY_EMAIL_SENDER || process.env.SMTP_USER || "suporte@dicasbyale.com";
+    await transporter.sendMail({
+      from: `"Suporte Dicas by Alê" <${fromAddress}>`,
+      to: order.customerEmail,
+      subject,
+      html,
+      attachments
+    });
+
+    console.log(`[Invoice Email Dispatch] E-mail sent successfully to ${order.customerEmail}`);
+    await db.collection('orders').doc(orderId).update({
+      invoiceEmailSent: true,
+      invoiceEmailSentAt: new Date().toISOString()
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("[sendInvoiceNotificationWithAttachments] Error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+// ---------------------------------------------------------------------------------
+// ROUTES FOR NOTIFICATIONS
+// ---------------------------------------------------------------------------------
+
+app.post("/api/orders/notify-new-sale", async (req, res) => {
+  const { orderId } = req.body || {};
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required" });
+  }
+  
+  const success = await sendNewSaleNotification(orderId);
+  if (success) {
+    return res.json({ success: true, message: "E-mails de notificação despachados com sucesso." });
+  } else {
+    return res.status(500).json({ error: "Erro ao gerar ou expedir e-mails." });
+  }
+});
+
+app.post("/api/orders/send-invoice", async (req, res) => {
+  const { orderId } = req.body || {};
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required" });
+  }
+  
+  const result = await sendInvoiceNotificationWithAttachments(orderId);
+  if (result.success) {
+    return res.json({ success: true, message: "Nota Fiscal e guias anexadas expedidas para o cliente por e-mail." });
+  } else {
+    return res.status(500).json({ error: result.error || "Falha ao disparar faturas por e-mail." });
+  }
+});
+
 app.post("/api/integration/finance", async (req, res) => {
   const body = req.body || {};
   const endpoint = "/api/integration/finance";
@@ -1360,6 +1672,14 @@ app.post("/api/integration/sales", async (req, res) => {
 
     await db.collection('orders').doc(orderId).set(newOrder);
     console.log(`[Sales Integration] Saved external sale ${orderId} (Status: ${saleStatus})`);
+
+    // Trigger email notification automatically for integrated sales (both client & sales team get notified)
+    try {
+      await sendNewSaleNotification(orderId);
+      console.log(`[Sales Integration] Dispatched new sale notification emails for order ${orderId}`);
+    } catch (notifyErr: any) {
+      console.error(`[Sales Integration Notification Error] Failed to trigger notification:`, notifyErr);
+    }
 
     await saveIntegrationLog(service, endpoint, "SUCCESS", 200, null, body);
 

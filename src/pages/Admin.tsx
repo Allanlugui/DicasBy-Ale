@@ -1117,6 +1117,68 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
   const [photoUrl, setPhotoUrl] = useState('');
   const [finalShippingFeeBRL, setFinalShippingFeeBRL] = useState(order.finalShippingFeeBRL || order.shippingFeeBRL || 0);
 
+  // States for Invoice and documents upload
+  const [invoiceBase64, setInvoiceBase64] = useState<string>(order.invoiceBase64 || '');
+  const [invoiceName, setInvoiceName] = useState<string>(order.invoiceName || '');
+  const [danfeBase64, setDanfeBase64] = useState<string>(order.danfeBase64 || '');
+  const [danfeName, setDanfeName] = useState<string>(order.danfeName || '');
+  const [customsBase64, setCustomsBase64] = useState<string>(order.customsBase64 || '');
+  const [customsName, setCustomsName] = useState<string>(order.customsName || '');
+  const [isSendingInvoice, setIsSendingInvoice] = useState(false);
+
+  const fileToDataURL = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleSendInvoiceEmail = async () => {
+    const activeInvoiceB64 = invoiceBase64 || order.invoiceBase64;
+    const activeDanfeB64 = danfeBase64 || order.danfeBase64;
+    const activeCustomsB64 = customsBase64 || order.customsBase64;
+
+    if (!activeInvoiceB64 && !activeDanfeB64 && !activeCustomsB64) {
+      alert("Por favor, selecione e anexe pelo menos um documento (Nota Fiscal, DANFE ou Trâmites EUA) antes de disparar o e-mail.");
+      return;
+    }
+    
+    setIsSendingInvoice(true);
+    try {
+      // Primeiro salvamos o estado atual dos documentos no pedido
+      const extraPayload: any = {
+        invoiceBase64: invoiceBase64 || order.invoiceBase64 || "",
+        invoiceName: invoiceName || order.invoiceName || "",
+        danfeBase64: danfeBase64 || order.danfeBase64 || "",
+        danfeName: danfeName || order.danfeName || "",
+        customsBase64: customsBase64 || order.customsBase64 || "",
+        customsName: customsName || order.customsName || "",
+      };
+      
+      // Persiste no banco de dados
+      await updateOrderStatus(order.id, order.status, 'Salvando documentos anexados...', '', undefined, extraPayload);
+      
+      const res = await fetch("/api/orders/send-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id }),
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Erro no envio do e-mail.");
+      }
+      
+      alert("Sucesso! E-mail pré-configurado contendo a Nota Fiscal/DANFE anexada foi disparado com sucesso ao cliente.");
+    } catch (err: any) {
+      alert("Falha ao enviar e-mail: " + err.message);
+    } finally {
+      setIsSendingInvoice(false);
+    }
+  };
+
   // Dimension states
   const [length, setLength] = useState(order.packageDimensions?.length || 0);
   const [width, setWidth] = useState(order.packageDimensions?.width || 0);
@@ -1174,6 +1236,14 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
     }
 
     extraFields.totalBRL = calculatedTotal;
+
+    // Document persistence
+    extraFields.invoiceBase64 = invoiceBase64;
+    extraFields.invoiceName = invoiceName;
+    extraFields.danfeBase64 = danfeBase64;
+    extraFields.danfeName = danfeName;
+    extraFields.customsBase64 = customsBase64;
+    extraFields.customsName = customsName;
 
     // Se admin anexar foto ou comprovante junto (relatório fotográfico)
     if (photoUrl) {
@@ -1415,6 +1485,136 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
                   onChange={setPhotoUrl} 
                 />
                  <p className="text-xs text-gray-500 mt-1">Faça upload ou cole a URL de uma foto para incluir no relatório do cliente (ex: comprovante, foto da caixa, etc).</p>
+             </div>
+
+             {/* Seção de Faturamento & Documentos de Importação */}
+             <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 mt-6 space-y-4 shadow-sm text-stone-800">
+               <div className="flex items-center gap-2 border-b border-stone-200 pb-2 mb-1">
+                 <FileText className="w-5 h-5 text-indigo-600 animate-pulse" />
+                 <div>
+                   <h4 className="font-bold text-sm leading-none text-stone-900">Faturamento & Documentos de Envio</h4>
+                   <p className="text-[10px] text-stone-500 mt-1">Anexe Notas Fiscais (PDF), DANFE ou trâmites de importação EUA/Brasil</p>
+                 </div>
+               </div>
+
+               <div className="space-y-4">
+                 {/* 1. Nota Fiscal principal */}
+                 <div>
+                   <label className="block text-[11px] font-bold text-stone-600 uppercase mb-1">Nota Fiscal Eletrônica (PDF)</label>
+                   <div className="flex items-center gap-2">
+                     <input 
+                       type="file" 
+                       accept=".pdf" 
+                       onChange={async (e) => {
+                         const file = e.target.files?.[0];
+                         if (file) {
+                           setInvoiceName(file.name);
+                           const b64 = await fileToDataURL(file);
+                           setInvoiceBase64(b64);
+                         }
+                       }}
+                       className="hidden" 
+                       id={`invoice-upload-${order.id}`}
+                     />
+                     <label 
+                       htmlFor={`invoice-upload-${order.id}`}
+                       className="cursor-pointer bg-white px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 hover:bg-stone-50 flex items-center gap-1 shadow-sm transition"
+                     >
+                       <Upload className="w-3.5 h-3.5 text-stone-500" />
+                       {invoiceName ? 'Substituir' : 'Selecionar PDF'}
+                     </label>
+                     {invoiceName && (
+                       <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 truncate flex-1 block">
+                         {invoiceName}
+                       </span>
+                     )}
+                   </div>
+                 </div>
+
+                 {/* 2. DANFE (Brasil) */}
+                 <div>
+                   <label className="block text-[11px] font-bold text-stone-600 uppercase mb-1">DANFE Governamental (Brasil)</label>
+                   <div className="flex items-center gap-2">
+                     <input 
+                       type="file" 
+                       accept=".pdf" 
+                       onChange={async (e) => {
+                         const file = e.target.files?.[0];
+                         if (file) {
+                           setDanfeName(file.name);
+                           const b64 = await fileToDataURL(file);
+                           setDanfeBase64(b64);
+                         }
+                       }}
+                       className="hidden" 
+                       id={`danfe-upload-${order.id}`}
+                     />
+                     <label 
+                       htmlFor={`danfe-upload-${order.id}`}
+                       className="cursor-pointer bg-white px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 hover:bg-stone-50 flex items-center gap-1 shadow-sm transition"
+                     >
+                       <Upload className="w-3.5 h-3.5 text-stone-500" />
+                       {danfeName ? 'Substituir' : 'Selecionar PDF'}
+                     </label>
+                     {danfeName && (
+                       <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 truncate flex-1 block">
+                         {danfeName}
+                       </span>
+                     )}
+                   </div>
+                 </div>
+
+                 {/* 3. Documentação Alfandegária (EUA/BR) */}
+                 <div>
+                   <label className="block text-[11px] font-bold text-stone-600 uppercase mb-1">Documentos Alfandegários / Trâmites EUA</label>
+                   <div className="flex items-center gap-2">
+                     <input 
+                       type="file" 
+                       accept=".pdf" 
+                       onChange={async (e) => {
+                         const file = e.target.files?.[0];
+                         if (file) {
+                           setCustomsName(file.name);
+                           const b64 = await fileToDataURL(file);
+                           setCustomsBase64(b64);
+                         }
+                       }}
+                       className="hidden" 
+                       id={`customs-upload-${order.id}`}
+                     />
+                     <label 
+                       htmlFor={`customs-upload-${order.id}`}
+                       className="cursor-pointer bg-white px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-bold text-stone-700 hover:bg-stone-50 flex items-center gap-1 shadow-sm transition"
+                     >
+                       <Upload className="w-3.5 h-3.5 text-stone-500" />
+                       {customsName ? 'Substituir' : 'Selecionar PDF'}
+                     </label>
+                     {customsName && (
+                       <span className="text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 truncate flex-1 block">
+                         {customsName}
+                       </span>
+                     )}
+                   </div>
+                 </div>
+               </div>
+
+               {/* Botão de Envio por E-mail em 1 Clique */}
+               <div className="pt-3 border-t border-stone-200 flex flex-col gap-2">
+                 <button
+                   type="button"
+                   onClick={handleSendInvoiceEmail}
+                   disabled={isSendingInvoice}
+                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition text-xs shadow-sm cursor-pointer"
+                 >
+                   <Mail className="h-4 w-4" />
+                   {isSendingInvoice ? 'Expedindo Documentos por E-mail...' : 'Disparar Nota Fiscal por E-mail ao Cliente'}
+                 </button>
+                 {(order.invoiceEmailSent || isSendingInvoice) && (
+                   <p className="text-[10px] text-emerald-600 text-center font-bold">
+                     ✓ Enviado por e-mail em: {order.invoiceEmailSentAt ? new Date(order.invoiceEmailSentAt).toLocaleString() : new Date().toLocaleString()}
+                   </p>
+                 )}
+               </div>
              </div>
 
              {status === 'DELIVERED' && !order.receipt && (

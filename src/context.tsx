@@ -474,6 +474,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cleanedOrder = cleanUndefined(newOrder);
     await setDoc(doc(db, 'orders', orderId), cleanedOrder);
     
+    // Trigger purchase email notification automatically
+    fetch('/api/orders/notify-new-sale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    }).catch(e => console.error("Error triggering new order purchase email:", e));
+    
     // Increment coupon usage
     if (appliedCoupon) {
       await updateDoc(doc(db, 'coupons', appliedCoupon.id), {
@@ -896,6 +903,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     await setDoc(doc(db, 'orders', orderId), cleanUndefined(newOrder));
     await updateQuoteRequest(quote.id, { status: 'APPROVED', orderId });
+
+    // Trigger purchase email notification automatically
+    fetch('/api/orders/notify-new-sale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId })
+    }).catch(e => console.error("Error triggering quote approval order purchase email:", e));
   };
 
   const createFolder = async (name: string, parentId: string | null, targetUserId?: string) => {
