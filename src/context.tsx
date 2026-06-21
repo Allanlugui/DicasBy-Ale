@@ -546,9 +546,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const data = await res.json();
 
-      const updateData: any = {};
+      const mergedSync: any = {
+        ...(order.integrationSync || {})
+      };
       if (data.adminHub) {
-        updateData['integrationSync.adminHub'] = {
+        mergedSync.adminHub = {
           status: data.adminHub.status || 'FAILED',
           error: data.adminHub.status === 'SUCCESS' ? null : (data.adminHub.error || 'Erro desconhecido'),
           syncedAt: data.adminHub.status === 'SUCCESS' ? new Date().toISOString() : null,
@@ -556,7 +558,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
       }
       if (data.nexus) {
-        updateData['integrationSync.nexus'] = {
+        mergedSync.nexus = {
           status: data.nexus.status || 'FAILED',
           error: data.nexus.status === 'SUCCESS' ? null : (data.nexus.error || 'Erro desconhecido'),
           syncedAt: data.nexus.status === 'SUCCESS' ? new Date().toISOString() : null,
@@ -564,15 +566,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
-      await updateDoc(doc(db, 'orders', orderId), updateData);
+      await setDoc(doc(db, 'orders', orderId), {
+        integrationSync: mergedSync
+      }, { merge: true });
     } catch (err) {
       console.error("[ERP Sync Client Error]:", err);
-      await updateDoc(doc(db, 'orders', orderId), {
-        'integrationSync.adminHub.status': 'FAILED',
-        'integrationSync.adminHub.error': String(err),
-        'integrationSync.nexus.status': 'FAILED',
-        'integrationSync.nexus.error': String(err)
-      });
+      const failedSync: any = {
+        ...(order.integrationSync || {})
+      };
+      failedSync.adminHub = {
+        ...(failedSync.adminHub || {}),
+        status: 'FAILED',
+        error: String(err),
+        syncedAt: failedSync.adminHub?.syncedAt || null,
+        attempts: (failedSync.adminHub?.attempts || 0) + 1
+      };
+      failedSync.nexus = {
+        ...(failedSync.nexus || {}),
+        status: 'FAILED',
+        error: String(err),
+        syncedAt: failedSync.nexus?.syncedAt || null,
+        attempts: (failedSync.nexus?.attempts || 0) + 1
+      };
+      await setDoc(doc(db, 'orders', orderId), {
+        integrationSync: failedSync
+      }, { merge: true });
     }
   };
 

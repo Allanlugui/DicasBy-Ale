@@ -1623,20 +1623,27 @@ async function executeFinanceIntegration(body: any) {
   const nexusStatus = nexusResult?.success ? 'SUCCESS' : 'FAILED';
 
   try {
-    await db.collection('orders').doc(orderId).update({
-      'integrationSync.adminHub': {
-        status: adminHubStatus,
-        error: adminResult?.success ? null : (adminResult?.error || null),
-        syncedAt: adminResult?.success ? new Date().toISOString() : null,
-        attempts: 1
-      },
-      'integrationSync.nexus': {
-        status: nexusStatus,
-        error: nexusResult?.success ? null : (nexusResult?.error || null),
-        syncedAt: nexusResult?.success ? new Date().toISOString() : null,
-        attempts: 1
+    const existingSnap = await db.collection('orders').doc(orderId).get();
+    const existingData = existingSnap.exists ? existingSnap.data() : {};
+    const existingSync = existingData?.integrationSync || {};
+
+    await db.collection('orders').doc(orderId).set({
+      integrationSync: {
+        ...existingSync,
+        adminHub: {
+          status: adminHubStatus,
+          error: adminResult?.success ? null : (adminResult?.error || null),
+          syncedAt: adminResult?.success ? new Date().toISOString() : null,
+          attempts: (existingSync.adminHub?.attempts || 0) + 1
+        },
+        nexus: {
+          status: nexusStatus,
+          error: nexusResult?.success ? null : (nexusResult?.error || null),
+          syncedAt: nexusResult?.success ? new Date().toISOString() : null,
+          attempts: (existingSync.nexus?.attempts || 0) + 1
+        }
       }
-    });
+    }, { merge: true });
   } catch (updateErr) {
     console.warn(`[Finance Integration Sync] Could not write statuses back to doc ${orderId}:`, updateErr);
   }
