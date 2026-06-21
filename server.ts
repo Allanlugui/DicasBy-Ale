@@ -1217,7 +1217,7 @@ app.post("/api/integration/finance", async (req, res) => {
       return res.status(401).json(errResponse);
     }
 
-    const result = await executeFinanceIntegration(body);
+    const result = await executeFinanceIntegration(body, { skipAdminHub: true });
     await saveIntegrationLog(service, endpoint, "SUCCESS", 200, null, body);
     return res.status(200).json(result);
   } catch (err: any) {
@@ -1461,7 +1461,7 @@ app.post("/api/integration/employees", handleHRIntegration);
 app.post("/api/integration/hr", handleHRIntegration);
 app.post("/api/integration/collaborators", handleHRIntegration);
 
-async function executeFinanceIntegration(body: any) {
+async function executeFinanceIntegration(body: any, options: { skipAdminHub?: boolean; skipNexus?: boolean } = {}) {
   // Extract order if nested, or support flat properties for outside integration tests
   let order = body.order;
   let orderId = body.orderId;
@@ -1613,11 +1613,24 @@ async function executeFinanceIntegration(body: any) {
     etapaHomologacao: "Homologação Automática Integrada"
   };
 
-  console.log(`[Finance Integration Sync] POSTing to ${adminHubBase} & ${nexusBase}`);
-  const [adminResult, nexusResult] = await Promise.all([
-    postWithRetry(`${adminHubBase}/api/integration/finance`, adminHubPayload, adminHubKey, "AdminHub"),
-    postWithRetry(`${nexusBase}/api/integration/sales`, nexusPayload, nexusKey, "Nexus ERP")
-  ]);
+  console.log(`[Finance Integration Sync] POSTing options:`, options);
+  const syncPromises: Promise<any>[] = [];
+
+  if (!options.skipAdminHub) {
+    syncPromises.push(postWithRetry(`${adminHubBase}/api/integration/finance`, adminHubPayload, adminHubKey, "AdminHub"));
+  } else {
+    console.log(`[Finance Integration Sync] Skipping AdminHub write back to avoid recursion.`);
+    syncPromises.push(Promise.resolve({ success: true }));
+  }
+
+  if (!options.skipNexus) {
+    syncPromises.push(postWithRetry(`${nexusBase}/api/integration/sales`, nexusPayload, nexusKey, "Nexus ERP"));
+  } else {
+    console.log(`[Finance Integration Sync] Skipping Nexus ERP write.`);
+    syncPromises.push(Promise.resolve({ success: true }));
+  }
+
+  const [adminResult, nexusResult] = await Promise.all(syncPromises);
 
   const adminHubStatus = adminResult?.success ? 'SUCCESS' : 'FAILED';
   const nexusStatus = nexusResult?.success ? 'SUCCESS' : 'FAILED';
