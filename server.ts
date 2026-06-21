@@ -1253,17 +1253,19 @@ app.post("/api/integration/sales", async (req, res) => {
     }
 
     // Payload validation: bruto total and identifier check
-    const valueNum = parseFloat(body.valorTotal);
+    const totalVal = body.valorTotal || body.total || body.totalBRL || body.value;
+    const valueNum = parseFloat(totalVal);
     if (isNaN(valueNum) || valueNum <= 0) {
       const errMsg = "Campos obrigatórios ausentes ou incorretos. O campo 'valorTotal' deve ser um número positivo superior a zero.";
       await saveIntegrationLog(service, endpoint, "ERROR", 400, errMsg, body);
       return res.status(400).json({ error: errMsg });
     }
 
-    const orderId = body.id || `ord-ext-${Date.now()}`;
+    const orderId = body.id || body.vendaId || body.orderId || `ord-ext-${Date.now()}`;
     const dateStr = body.dataVenda || new Date().toISOString();
     
-    const productsList = Array.isArray(body.produto) ? body.produto : (body.produto ? [body.produto] : ["Venda Integrada"]);
+    const rawProducts = body.produtos || body.produto || body.products || body.product;
+    const productsList = Array.isArray(rawProducts) ? rawProducts : (rawProducts ? [rawProducts] : ["Venda Integrada"]);
     const items = productsList.map((pName: string, idx: number) => ({
       productId: `prod-ext-${idx}`,
       quantity: 1,
@@ -1278,9 +1280,22 @@ app.post("/api/integration/sales", async (req, res) => {
     // Commission matching mechanism
     let associatedCollaborator = "Venda Automática";
     let isCollaboratorMatch = false;
-    if (body.autoria) {
-      const cleanAuthor = String(body.autoria).toLowerCase().trim();
-      const colSnap = await db.collection('collaborators').doc(cleanAuthor).get();
+
+    const sellerId = body.vendedorId || null;
+    const sellerNameOrEmail = body.vendedor || body.autoria || null;
+
+    if (sellerId) {
+      const cleanId = String(sellerId).trim();
+      const colSnap = await db.collection('collaborators').doc(cleanId).get();
+      if (colSnap.exists) {
+        associatedCollaborator = colSnap.data()?.name || colSnap.id;
+        isCollaboratorMatch = true;
+      }
+    }
+
+    if (!isCollaboratorMatch && sellerNameOrEmail) {
+      const cleanStrVal = String(sellerNameOrEmail).toLowerCase().trim();
+      const colSnap = await db.collection('collaborators').doc(cleanStrVal).get();
       if (colSnap.exists) {
         associatedCollaborator = colSnap.data()?.name || colSnap.id;
         isCollaboratorMatch = true;
@@ -1289,8 +1304,9 @@ app.post("/api/integration/sales", async (req, res) => {
         for (const doc of colListSnap.docs) {
           const data = doc.data();
           if (
-            (data.email && String(data.email).toLowerCase().trim() === cleanAuthor) ||
-            (data.name && String(data.name).toLowerCase().trim() === cleanAuthor)
+            (data.email && String(data.email).toLowerCase().trim() === cleanStrVal) ||
+            (data.name && String(data.name).toLowerCase().trim() === cleanStrVal) ||
+            (doc.id && String(doc.id).toLowerCase().trim() === cleanStrVal)
           ) {
             associatedCollaborator = data.name || doc.id;
             isCollaboratorMatch = true;
@@ -1301,18 +1317,30 @@ app.post("/api/integration/sales", async (req, res) => {
     }
 
     // APROVADO vs PENDENTE based on statusOperacao
-    const isApproved = String(body.statusOperacao).toLowerCase() === "vendida";
+    const isApproved = String(body.statusOperacao || 'vendida').toLowerCase() === "vendida" || 
+                       String(body.statusOperacao || '').toLowerCase() === "pago" || 
+                       String(body.statusOperacao || '').toLowerCase() === "approved" || 
+                       body.statusOperacao === undefined || 
+                       body.statusOperacao === null;
     const saleStatus = isApproved ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT";
+
+    let serviceFeeValue = 0;
+    if (body.valorLiquido !== undefined && body.valorLiquido !== null) {
+      const liqNum = parseFloat(body.valorLiquido);
+      if (!isNaN(liqNum)) {
+        serviceFeeValue = valueNum - liqNum;
+      }
+    }
 
     const newOrder = {
       id: orderId,
-      userId: body.codigoCliente || "integration-user",
+      userId: body.codigoCliente || body.clientId || "integration-user",
       trackingId: body.numeroNF || `INT-${Math.floor(100000 + Math.random() * 900000)}`,
-      customerName: body.cliente || "Cliente Integração",
-      customerEmail: body.autoria || "integracao@dicasbyale.com.br",
+      customerName: body.cliente || body.client || "Cliente Integração",
+      customerEmail: body.autoria || body.email || "integracao@dicasbyale.com.br",
       items,
       subtotalBRL: valueNum,
-      serviceFeeBRL: valueNum - (parseFloat(body.valorLiquido) !== undefined && !isNaN(parseFloat(body.valorLiquido)) ? parseFloat(body.valorLiquido) : valueNum),
+      serviceFeeBRL: serviceFeeValue,
       storageFeeBRL: 0,
       shippingFeeBRL: 0,
       appFeeBRL: 0,
@@ -1324,7 +1352,7 @@ app.post("/api/integration/sales", async (req, res) => {
       history: [
         {
           status: saleStatus,
-          notes: `Venda recebida via API de integração de vendas de autoria: ${body.autoria || 'Desconhecido'} (NF: ${body.numeroNF || 'N/A'}). Status financeiro: ${isApproved ? 'APROVADO' : 'PENDENTE DE HOMOLOGAÇÃO MANUAL'}.`,
+          notes: `Venda recebida via API de integração de vendas de autoria: ${body.autoria || body.vendedor || 'Desconhecido'} (NF: ${body.numeroNF || 'N/A'}). Status financeiro: ${isApproved ? 'APROVADO' : 'PENDENTE DE HOMOLOGAÇÃO MANUAL'}.`,
           createdAt: dateStr
         }
       ]

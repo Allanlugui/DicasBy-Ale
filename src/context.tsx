@@ -549,15 +549,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const updateData: any = {};
       if (data.adminHub) {
         updateData['integrationSync.adminHub'] = {
-          ...data.adminHub,
-          syncedAt: data.adminHub.status === 'SUCCESS' ? new Date().toISOString() : undefined,
+          status: data.adminHub.status || 'FAILED',
+          error: data.adminHub.status === 'SUCCESS' ? null : (data.adminHub.error || 'Erro desconhecido'),
+          syncedAt: data.adminHub.status === 'SUCCESS' ? new Date().toISOString() : null,
           attempts: (order.integrationSync?.adminHub?.attempts || 0) + 1
         };
       }
       if (data.nexus) {
         updateData['integrationSync.nexus'] = {
-          ...data.nexus,
-          syncedAt: data.nexus.status === 'SUCCESS' ? new Date().toISOString() : undefined,
+          status: data.nexus.status || 'FAILED',
+          error: data.nexus.status === 'SUCCESS' ? null : (data.nexus.error || 'Erro desconhecido'),
+          syncedAt: data.nexus.status === 'SUCCESS' ? new Date().toISOString() : null,
           attempts: (order.integrationSync?.nexus?.attempts || 0) + 1
         };
       }
