@@ -1766,6 +1766,15 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
   const [productUrl, setProductUrl] = useState('');
   const [geminiMissing, setGeminiMissing] = useState(false);
   
+  // Bulk CSV Import States
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkStoreId, setBulkStoreId] = useState('');
+  const [csvContentText, setCsvContentText] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+  const [parsedProducts, setParsedProducts] = useState<any[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+
   // Form fields
   const [editingId, setEditingId] = useState('');
   const [storeId, setStoreId] = useState('');
@@ -1788,6 +1797,500 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     'Eletrônicos', 'Informática', 'Eletrodomésticos', 'Vestuário', 'Calçados', 
     'Beleza e Higiene', 'Brinquedos', 'Esportes', 'Relógios', 'Acessórios', 'Outros'
   ];
+
+  // Helper to determine cover images of products if left blank in CSV
+  const getProductImageFallback = (productName: string, categoryName: string = ''): string => {
+    const nameLower = (productName || "").toLowerCase();
+    const catLower = (categoryName || "").toLowerCase();
+
+    // 1. CHECKS FOR SHOES / SNEAKERS (tênis, sapato, calçado, sneaker, boot, bota, shoe, slide, chinelo, sandália, rasteirinha)
+    if (
+      nameLower.includes("tênis") ||
+      nameLower.includes("tenis") ||
+      nameLower.includes("sapato") ||
+      nameLower.includes("calçado") ||
+      nameLower.includes("calcado") ||
+      nameLower.includes("sneaker") ||
+      nameLower.includes("boot") ||
+      nameLower.includes("bota") ||
+      nameLower.includes("shoe") ||
+      nameLower.includes("slide") ||
+      nameLower.includes("chinelo") ||
+      nameLower.includes("sandália") ||
+      nameLower.includes("sandalia") ||
+      catLower.includes("calçados") ||
+      catLower.includes("shoes")
+    ) {
+      return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400";
+    }
+
+    // 2. CHECKS FOR BAGS / BACKPACKS / WALLETS (bag, mochila, mala, bolsa, carteira, backpack, wallet, purse, shoulder bag)
+    if (
+      nameLower.includes("bolsa") ||
+      nameLower.includes("mochila") ||
+      nameLower.includes("mala") ||
+      nameLower.includes("carteira") ||
+      nameLower.includes("backpack") ||
+      nameLower.includes("wallet") ||
+      nameLower.includes("purse") ||
+      nameLower.includes("bag") ||
+      catLower.includes("acessórios") ||
+      catLower.includes("bags")
+    ) {
+      return "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400";
+    }
+
+    // 3. CHECKS FOR APPAREL / CLOTHES (camisa, camiseta, t-shirt, shirt, casaco, moletom, hoodie, pants, calça, vestido, dress, jaqueta, jacket, shorts, cropped, blusa, regata)
+    if (
+      nameLower.includes("camisa") ||
+      nameLower.includes("camiseta") ||
+      nameLower.includes("t-shirt") ||
+      nameLower.includes("shirt") ||
+      nameLower.includes("casaco") ||
+      nameLower.includes("moletom") ||
+      nameLower.includes("hoodie") ||
+      nameLower.includes("calça") ||
+      nameLower.includes("calca") ||
+      nameLower.includes("vestido") ||
+      nameLower.includes("dress") ||
+      nameLower.includes("jaqueta") ||
+      nameLower.includes("jacket") ||
+      nameLower.includes("shorts") ||
+      nameLower.includes("cropped") ||
+      nameLower.includes("blusa") ||
+      nameLower.includes("regata") ||
+      nameLower.includes("roupa") ||
+      catLower.includes("vestuário") ||
+      catLower.includes("clothing") ||
+      catLower.includes("roupas")
+    ) {
+      return "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=400";
+    }
+
+    // 4. CHECKS FOR COSMETICS / BEAUTY / SKINCARE / PERFUMES (creme, skin, cream, beauty, shampoo, makeup, maquiagem, perfume, lipstick, gloss, base, batom, blush, rímel, mascara, hidratante, lip balm)
+    if (
+      nameLower.includes("creme") ||
+      nameLower.includes("skin") ||
+      nameLower.includes("cream") ||
+      nameLower.includes("beauty") ||
+      nameLower.includes("shampoo") ||
+      nameLower.includes("makeup") ||
+      nameLower.includes("maquiagem") ||
+      nameLower.includes("perfume") ||
+      nameLower.includes("lipstick") ||
+      nameLower.includes("gloss") ||
+      nameLower.includes("base") ||
+      nameLower.includes("batom") ||
+      nameLower.includes("blush") ||
+      nameLower.includes("rímel") ||
+      nameLower.includes("rimel") ||
+      nameLower.includes("sephora") ||
+      nameLower.includes("sacks") ||
+      nameLower.includes("mac ") ||
+      nameLower.includes("hidratante") ||
+      nameLower.includes("balm") ||
+      catLower.includes("beleza") ||
+      catLower.includes("beauty") ||
+      catLower.includes("cosméticos") ||
+      catLower.includes("cosméticos")
+    ) {
+      return "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400";
+    }
+
+    // 5. CHECKS FOR WATCHES (relógio, relogio, watch, smart watch, apple watch)
+    if (
+      nameLower.includes("relógio") ||
+      nameLower.includes("relogio") ||
+      nameLower.includes("watch") ||
+      catLower.includes("relógios") ||
+      catLower.includes("watches")
+    ) {
+      return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
+    }
+
+    // 6. CHECKS FOR SMARTPHONES / LAPTOPS / ELECTRONICS general (iphone, samsung, xiaomi, fone, headphone, earbud, airpod, tablet, ipad, carregador, charger, caixa de som, speaker, laptop, computador, notebook, macbook, pc, gamer, console, playstation, switch, nintendo, xbox, kindle)
+    if (
+      nameLower.includes("iphone") ||
+      nameLower.includes("samsung") ||
+      nameLower.includes("xiaomi") ||
+      nameLower.includes("fone") ||
+      nameLower.includes("headphone") ||
+      nameLower.includes("earbud") ||
+      nameLower.includes("airpod") ||
+      nameLower.includes("tablet") ||
+      nameLower.includes("ipad") ||
+      nameLower.includes("carregador") ||
+      nameLower.includes("charger") ||
+      nameLower.includes("speaker") ||
+      nameLower.includes("laptop") ||
+      nameLower.includes("computador") ||
+      nameLower.includes("notebook") ||
+      nameLower.includes("macbook") ||
+      nameLower.includes("console") ||
+      nameLower.includes("playstation") ||
+      nameLower.includes("nintendo") ||
+      nameLower.includes("xbox") ||
+      nameLower.includes("kindle") ||
+      nameLower.includes("phone") ||
+      nameLower.includes("pro") ||
+      catLower.includes("eletrônicos") ||
+      catLower.includes("electronics")
+    ) {
+      return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400";
+    }
+
+    // DEFAULT FALLBACK
+    return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400";
+  };
+
+  const parseCSV = (text: string) => {
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length <= 1) return [];
+    
+    // Determine separator (; or ,)
+    const firstLine = lines[0];
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const sep = semicolonCount > commaCount ? ';' : ',';
+    
+    const splitCSVLine = (line: string, separator: string) => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === separator && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result.map(val => {
+        if (val.startsWith('"') && val.endsWith('"')) {
+          val = val.substring(1, val.length - 1);
+        }
+        return val.replace(/""/g, '"');
+      });
+    };
+    
+    const parentMap = new Map<string, any>();
+    
+    for (let i = 1; i < lines.length; i++) {
+      const row = splitCSVLine(lines[i], sep);
+      if (row.length < 1 || !row[0]) continue;
+      
+      const rawName = row[0] || 'Produto Importado';
+      const rawDesc = row[1] || 'Importado via planilha.';
+      const rawPriceUSD = Number((row[2] || '0').replace(',', '.')) || 0;
+      const rawPriceBRL = Number((row[3] || '0').replace(',', '.')) || 0;
+      const rawImageUrl = row[4] || '';
+      const rawSku = row[5] || '';
+      const rawCategory = row[6] || 'Outros';
+      const rawBrand = row[7] || '';
+      const rawStockType = row[8] === 'PARTNER_STORE' ? 'PARTNER_STORE' : 'IN_STOCK';
+      const rawInventory = Number(row[9]) || 20;
+      const rawTags = row[10] ? row[10].split(',').map(tag => tag.trim()).filter(Boolean) : [];
+      
+      // Variation columns
+      const rawParentSku = (row[11] || '').trim();
+      const rawVariantName = (row[12] || '').trim();
+      const rawPriceAdjustBRL = Number((row[13] || '0').replace(',', '.')) || 0;
+      const rawPriceAdjustUSD = Number((row[14] || '0').replace(',', '.')) || 0;
+      
+      // Determine aggregation key: Parent SKU or fallback to unique name if variant name is given
+      let parentKey = '';
+      if (rawParentSku) {
+        parentKey = 'sku_' + rawParentSku.toLowerCase().trim();
+      } else if (rawVariantName) {
+        parentKey = 'name_' + rawName.toLowerCase().trim();
+      } else {
+        parentKey = 'unique_' + i;
+      }
+      
+      if (parentMap.has(parentKey)) {
+        const existing = parentMap.get(parentKey);
+        
+        if (rawVariantName) {
+          if (!existing.variants) {
+            existing.variants = [];
+          }
+          
+          existing.variants.push({
+            id: 'v_' + Math.random().toString(36).substring(2, 9),
+            name: rawVariantName,
+            sku: rawSku || `SKU-VAR-${Math.floor(Math.random() * 89999 + 10000)}`,
+            priceAdjustBRL: rawPriceAdjustBRL,
+            priceAdjustUSD: rawPriceAdjustUSD,
+            stock: rawInventory
+          });
+          
+          existing.inventory += rawInventory;
+        }
+      } else {
+        const productEntry: any = {
+          name: rawName,
+          description: rawDesc,
+          priceUSD: rawPriceUSD,
+          priceBRL: rawPriceBRL || Math.round(rawPriceUSD * 5.2),
+          imageUrl: rawImageUrl,
+          sku: rawParentSku || rawSku || `SKU-IMP-${Math.floor(Math.random() * 89999 + 10000)}`,
+          category: rawCategory,
+          brand: rawBrand,
+          stockType: rawStockType,
+          inventory: rawInventory,
+          tags: rawTags,
+          variants: []
+        };
+        
+        if (rawVariantName) {
+          productEntry.variants.push({
+            id: 'v_' + Math.random().toString(36).substring(2, 9),
+            name: rawVariantName,
+            sku: rawSku || `SKU-VAR-${Math.floor(Math.random() * 89999 + 10000)}`,
+            priceAdjustBRL: rawPriceAdjustBRL,
+            priceAdjustUSD: rawPriceAdjustUSD,
+            stock: rawInventory
+          });
+        }
+        
+        parentMap.set(parentKey, productEntry);
+      }
+    }
+    
+    return Array.from(parentMap.values());
+  };
+
+  const downloadCsvTemplate = () => {
+    const headers = [
+      'Nome do Produto',
+      'Descrição',
+      'Preço USD',
+      'Preço BRL',
+      'Foto URL',
+      'SKU',
+      'Categoria',
+      'Marca',
+      'Tipo de Estoque (IN_STOCK/PARTNER_STORE)',
+      'Estoque',
+      'Tags (separadas por virgula)',
+      'SKU Agrupador / SKU Pai (Opcional)',
+      'Nome da Variação (Opcional - Ex: Tamanho 40, Vermelho, 128GB)',
+      'Ajuste Preço BRL Variação (Opcional)',
+      'Ajuste Preço USD Variação (Opcional)'
+    ];
+    
+    const rows = [
+      [
+        'iPhone 15 Pro Max',
+        'Modelo premium mais recente da Apple em liga fina de Titânio e excelente acabamento.',
+        '1199.00',
+        '5995.00',
+        'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
+        'APL-IP15PM-256',
+        'Eletrônicos',
+        'Apple',
+        'PARTNER_STORE',
+        '35',
+        'apple, iphone, premium, importado',
+        'APL-IP15PM-GRP',
+        '256GB - Titânio Natural',
+        '0.00',
+        '0.00'
+      ],
+      [
+        'iPhone 15 Pro Max',
+        'Modelo premium mais recente da Apple em liga fina de Titânio e excelente acabamento.',
+        '1199.00',
+        '5995.00',
+        'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600',
+        'APL-IP15PM-512',
+        'Eletrônicos',
+        'Apple',
+        'PARTNER_STORE',
+        '15',
+        'apple, iphone, premium, importado',
+        'APL-IP15PM-GRP',
+        '512GB - Titânio Azul',
+        '1000.00',
+        '200.00'
+      ],
+      [
+        'Tênis Air Jordan Red Retro 1',
+        'Modelo clássico icônico de basquete reformulado com couro de excelente costura.',
+        '180.00',
+        '900.00',
+        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600',
+        'NKE-AJ1-RED-39',
+        'Calçados',
+        'Nike',
+        'IN_STOCK',
+        '12',
+        'sneaker, jordan, nike, importado',
+        'NKE-AJ1-RED-GRP',
+        'Tamanho 39',
+        '0.00',
+        '0.00'
+      ],
+      [
+        'Tênis Air Jordan Red Retro 1',
+        'Modelo clássico icônico de basquete reformulado com couro de excelente costura.',
+        '180.00',
+        '900.00',
+        'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600',
+        'NKE-AJ1-RED-40',
+        'Calçados',
+        'Nike',
+        'IN_STOCK',
+        '28',
+        'sneaker, jordan, nike, importado',
+        'NKE-AJ1-RED-GRP',
+        'Tamanho 40',
+        '0.00',
+        '0.00'
+      ]
+    ];
+    
+    // Using \uFEFF to support Excel UTF-8 representation
+    const csvContent = "\uFEFF" + [
+      headers.join(';'),
+      ...rows.map(r => r.map(val => `"${val.replace(/"/g, '""')}"`).join(';'))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "modelo_importacao_produtos.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      handleFileSelected(file);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      handleFileSelected(file);
+    }
+  };
+
+  const handleFileSelected = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const productsParsed = parseCSV(text);
+      if (productsParsed.length === 0) {
+        alert("Nenhum produto válido encontrado no arquivo CSV. Verifique o delimitador ou o modelo de exemplo.");
+      } else {
+        setParsedProducts(productsParsed);
+        setCsvContentText(text);
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+  };
+
+  const handleBulkImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkStoreId) {
+      alert("Por favor, selecione a loja de destino antes de importar.");
+      return;
+    }
+    if (parsedProducts.length === 0) {
+      alert("Nenhum produto carregado. Envie um arquivo CSV válido primeiro.");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: parsedProducts.length });
+
+    const CHUNK_SIZE = 150;
+    let successCount = 0;
+    let failedChunks = 0;
+
+    try {
+      for (let i = 0; i < parsedProducts.length; i += CHUNK_SIZE) {
+        const chunk = parsedProducts.slice(i, i + CHUNK_SIZE);
+        
+        try {
+          const response = await fetch("/api/bulk-import-products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              storeId: bulkStoreId,
+              products: chunk
+            })
+          });
+
+          const responseText = await response.text();
+          let data: any;
+          try {
+            data = JSON.parse(responseText);
+          } catch (jsonErr) {
+            console.error("Failed to parse response as JSON:", responseText);
+            throw new Error(`Resposta do servidor inválida: ${responseText.substring(0, 100)}`);
+          }
+
+          if (response.ok && data.success) {
+            successCount += data.importedCount || chunk.length;
+          } else {
+            console.error("Failed importing chunk:", data.error);
+            failedChunks++;
+          }
+        } catch (chunkErr) {
+          console.error("Error importing chunk:", chunkErr);
+          failedChunks++;
+        }
+
+        const currentProgress = Math.min(i + CHUNK_SIZE, parsedProducts.length);
+        setImportProgress({ current: currentProgress, total: parsedProducts.length });
+      }
+
+      if (failedChunks === 0) {
+        alert(`Sucesso magnífico! Foram cadastrados e integrados ${successCount} produtos com sucesso em seu catálogo de forma automatizada!`);
+        setParsedProducts([]);
+        setCsvContentText('');
+        setShowBulkImport(false);
+      } else if (successCount > 0) {
+        alert(`Importação concluída parcialmente: ${successCount} produtos cadastrados com sucesso. Ocorreram falhas em ${failedChunks} lote(s).`);
+        setParsedProducts([]);
+        setCsvContentText('');
+        setShowBulkImport(false);
+      } else {
+        alert("Falha ao importar o arquivo CSV. Por favor, tente reduzir o tamanho ou verificar a formatação.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Ocorreu um erro técnico ao se conectar com o servidor para sincronização.");
+    } finally {
+      setIsImporting(false);
+      setImportProgress({ current: 0, total: 0 });
+    }
+  };
 
   const resetForm = () => {
     setEditingId('');
@@ -1870,16 +2373,248 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-stone-900">Catálogo de Vitrine</h3>
-        <button 
-          onClick={() => setShowForm(!showForm)}
-          className="bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-rose-600 transition shadow-sm"
-        >
-          {showForm ? <XCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showForm ? 'Cancelar' : 'Novo Produto'}
-        </button>
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-4 rounded-2xl border border-stone-100 shadow-sm">
+        <div>
+          <h3 className="text-xl font-bold text-stone-900">Catálogo de Vitrine</h3>
+          <p className="text-xs text-stone-500 mt-1">Gerencie produtos de importação, cadastre-os manualmente ou faça envios em lote via planilhas.</p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <button 
+            type="button"
+            onClick={() => { setShowBulkImport(!showBulkImport); setShowForm(false); }}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition cursor-pointer border ${showBulkImport ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+          >
+            <Upload className="w-4 h-4 text-indigo-600" />
+            <span>Importação CSV</span>
+          </button>
+          <button 
+            onClick={() => { setShowForm(!showForm); setShowBulkImport(false); }}
+            className="bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-rose-600 transition shadow-sm cursor-pointer"
+          >
+            {showForm ? <XCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            <span>{showForm ? 'Cancelar' : 'Novo Produto'}</span>
+          </button>
+        </div>
       </div>
+
+      {showBulkImport && (
+        <div className="bg-gradient-to-br from-white to-stone-50/50 p-6 rounded-3xl border border-stone-200/80 shadow-lg animate-fade-in mb-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-100 pb-4">
+            <div>
+              <h4 className="text-lg font-bold text-stone-900 flex items-center gap-2">
+                <Upload className="w-5 h-5 text-indigo-600" />
+                Lançamento de Produtos em Lote via CSV
+              </h4>
+              <p className="text-xs text-stone-500 mt-1">Alimente nossa planilha modelo com quantos produtos desejar e faça o upload de uma única vez para impulsionar sua produtividade.</p>
+            </div>
+            <button 
+              type="button" 
+              onClick={downloadCsvTemplate}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition self-start cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              Baixar Planilha Modelo (.CSV)
+            </button>
+          </div>
+
+          <form onSubmit={handleBulkImportSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-2">Loja de Origem dos Produtos</label>
+                  <select 
+                    value={bulkStoreId} 
+                    onChange={e => setBulkStoreId(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-stone-200 px-4 py-2.5 text-sm bg-white"
+                  >
+                    <option value="">Selecione para qual parceiro esses produtos pertencem...</option>
+                    {sortedStores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="block text-xs font-bold text-stone-600 uppercase tracking-wider">Carregar Arquivo CSV</span>
+                  <div 
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center transition relative flex flex-col items-center justify-center min-h-[180px] ${dragActive ? 'border-indigo-500 bg-indigo-50/20' : 'border-stone-200 hover:border-stone-300 bg-white'}`}
+                  >
+                    <input 
+                      type="file" 
+                      id="bulkCsvFile" 
+                      accept=".csv" 
+                      onChange={handleFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                    />
+                    
+                    <div className="space-y-3 pointer-events-none">
+                      <div className="w-12 h-12 rounded-full bg-stone-50 flex items-center justify-center mx-auto text-stone-400">
+                        <Upload className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-stone-800">Arraste seu arquivo CSV ou clique para navegar</p>
+                        <p className="text-xs text-stone-400">Suporta arquivos separados por ponto e vírgula (;) ou vírgulas (,)</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <h5 className="text-xs font-extrabold text-stone-700 uppercase tracking-widest flex items-center gap-1.5">
+                    <Brain className="w-4 h-4 text-rose-500" />
+                    Regras de Enriquecimento de Imagens
+                  </h5>
+                  <div className="text-xs text-stone-600 space-y-2 leading-relaxed">
+                    <p>
+                      Para que seus clientes comprem com confiança e não tenham dúvidas de modelo, <strong>todo produto precisa de imagem</strong>.
+                    </p>
+                    <p>
+                      💡 Se você deixar a coluna <strong>Foto URL</strong> em branco, nossa inteligência integrada lerá a categoria do produto e o título para adicionar instantaneamente uma bela foto de alta resolução do Unsplash adequada ao item.
+                    </p>
+                    <p>
+                      Isso permite que você cadastre <strong>1.000 ou mais produtos</strong> de uma única vez sem se preocupar em hospedar fotos manualmente uma a uma!
+                    </p>
+                  </div>
+                </div>
+                {parsedProducts.length > 0 && (
+                  <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center gap-2.5">
+                    <CheckCircle className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                    <div className="text-xs">
+                      <p className="font-bold text-indigo-900">{parsedProducts.length} produtos preparados!</p>
+                      <p className="text-indigo-700">Visualize a listagem abaixo antes de salvar.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {parsedProducts.length > 0 && (
+              <div className="space-y-3 border-t border-stone-100 pt-6">
+                <div className="flex justify-between items-center">
+                  <h5 className="text-sm font-bold text-stone-800 flex items-center gap-2">
+                    Pré-visualização do Lote ({parsedProducts.length} itens detectados)
+                  </h5>
+                  <button 
+                    type="button" 
+                    onClick={() => { setParsedProducts([]); setCsvContentText(''); }} 
+                    className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                  >
+                    Deletar Arquivo
+                  </button>
+                </div>
+
+                <div className="border border-stone-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto shadow-inner bg-white">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead className="bg-stone-50 text-stone-500 font-bold border-b border-stone-200 sticky top-0">
+                      <tr>
+                        <th className="p-3">Imagem</th>
+                        <th className="p-3">Nome do Produto</th>
+                        <th className="p-3">Categoria</th>
+                        <th className="p-3">Preço (BRL)</th>
+                        <th className="p-3">Estoque</th>
+                        <th className="p-3">Origem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {parsedProducts.slice(0, 100).map((p, idx) => {
+                        const fallbackImg = getProductImageFallback(p.name, p.category);
+                        const hasImg = !!p.imageUrl;
+                        return (
+                          <tr key={idx} className="hover:bg-stone-50/50">
+                            <td className="p-3">
+                              <div className="w-9 h-9 rounded-lg overflow-hidden border border-stone-100 bg-stone-50 relative group">
+                                <img 
+                                  src={p.imageUrl || fallbackImg} 
+                                  alt={p.name} 
+                                  className="w-full h-full object-cover" 
+                                />
+                                {!hasImg && (
+                                  <span className="absolute bottom-0 right-0 bg-indigo-600 text-white text-[7px] px-1 font-black rounded-tl" title="Imagem Inteligente Gerada">
+                                    AUTO
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-bold text-stone-900">{p.name}</p>
+                              {p.sku && <span className="font-mono text-[9px] text-stone-400">SKU: {p.sku}</span>}
+                            </td>
+                            <td className="p-3">
+                              <span className="bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">{p.category}</span>
+                            </td>
+                            <td className="p-3">
+                              <p className="font-semibold text-stone-800">R$ {p.priceBRL.toFixed(2)}</p>
+                              <p className="text-[10px] text-stone-400">US$ {p.priceUSD.toFixed(2)}</p>
+                            </td>
+                            <td className="p-3 font-mono text-stone-600">{p.inventory}</td>
+                            <td className="p-3">
+                              <span className={`text-[10px] font-bold ${p.stockType === "PARTNER_STORE" ? "text-amber-600" : "text-emerald-600"}`}>
+                                {p.stockType === "PARTNER_STORE" ? "Parceiro" : "Próprio"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {parsedProducts.length > 100 && (
+                    <div className="p-3 text-center bg-stone-50 text-stone-500 text-xs border-t border-stone-100">
+                      Exibindo as primeiras 100 linhas. Mais {parsedProducts.length - 100} produtos serão cadastrados em segundo plano.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isImporting && importProgress.total > 0 && (
+              <div className="space-y-2 bg-indigo-50 border border-indigo-100 p-4 rounded-2xl">
+                <div className="flex justify-between items-center text-xs font-bold text-indigo-900">
+                  <span>Importando lotes no Firestore...</span>
+                  <span>{importProgress.current} / {importProgress.total} produtos ({Math.round((importProgress.current / importProgress.total) * 100)}%)</span>
+                </div>
+                <div className="w-full bg-indigo-100 rounded-full h-2 overflow-hidden shadow-inner">
+                  <div 
+                    className="bg-indigo-600 h-full rounded-full transition-all duration-300"
+                    style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-6 border-t border-stone-100">
+              <button 
+                type="button" 
+                onClick={() => { setShowBulkImport(false); setParsedProducts([]); }} 
+                className="px-6 py-2.5 rounded-xl text-sm font-bold text-stone-500 hover:bg-stone-50 transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="submit" 
+                disabled={isImporting || parsedProducts.length === 0}
+                className="bg-indigo-600 disabled:bg-stone-300 disabled:text-stone-500 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition shadow-md cursor-pointer"
+              >
+                {isImporting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Importando: {importProgress.current}/{importProgress.total}...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Cadastrar {parsedProducts.length} Produtos em Massa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm animate-fade-in mb-8">
@@ -2105,12 +2840,46 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
   const [description, setDescription] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
 
+  // States for automatic product scanner & varredura
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState('');
+  const [autoScanProducts, setAutoScanProducts] = useState(true);
+
   const resetForm = () => {
     setEditingId('');
     setName('');
     setLogoUrl('');
     setDescription('');
     setIsFeatured(false);
+    setAutoScanProducts(true);
+  };
+
+  const triggerProductScan = async (storeId: string, storeName: string, storeDesc?: string) => {
+    setIsScanning(true);
+    setScanStatus(`Varrendo a internet por produtos populares de "${storeName}" usando Inteligência Artificial de ponta e buscando no Google Search...`);
+    try {
+      const response = await fetch("/api/auto-import-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeId,
+          storeName,
+          storeDescription: storeDesc
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`Sucesso! Foram cadastrados ${data.importedCount} produtos de destaque para ${storeName} automaticamente com imagens de alta qualidade.`);
+      } else {
+        alert(`Varredura concluída, mas com ressalvas: ${data.error || "Tente novamente mais tarde."}`);
+      }
+    } catch (err) {
+      console.error("Erro na varredura:", err);
+      alert("Ocorreu um erro ao realizar a varredura automatizada.");
+    } finally {
+      setIsScanning(false);
+      setScanStatus('');
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -2118,7 +2887,10 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
     if (editingId) {
       await updateStore(editingId, { name, logoUrl, description, isFeatured });
     } else {
-      await addStore({ name, logoUrl, description, isFeatured });
+      const storeId = await addStore({ name, logoUrl, description, isFeatured });
+      if (autoScanProducts) {
+        await triggerProductScan(storeId, name, description);
+      }
     }
     resetForm();
     setShowForm(false);
@@ -2127,9 +2899,33 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
   const sortedStores = [...stores].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-stone-900">Lojas Parceiras</h3>
+    <div className="space-y-6 relative">
+      {/* Scanning status banner */}
+      {isScanning && (
+        <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full border border-stone-200 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-200 animate-pulse">
+            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto">
+              <Sparkles className="w-8 h-8 animate-spin" />
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-lg font-bold text-stone-900">Varredura Inteligente Ativa</h4>
+              <p className="text-sm text-stone-600 leading-relaxed">
+                {scanStatus}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-indigo-600">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>Buscando e inserindo no banco de dados...</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-stone-100">
+        <div>
+          <h3 className="text-xl font-bold text-stone-900">Lojas Parceiras</h3>
+          <p className="text-xs text-stone-500 mt-1">Gerencie as marcas físicas e virtuais integradas e execute varreduras inteligentes de produtos.</p>
+        </div>
         <button 
           onClick={() => setShowForm(!showForm)}
           className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 transition"
@@ -2140,52 +2936,94 @@ function StoresTab({ stores, addStore, updateStore, deleteStore }: { stores: Sto
       </div>
 
       {showForm && (
-        <form onSubmit={handleSave} className="bg-stone-50 p-6 rounded-2xl border border-stone-200">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                 <div>
-                   <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Nome da Loja</label>
-                   <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full bg-white rounded-lg border border-stone-200 px-4 py-2 text-sm" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Descrição</label>
-                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full bg-white rounded-lg border border-stone-200 px-4 py-2 text-sm" />
-                 </div>
+        <form onSubmit={handleSave} className="bg-stone-50 p-6 rounded-2xl border border-stone-200 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Nome da Loja</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} required className="w-full bg-white rounded-lg border border-stone-200 px-4 py-2 text-sm" placeholder="ex: Apple, Nike, Sephora..." />
               </div>
-              <div className="space-y-4">
-                 <ImageInput label="Logo (URL)" value={logoUrl} onChange={setLogoUrl} />
-                 <div className="flex items-center gap-2 py-2">
+              <div>
+                <label className="block text-xs font-bold text-stone-500 uppercase mb-1">Descrição</label>
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full bg-white rounded-lg border border-stone-200 px-4 py-2 text-sm" placeholder="Breve descritivo para enriquecer os parâmetros de busca..." />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <ImageInput label="Logo (URL)" value={logoUrl} onChange={setLogoUrl} />
+              <div className="space-y-2 py-1">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="storeFeatured" 
+                    checked={isFeatured} 
+                    onChange={e => setIsFeatured(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 border-stone-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="storeFeatured" className="text-sm font-bold text-stone-700">Destaque na Home (Barra de Marcas)</label>
+                </div>
+
+                {!editingId && (
+                  <div className="flex items-start gap-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
                     <input 
                       type="checkbox" 
-                      id="storeFeatured" 
-                      checked={isFeatured} 
-                      onChange={e => setIsFeatured(e.target.checked)}
-                      className="w-4 h-4 text-indigo-600 border-stone-300 rounded focus:ring-indigo-500"
+                      id="autoScanProducts" 
+                      checked={autoScanProducts} 
+                      onChange={e => setAutoScanProducts(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 border-stone-300 rounded focus:ring-indigo-500 mt-0.5"
                     />
-                    <label htmlFor="storeFeatured" className="text-sm font-bold text-stone-700">Destaque na Home (Barra de Marcas)</label>
-                 </div>
-                 <div className="flex justify-end gap-2 pt-2">
-                   <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-bold">Limpar</button>
-                   <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold">Salvar Loja</button>
-                 </div>
+                    <div className="flex-1">
+                      <label htmlFor="autoScanProducts" className="text-xs font-bold text-indigo-900 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 fill-indigo-200" />
+                        Varredura de Produtos Inteligente
+                      </label>
+                      <p className="text-[11px] text-indigo-700 mt-0.5">Realiza uma busca varredora na internet via Google Search integrando até 12 produtos populares desta marca em segundos de forma 100% automatizada.</p>
+                    </div>
+                  </div>
+                )}
               </div>
-           </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-bold text-stone-600">Limpar</button>
+                <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition">Salvar Loja</button>
+              </div>
+            </div>
+          </div>
         </form>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {sortedStores.map(s => (
-          <div key={s.id} className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm text-center relative group flex flex-col items-center justify-between min-h-[120px] overflow-hidden">
+          <div key={s.id} className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm text-center relative group flex flex-col items-center justify-between min-h-[140px] overflow-hidden">
             <div className="h-16 w-full flex items-center justify-center mb-3">
               {s.logoUrl ? <img src={s.logoUrl} alt={s.name} className="h-full w-auto max-w-full object-contain grayscale group-hover:grayscale-0 transition" /> : <StoreIcon className="w-8 h-8 text-stone-200" />}
             </div>
-            <span className="font-bold text-stone-800 text-sm truncate w-full px-2 flex items-center justify-center gap-1">
-              {s.name}
-              {s.isFeatured && <Star className="w-3 h-3 text-indigo-500 fill-indigo-500" />}
-            </span>
-            <div className="absolute inset-0 bg-stone-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">
-                <button onClick={() => { setEditingId(s.id); setName(s.name); setLogoUrl(s.logoUrl || ''); setDescription(s.description || ''); setIsFeatured(s.isFeatured || false); setShowForm(true); }} className="bg-white p-2 rounded-lg text-indigo-600 hover:scale-110 transition cursor-pointer"><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => deleteStore(s.id)} className="bg-white p-2 rounded-lg text-rose-600 hover:scale-110 transition cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+            <div className="w-full text-center">
+              <span className="font-bold text-stone-800 text-sm truncate w-full px-2 flex items-center justify-center gap-1">
+                {s.name}
+                {s.isFeatured && <Star className="w-3 h-3 text-indigo-500 fill-indigo-500" />}
+              </span>
+            </div>
+            <div className="absolute inset-0 bg-stone-900/70 rounded-2xl opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">
+              <button 
+                onClick={() => { setEditingId(s.id); setName(s.name); setLogoUrl(s.logoUrl || ''); setDescription(s.description || ''); setIsFeatured(s.isFeatured || false); setAutoScanProducts(false); setShowForm(true); }} 
+                className="bg-white p-2 rounded-lg text-indigo-600 hover:scale-110 transition cursor-pointer"
+                title="Editar Loja"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => triggerProductScan(s.id, s.name, s.description)} 
+                className="bg-emerald-500 text-white p-2 rounded-lg hover:scale-110 transition cursor-pointer"
+                title="Sincronizar/Buscar Produtos Coerentes com IA"
+              >
+                <Sparkles className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => deleteStore(s.id)} 
+                className="bg-white p-2 rounded-lg text-rose-600 hover:scale-110 transition cursor-pointer"
+                title="Remover Loja"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}

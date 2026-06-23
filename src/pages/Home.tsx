@@ -289,10 +289,46 @@ export function Home() {
         </button>
       </div>
 
+      {/* Quick Category Tab Ribbon */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-3 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none border-b border-stone-100">
+        <button
+          onClick={() => setSelectedCategory(null)}
+          className={`shrink-0 px-4 py-2 rounded-full text-xs font-black tracking-wide transition-all ${
+            selectedCategory === null
+              ? 'bg-rose-500 text-white shadow-lg shadow-rose-100'
+              : 'bg-stone-50 hover:bg-stone-100 text-stone-600'
+          }`}
+        >
+          Minha Vitrine (Tudo)
+        </button>
+        {categories.map(cat => {
+          const count = products.filter(p => p.category === cat).length;
+          if (count === 0) return null;
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)}
+              className={`shrink-0 px-4 py-2 rounded-full text-xs font-black tracking-wide transition-all flex items-center gap-2 ${
+                selectedCategory === cat
+                  ? 'bg-rose-500 text-white shadow-lg shadow-rose-100'
+                  : 'bg-stone-50 hover:bg-stone-100 text-stone-600'
+              }`}
+            >
+              <span>{cat}</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                selectedCategory === cat ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-500'
+              }`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Products Grid */}
       <div>
         <div className="flex items-center justify-between mb-6">
-           <span className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">Todos os Produtos ({sortedProducts.length})</span>
+           <span className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em]">
+             {selectedCategory ? `${selectedCategory} (${sortedProducts.length})` : `Seções da Loja (${sortedProducts.length} itens)`}
+           </span>
            <div className="flex items-center gap-2">
               <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Ordenar:</label>
               <select 
@@ -307,11 +343,71 @@ export function Home() {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {sortedProducts.map(product => (
-            <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
-          ))}
-        </div>
+        {sortedProducts.length > 0 && selectedCategory !== null && (
+          // Single Category Active - standard clean grid
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            {sortedProducts.map(product => (
+              <ProductCard key={product.id} product={product} onSelect={() => setSelectedProductForModal(product)} />
+            ))}
+          </div>
+        )}
+
+        {sortedProducts.length > 0 && selectedCategory === null && (
+          // Separated by Category shelves - elegant, space-saving arrangement
+          <div className="space-y-12">
+            {(() => {
+              // Group active sorted products by category
+              const grouped = sortedProducts.reduce((acc, p) => {
+                const grpKey = p.category || 'Outros';
+                if (!acc[grpKey]) acc[grpKey] = [];
+                acc[grpKey].push(p);
+                return acc;
+              }, {} as Record<string, Product[]>);
+
+              // Sort category sections
+              const activeGroupKeys = Object.keys(grouped).sort((a, b) => {
+                const idxA = categories.indexOf(a);
+                const idxB = categories.indexOf(b);
+                if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+              });
+
+              return activeGroupKeys.map(catKey => {
+                const items = grouped[catKey];
+                return (
+                  <div key={catKey} className="space-y-4 border-b border-stone-50 pb-8 last:border-0 last:pb-0">
+                    <div className="flex items-baseline justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-display font-black text-stone-900 tracking-tight text-lg">{catKey}</h3>
+                        <span className="text-stone-400 font-bold text-xs bg-stone-100 px-2.5 py-0.5 rounded-full">{items.length}</span>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedCategory(catKey)}
+                        className="text-stone-400 hover:text-rose-500 text-xs font-bold transition flex items-center gap-1 group/btn"
+                      >
+                        Ver todos
+                        <ChevronRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
+
+                    {/* Horizontal scroll container - minimal and highly compact */}
+                    <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0">
+                      <div className="flex gap-6 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent">
+                        {items.map(product => (
+                          <div key={product.id} className="w-[270px] sm:w-[290px] shrink-0 snap-start">
+                            <ProductCard product={product} onSelect={() => setSelectedProductForModal(product)} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
 
         {sortedProducts.length === 0 && (
           <div className="py-24 text-center text-stone-500 bg-stone-50 rounded-[3rem] border border-stone-100 p-8 space-y-4">

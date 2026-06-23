@@ -31,9 +31,30 @@ interface FirestoreErrorInfo {
   }
 }
 
+let isGlobalQuotaExceeded = false;
+const quotaExceededListeners = new Set<(status: boolean) => void>();
+
+export function registerQuotaListener(listener: (status: boolean) => void) {
+  quotaExceededListeners.add(listener);
+  listener(isGlobalQuotaExceeded);
+  return () => { quotaExceededListeners.delete(listener); };
+}
+
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isErrExceeded = errMsg.includes('resource-exhausted') || 
+                        errMsg.includes('Quota limit exceeded') || 
+                        errMsg.includes('quota exceeded') || 
+                        errMsg.includes('quota-exceeded') ||
+                        errMsg.includes('Quota exceeded');
+  
+  if (isErrExceeded && !isGlobalQuotaExceeded) {
+    isGlobalQuotaExceeded = true;
+    quotaExceededListeners.forEach(listener => listener(true));
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -48,8 +69,19 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  
+  console.warn('[Firestore Handled Warning]', JSON.stringify(errInfo));
+  
+  // Only throw if it is a write operation so promise flows correctly trigger UI error blocks.
+  // We do NOT throw for GET operations (like onSnapshot lists) so the page remains interactive using offline cache!
+  const isWrite = operationType === OperationType.CREATE || 
+                  operationType === OperationType.UPDATE || 
+                  operationType === OperationType.DELETE || 
+                  operationType === OperationType.WRITE;
+                  
+  if (isWrite) {
+    throw new Error(JSON.stringify(errInfo));
+  }
 }
 
 interface CartItem extends OrderItem {}
@@ -57,6 +89,7 @@ interface CartItem extends OrderItem {}
 interface AppContextType {
   user: User | null;
   profile: UserProfile | null;
+  dbQuotaExceeded: boolean;
   isAdmin: boolean;
   collaborator: Collaborator | null;
   stores: Store[];
@@ -76,7 +109,7 @@ interface AppContextType {
   addProduct: (product: Product) => Promise<void>;
   updateProduct: (id: string, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  addStore: (store: Store) => Promise<void>;
+  addStore: (store: Store) => Promise<string>;
   updateStore: (id: string, store: Partial<Store>) => Promise<void>;
   deleteStore: (id: string) => Promise<void>;
   createTicket: (protocol: string, messages: TicketMessage[]) => Promise<string | undefined>;
@@ -138,6 +171,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [systemKnowledge, setSystemKnowledge] = useState<SystemKnowledge[]>([]);
+  const [dbQuotaExceeded, setDbQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    return registerQuotaListener((exceeded) => {
+      setDbQuotaExceeded(exceeded);
+    });
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'company'), (docSnap) => {
@@ -614,9 +654,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await deleteDoc(doc(db, 'products', id));
   };
   
-  const addStore = async (store: Store) => {
+  const addStore = async (store: Store): Promise<string> => {
     const ref = doc(collection(db, 'stores'));
     await setDoc(ref, cleanUndefined({ ...store, id: ref.id }));
+    return ref.id;
   };
 
   const updateStore = async (id: string, store: Partial<Store>) => {
@@ -1068,7 +1109,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, profile, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs }}>
+    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs }}>
       {children}
     </AppContext.Provider>
   );

@@ -55,6 +55,151 @@ function initializeFirebase() {
 
 const db = initializeFirebase();
 
+function getPreciseFallbackImage(productName: string, categoryName: string = ''): string {
+  const nameLower = (productName || "").toLowerCase();
+  const catLower = (categoryName || "").toLowerCase();
+
+  // 1. CHECKS FOR SHOES / SNEAKERS (tênis, sapato, calçado, sneaker, boot, bota, shoe, slide, chinelo, sandália, rasteirinha)
+  if (
+    nameLower.includes("tênis") ||
+    nameLower.includes("tenis") ||
+    nameLower.includes("sapato") ||
+    nameLower.includes("calçado") ||
+    nameLower.includes("calcado") ||
+    nameLower.includes("sneaker") ||
+    nameLower.includes("boot") ||
+    nameLower.includes("bota") ||
+    nameLower.includes("shoe") ||
+    nameLower.includes("slide") ||
+    nameLower.includes("chinelo") ||
+    nameLower.includes("sandália") ||
+    nameLower.includes("sandalia") ||
+    catLower.includes("calçados") ||
+    catLower.includes("shoes")
+  ) {
+    return "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500";
+  }
+
+  // 2. CHECKS FOR BAGS / BACKPACKS / WALLETS (bag, mochila, mala, bolsa, carteira, backpack, wallet, purse, shoulder bag)
+  if (
+    nameLower.includes("bolsa") ||
+    nameLower.includes("mochila") ||
+    nameLower.includes("mala") ||
+    nameLower.includes("carteira") ||
+    nameLower.includes("backpack") ||
+    nameLower.includes("wallet") ||
+    nameLower.includes("purse") ||
+    nameLower.includes("bag") ||
+    catLower.includes("acessórios") ||
+    catLower.includes("accessories") ||
+    catLower.includes("bags")
+  ) {
+    return "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=500";
+  }
+
+  // 3. CHECKS FOR APPAREL / CLOTHES (camisa, camiseta, t-shirt, shirt, casaco, moletom, hoodie, pants, calça, vestido, dress, jaqueta, jacket, shorts, cropped, blusa, regata)
+  if (
+    nameLower.includes("camisa") ||
+    nameLower.includes("camiseta") ||
+    nameLower.includes("t-shirt") ||
+    nameLower.includes("shirt") ||
+    nameLower.includes("casaco") ||
+    nameLower.includes("moletom") ||
+    nameLower.includes("hoodie") ||
+    nameLower.includes("calça") ||
+    nameLower.includes("calca") ||
+    nameLower.includes("vestido") ||
+    nameLower.includes("dress") ||
+    nameLower.includes("jaqueta") ||
+    nameLower.includes("jacket") ||
+    nameLower.includes("shorts") ||
+    nameLower.includes("cropped") ||
+    nameLower.includes("blusa") ||
+    nameLower.includes("regata") ||
+    nameLower.includes("roupa") ||
+    catLower.includes("vestuário") ||
+    catLower.includes("clothing") ||
+    catLower.includes("roupas")
+  ) {
+    return "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=500";
+  }
+
+  // 4. CHECKS FOR COSMETICS / BEAUTY / SKINCARE / PERFUMES (creme, skin, cream, beauty, shampoo, makeup, maquiagem, perfume, lipstick, gloss, base, batom, blush, rímel, mascara, hidratante, lip balm)
+  if (
+    nameLower.includes("creme") ||
+    nameLower.includes("skin") ||
+    nameLower.includes("cream") ||
+    nameLower.includes("beauty") ||
+    nameLower.includes("shampoo") ||
+    nameLower.includes("makeup") ||
+    nameLower.includes("maquiagem") ||
+    nameLower.includes("perfume") ||
+    nameLower.includes("lipstick") ||
+    nameLower.includes("gloss") ||
+    nameLower.includes("base") ||
+    nameLower.includes("batom") ||
+    nameLower.includes("blush") ||
+    nameLower.includes("rímel") ||
+    nameLower.includes("rimel") ||
+    nameLower.includes("sephora") ||
+    nameLower.includes("sacks") ||
+    nameLower.includes("mac ") ||
+    nameLower.includes("hidratante") ||
+    nameLower.includes("balm") ||
+    catLower.includes("beleza") ||
+    catLower.includes("beauty") ||
+    catLower.includes("cosméticos") ||
+    catLower.includes("cosmeticos")
+  ) {
+    return "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500";
+  }
+
+  // 5. CHECKS FOR WATCHES (relógio, relogio, watch, smart watch, apple watch)
+  if (
+    nameLower.includes("relógio") ||
+    nameLower.includes("relogio") ||
+    nameLower.includes("watch") ||
+    catLower.includes("relógios") ||
+    catLower.includes("watches")
+  ) {
+    return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500";
+  }
+
+  // 6. CHECKS FOR SMARTPHONES / LAPTOPS / ELECTRONICS general (iphone, samsung, xiaomi, fone, headphone, earbud, airpod, tablet, ipad, carregador, charger, caixa de som, speaker, laptop, computador, notebook, macbook, pc, gamer, console, playstation, switch, nintendo, xbox, kindle)
+  if (
+    nameLower.includes("iphone") ||
+    nameLower.includes("samsung") ||
+    nameLower.includes("xiaomi") ||
+    nameLower.includes("fone") ||
+    nameLower.includes("headphone") ||
+    nameLower.includes("earbud") ||
+    nameLower.includes("airpod") ||
+    nameLower.includes("tablet") ||
+    nameLower.includes("ipad") ||
+    nameLower.includes("carregador") ||
+    nameLower.includes("charger") ||
+    nameLower.includes("speaker") ||
+    nameLower.includes("laptop") ||
+    nameLower.includes("computador") ||
+    nameLower.includes("notebook") ||
+    nameLower.includes("macbook") ||
+    nameLower.includes("console") ||
+    nameLower.includes("playstation") ||
+    nameLower.includes("nintendo") ||
+    nameLower.includes("xbox") ||
+    nameLower.includes("kindle") ||
+    nameLower.includes("phone") ||
+    nameLower.includes("pro") ||
+    catLower.includes("eletrônicos") ||
+    catLower.includes("electronics")
+  ) {
+    return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500";
+  }
+
+  // DEFAULT FALLBACK
+  return "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500";
+}
+
 let aiInstance: GoogleGenAI | null = null;
 
 // Lazy getter for the GoogleGenAI SDK to prevent module-load crashes if API key is not configured/empty
@@ -542,17 +687,8 @@ app.post("/api/search-internet", async (req, res) => {
         
         // Image validation & placeholder replacement based on product category
         let img = (item.imageUrl || "").trim();
-        const nameLower = name.toLowerCase();
         if (!img || img.includes("example.com") || img.includes("placeholder") || img === "") {
-          // Defaults to modern, elegant Unsplash item photos
-          img = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500"; // elegant standard backup
-          if (nameLower.includes("creme") || nameLower.includes("skin") || nameLower.includes("cream") || nameLower.includes("beauty") || nameLower.includes("shampoo") || nameLower.includes("makeup") || nameLower.includes("perfume") || nameLower.includes("lipstick") || nameLower.includes("gloss") || nameLower.includes("base")) {
-            img = "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=500";
-          } else if (nameLower.includes("iphone") || nameLower.includes("phone") || nameLower.includes("headphone") || nameLower.includes("pro") || nameLower.includes("watch") || nameLower.includes("ipad") || nameLower.includes("tablet") || nameLower.includes("earbuds") || nameLower.includes("fones") || nameLower.includes("charger") || nameLower.includes("computador") || nameLower.includes("notebook")) {
-            img = "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500";
-          } else if (nameLower.includes("tênis") || nameLower.includes("sapato") || nameLower.includes("shoe") || nameLower.includes("bag") || nameLower.includes("mala") || nameLower.includes("roupa") || nameLower.includes("shirt") || nameLower.includes("camisa") || nameLower.includes("casaco") || nameLower.includes("hoodie") || nameLower.includes("moletom")) {
-            img = "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=500";
-          }
+          img = getPreciseFallbackImage(name, "");
         }
 
         // URL validation to prevent nonexistent domain urls like example.com
@@ -594,6 +730,459 @@ app.post("/api/search-internet", async (req, res) => {
       isFallback: false, 
       errorReason: isQuotaError ? "QUOTA_LIMIT" : "GENERAL_ERROR" 
     });
+  }
+});
+
+// Helper for generating fallback products dynamically on search/quota issues
+function getFallbackProductsForStore(storeName: string): any[] {
+  const norm = storeName.toLowerCase().trim();
+  if (norm.includes("apple")) {
+    return [
+      {
+        name: "iPhone 15 Pro",
+        description: "Estrutura premium em titânio, câmera inovadora de 48 MP e chip A17 Pro para desempenho inigualável de alta produtividade.",
+        priceUSD: 999.00,
+        priceBRL: 4995.00,
+        category: "Eletrônicos",
+        brand: "Apple",
+        sku: "APL-IP15P-128",
+        stockType: "PARTNER_STORE",
+        inventory: 30,
+        tags: ["iphone", "apple", "smartphones", "popular"]
+      },
+      {
+        name: "AirPods Pro 2",
+        description: "Cancelamento Ativo de Ruído duas vezes maior, modo Ambiente adaptável, áudio espacial personalizado e estojo de recarga USB-C.",
+        priceUSD: 249.00,
+        priceBRL: 1245.00,
+        category: "Áudio",
+        brand: "Apple",
+        sku: "APL-APP2-01",
+        stockType: "PARTNER_STORE",
+        inventory: 50,
+        tags: ["airpods", "apple", "audio", "wireless"]
+      },
+      {
+        name: "MacBook Air 13\" M3",
+        description: "Superleve, ultrafino e extremamente rápido com o novo chip M3. Até 18 horas de bateria para você trabalhar com máxima performance de qualquer lugar.",
+        priceUSD: 1099.00,
+        priceBRL: 5495.00,
+        category: "Computadores",
+        brand: "Apple",
+        sku: "APL-MBA13-M3",
+        stockType: "PARTNER_STORE",
+        inventory: 15,
+        tags: ["macbook", "apple", "laptop", "notebook"]
+      },
+      {
+        name: "Apple Watch Series 9",
+        description: "Chip S9 ultra-forte, tela mais brilhante de todos os tempos e monitoramento avançado de saúde e condicionamento físico com controle por toque duplo.",
+        priceUSD: 399.00,
+        priceBRL: 1995.00,
+        category: "Acessórios",
+        brand: "Apple",
+        sku: "APL-AW9-45",
+        stockType: "PARTNER_STORE",
+        inventory: 25,
+        tags: ["watch", "apple", "smartwatch", "fitness"]
+      },
+      {
+        name: "iPad Air M1",
+        description: "Tela de retina líquida espetacular de 10.9 polegadas com cores vibrantes, chip M1 poderoso e suporte a Apple Pencil e Magic Keyboard.",
+        priceUSD: 599.00,
+        priceBRL: 2995.00,
+        category: "Tablets",
+        brand: "Apple",
+        sku: "APL-IPDAIR-M1",
+        stockType: "PARTNER_STORE",
+        inventory: 20,
+        tags: ["ipad", "apple", "tablet", "work"]
+      },
+      {
+        name: "Carregador MagSafe Duo",
+        description: "Carregue convenientemente seus dispositivos Apple compatíveis ao mesmo tempo, de forma rápida e segura. Dobrável e portátil para suas viagens.",
+        priceUSD: 129.00,
+        priceBRL: 645.00,
+        category: "Acessórios",
+        brand: "Apple",
+        sku: "APL-MSDUO-01",
+        stockType: "PARTNER_STORE",
+        inventory: 40,
+        tags: ["charger", "magsafe", "apple", "acessorios"]
+      }
+    ];
+  } else if (norm.includes("nike")) {
+    return [
+      {
+        name: "Tênis Nike Air Max 90",
+        description: "Estilo icônico de cano baixo que revolucionou as pistas e as ruas. Amortecimento Air visível, conforto lendário e visual retrô atemporal.",
+        priceUSD: 130.00,
+        priceBRL: 650.00,
+        category: "Esportes",
+        brand: "Nike",
+        sku: "NKE-AM90-BLK",
+        stockType: "PARTNER_STORE",
+        inventory: 40,
+        tags: ["tenis", "nike", "airmax", "calcados"]
+      },
+      {
+        name: "Tênis Nike Air Force 1 '07",
+        description: "O brilho continua vivo no original do basquete que traz o conforto das quadras com o estilo casual das ruas.",
+        priceUSD: 115.00,
+        priceBRL: 575.00,
+        category: "Esportes",
+        brand: "Nike",
+        sku: "NKE-AF1-WHT",
+        stockType: "PARTNER_STORE",
+        inventory: 50,
+        tags: ["airforce", "nike", "sneaker", "calcados"]
+      },
+      {
+        name: "Moletom Nike Club Fleece",
+        description: "Conforto clássico e ajuste macio e durável. Ideal para dias frios mantendo um visual esportivo e aconchegante de alta qualidade.",
+        priceUSD: 65.00,
+        priceBRL: 325.00,
+        category: "Vestuário",
+        brand: "Nike",
+        sku: "NKE-HD-FLEECE",
+        stockType: "PARTNER_STORE",
+        inventory: 35,
+        tags: ["moletom", "nike", "clothing", "agasalho"]
+      },
+      {
+        name: "Tênis Nike Pegasus 40",
+        description: "O tênis de corrida com amortecimento elástico e responsivo preferido dos corredores mundiais. Suporte equilibrado e leveza incomparável.",
+        priceUSD: 140.00,
+        priceBRL: 700.00,
+        category: "Esportes",
+        brand: "Nike",
+        sku: "NKE-PEG40-GRY",
+        stockType: "PARTNER_STORE",
+        inventory: 30,
+        tags: ["corrida", "pegasus", "nike", "running"]
+      },
+      {
+        name: "Boné Nike Club Cap",
+        description: "Design clássico estruturado com tecido macio de sarja de algodão e fecho ajustável personalizado. O toque de estilo ideal para o dia a dia.",
+        priceUSD: 28.00,
+        priceBRL: 140.00,
+        category: "Acessórios",
+        brand: "Nike",
+        sku: "NKE-CAP-CLUB",
+        stockType: "PARTNER_STORE",
+        inventory: 60,
+        tags: ["bone", "nike", "acessorios", "casual"]
+      }
+    ];
+  } else if (norm.includes("sephora") || norm.includes("sacks") || norm.includes("beauty")) {
+    return [
+      {
+        name: "Perfume Sauvage Dior Eau de Parfum 100ml",
+        description: "Uma composição poderosamente fresca, ao mesmo tempo bruta e nobre. Uma assinatura masculina marcante com notas ricas de bergamota da Calábria.",
+        priceUSD: 145.00,
+        priceBRL: 725.00,
+        category: "Beleza",
+        brand: "Dior",
+        sku: "DOR-SAUVAGE-EDP",
+        stockType: "PARTNER_STORE",
+        inventory: 20,
+        tags: ["perfume", "sephora", "dior", "colonia"]
+      },
+      {
+        name: "Batom Matte M·A·C Lipstick",
+        description: "A fórmula cremosa icônica que deu fama à marca M·A·C. Cores intensamente pigmentadas com textura de acabamento totalmente opaco e longa duração.",
+        priceUSD: 23.00,
+        priceBRL: 115.00,
+        category: "Beleza",
+        brand: "M.A.C",
+        sku: "MAC-LSTK-RUBY",
+        stockType: "PARTNER_STORE",
+        inventory: 100,
+        tags: ["batom", "maquiagem", "makeup", "mac"]
+      },
+      {
+        name: "Sérum Hidratante Mineral 89 Vichy 50ml",
+        description: "Fortalecedor facial concentrado com ácido hialurônico e 89% de Água Vulcânica de Vichy para hidratar e preencher a barreira cutânea diariamente.",
+        priceUSD: 42.00,
+        priceBRL: 210.00,
+        category: "Beleza",
+        brand: "Vichy",
+        sku: "VIC-M89-SER",
+        stockType: "PARTNER_STORE",
+        inventory: 45,
+        tags: ["skincare", "serum", "hidratante", "facial"]
+      },
+      {
+        name: "Base Líquida Double Wear Estée Lauder",
+        description: "Acabamento matte natural de altíssima durabilidade e cobertura média a total construível. Resistente ao calor, umidade e atividades físicas intensas.",
+        priceUSD: 49.00,
+        priceBRL: 245.00,
+        category: "Beleza",
+        brand: "Estée Lauder",
+        sku: "EST-DW-FND",
+        stockType: "PARTNER_STORE",
+        inventory: 35,
+        tags: ["base", "maquiagem", "makeup", "sephora"]
+      }
+    ];
+  } else {
+    // General brand fallback items
+    return [
+      {
+        name: `Kit Essentials ${storeName}`,
+        description: `Conjunto exclusivo de itens essenciais desenvolvidos especialmente pela ${storeName} para garantir praticidade, eficiência e alta performance no seu dia de trabalho.`,
+        priceUSD: 49.99,
+        priceBRL: 249.99,
+        category: "Gerais",
+        brand: storeName,
+        sku: `${storeName.substring(0,3).toUpperCase()}-ESS-01`,
+        stockType: "PARTNER_STORE",
+        inventory: 30,
+        tags: ["essentials", storeName.toLowerCase(), "populares"]
+      },
+      {
+        name: `Estojo Organizer Premium ${storeName}`,
+        description: `Mantenha todos os seus pertences, acessórios eletrônicos, cabos e documentos organizados com estilo contemporâneo e toque premium exclusivo.`,
+        priceUSD: 29.99,
+        priceBRL: 149.99,
+        category: "Acessórios",
+        brand: storeName,
+        sku: `${storeName.substring(0,3).toUpperCase()}-ORG-PRO`,
+        stockType: "PARTNER_STORE",
+        inventory: 50,
+        tags: ["organizer", "acessorios", storeName.toLowerCase()]
+      },
+      {
+        name: `Garrafa Térmica Hydra ${storeName} 500ml`,
+        description: "Garrafa de aço inoxidável com isolamento a vácuo de parede dupla para manter suas bebidas geladas por até 24 horas ou quentes por até 12 horas.",
+        priceUSD: 24.99,
+        priceBRL: 124.99,
+        category: "Utilidades",
+        brand: storeName,
+        sku: `${storeName.substring(0,3).toUpperCase()}-HYD-500`,
+        stockType: "PARTNER_STORE",
+        inventory: 40,
+        tags: ["garrafa", "utilidades", storeName.toLowerCase()]
+      },
+      {
+        name: `Mochila Backpack Executive ${storeName}`,
+        description: "Mochila ergonômica com compartimento acolchoado para notebook de até 16 polegadas, bolsos inteligentes e tecido impermeável resistente e durável.",
+        priceUSD: 89.99,
+        priceBRL: 449.99,
+        category: "Acessórios",
+        brand: storeName,
+        sku: `${storeName.substring(0,3).toUpperCase()}-EXEC-BP`,
+        stockType: "PARTNER_STORE",
+        inventory: 15,
+        tags: ["mochila", "acessorios", storeName.toLowerCase()]
+      },
+      {
+        name: `Carregador Rápido Wireless ${storeName} Pro`,
+        description: "Base de carregamento sem fio ultra rápida integrada para smartphones modernos, fones e relógios inteligentes com suporte magnético seguro.",
+        priceUSD: 39.99,
+        priceBRL: 199.99,
+        category: "Eletrônicos",
+        brand: storeName,
+        sku: `${storeName.substring(0,3).toUpperCase()}-CHRG-WL`,
+        stockType: "PARTNER_STORE",
+        inventory: 25,
+        tags: ["wireless", "charger", "eletronicos", storeName.toLowerCase()]
+      }
+    ];
+  }
+}
+
+// API endpoint to automatically find and import products for a brand/store using Google Search + Gemini
+app.post("/api/auto-import-products", async (req, res) => {
+  const { storeId, storeName, storeDescription } = req.body;
+  
+  if (!storeId || !storeName) {
+    return res.status(400).json({ error: "storeId and storeName are required parameters." });
+  }
+
+  console.log(`[Auto Import Products] Starting products scans for store: "${storeName}" (${storeId})`);
+
+  let finalProducts: any[] = [];
+  let isFromAI = false;
+
+  const ai = getGeminiClient();
+  if (ai) {
+    try {
+      const prompt = `Você é um Robô Varredor de Comércio Eletrônico Inteligente.
+A tarefa é encontrar produtos reais, populares e de destaque da marca ou loja parceira: "${storeName}" (Descrição: "${storeDescription || 'Nenhum detalhe adicional'}").
+
+Instruções de varredura:
+1. Realize uma busca ativa no Google Search para encontrar de 8 a 12 dos produtos mais conhecidos, icônicos e populares vendidos atualmente ou do portfólio oficial desta marca/loja.
+2. Por exemplo, se for "Apple", encontre iPhones (iPhone 15, Pro, etc.), AirPods, MacBooks, Apple Watches, carregadores MagSafe, etc. Se for "Nike", encontre tênis populares (Air Max, Jordan, Pegasus, etc.), camisetas, agasalhos. Para qualquer outra marca ou loja enviada, encontre os produtos típicos mais vendidos que os clientes adoram!
+3. Seus preços em USD e BRL devem ser realistas e bem aproximados com o mercado de importação.
+4. Forneça uma bela descrição persuasiva em português europeu ou brasileiro (PT-BR) para cada produto, destacando os seus benefícios.
+5. Forneça uma URL de imagem de alta resolução do produto ou um link confiável do Unsplash com termos correspondentes à imagem real do produto (ex: uma foto de smartphone fino para iPhones, foto de headphone esportivo para fones, bolsa de viagem elegante para mochilas, etc.).
+
+Retorne obrigatoriamente um JSON array contendo entre 8 e 12 objetos com este formato exato:
+[
+  {
+    "name": "Nome completo e claro do produto",
+    "description": "Uma bela descrição persuasiva e detalhada em Português.",
+    "priceUSD": 999.00, // Preço numérico em Dólares
+    "priceBRL": 5194.00, // Preço numérico aproximado de conversão
+    "category": "Eletrônicos", // Categoria condizente (ex: Beleza, Acessórios, Eletrônicos, Vestuário, etc.)
+    "brand": "${storeName}",
+    "sku": "SKU-EXCLUSIVO-EXEMPLO", // Crie um SKU coerente baseado no nome
+    "stockType": "PARTNER_STORE", // 'IN_STOCK' ou 'PARTNER_STORE'
+    "inventory": 35,
+    "tags": ["tag1", "tag2"]
+  }
+]
+
+CRÍTICO:
+- Retorne APENAS o JSON puro. Não embrulhe em \`\`\`json. Sem introduções ou explicações.`;
+
+      const aiResponse = await generateContentWithRetry(ai, {
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+          responseMimeType: "application/json"
+        }
+      });
+
+      let textResult = aiResponse.text || "[]";
+      textResult = textResult.replace(/^```json/gi, "")
+                             .replace(/^```/g, "")
+                             .replace(/```$/g, "")
+                             .trim();
+
+      const arrayMatch = textResult.match(/\[\s*\{?[\s\S]*\}?\s*\]/);
+      if (arrayMatch) {
+        textResult = arrayMatch[0];
+      }
+
+      const results = JSON.parse(textResult);
+      if (Array.isArray(results) && results.length > 0) {
+        finalProducts = results;
+        isFromAI = true;
+        console.log(`[Auto Import Products] Gemini returned ${results.length} scanned products.`);
+      }
+    } catch (err) {
+      console.error("[Auto Import Products] Gemini generation error, falling back to rich static brand generator:", err);
+    }
+  }
+
+  // If Gemini failed or search did not return results, use highly premium fallback brand collections
+  if (finalProducts.length === 0) {
+    finalProducts = getFallbackProductsForStore(storeName);
+    console.log(`[Auto Import Products] Hydrating with ${finalProducts.length} high-quality fallback products for: "${storeName}"`);
+  }
+
+  // Save each product directly to the firestore 'products' collection under this storeId
+  const savedItems: any[] = [];
+  try {
+    const productsCollection = db.collection('products');
+    for (const item of finalProducts) {
+      // Create a unique document ID
+      const docRef = productsCollection.doc();
+      const id = docRef.id;
+
+      // Clean images and apply responsive fallback photography URLs
+      let img = (item.imageUrl || "").trim();
+      if (!img || img.includes("example.com") || img.includes("placeholder") || img === "") {
+        img = getPreciseFallbackImage(item.name || "", item.category || "");
+      }
+
+      const cleanProduct = {
+        id,
+        storeId,
+        name: (item.name || "Produto Sem Nome").trim(),
+        description: (item.description || "Descrição em breve.").trim(),
+        imageUrl: img,
+        priceUSD: Number(item.priceUSD) || 0.0,
+        priceBRL: Number(item.priceBRL) || (Number(item.priceUSD) ? Math.round(Number(item.priceUSD) * 5.2) : 0.0),
+        category: (item.category || "Variados").trim(),
+        brand: (item.brand || storeName).trim(),
+        sku: (item.sku || `SKU-${storeName.substring(0,3).toUpperCase()}-${Math.floor(Math.random() * 89999 + 10000)}`).trim(),
+        stockType: item.stockType === "IN_STOCK" ? "IN_STOCK" : "PARTNER_STORE",
+        inventory: Number(item.inventory) || 20,
+        tags: Array.isArray(item.tags) ? item.tags : [storeName.toLowerCase(), "importado"],
+        isFeatured: item.isFeatured || false,
+        createdAt: new Date().toISOString()
+      };
+
+      await docRef.set(cleanProduct);
+      savedItems.push(cleanProduct);
+    }
+
+    return res.json({
+      success: true,
+      importedCount: savedItems.length,
+      isFromAI,
+      products: savedItems
+    });
+  } catch (firestoreErr: any) {
+    console.error("[Auto Import Products] Firestore transaction failed:", firestoreErr);
+    return res.status(500).json({ error: "Could not save imported products to database.", details: firestoreErr.message });
+  }
+});
+
+// API endpoint to bulk save custom spreadsheet products 
+app.post("/api/bulk-import-products", async (req, res) => {
+  const { storeId, products } = req.body;
+  if (!storeId || !Array.isArray(products)) {
+    return res.status(400).json({ error: "Parâmetros storeId e products (array) são obrigatórios." });
+  }
+
+  console.log(`[Bulk Import Products] Importing ${products.length} products for store: ${storeId}`);
+
+  try {
+    const productsCollection = db.collection('products');
+    const importedCount = products.length;
+    
+    // Firestore allows batch operations. Let's commit in chunks of 200 documents to avoid quota/limitations
+    const chunkSize = 200;
+    for (let i = 0; i < products.length; i += chunkSize) {
+      const chunk = products.slice(i, i + chunkSize);
+      const batch = db.batch();
+
+      for (const item of chunk) {
+        const docRef = productsCollection.doc();
+        const id = docRef.id;
+
+        // Ensure default image fallback works on server too if not filled
+        let img = (item.imageUrl || "").trim();
+        if (!img || img.includes("example.com") || img.includes("placeholder") || img === "") {
+          img = getPreciseFallbackImage(item.name || "", item.category || "");
+        }
+
+        const cleanProduct = {
+          id,
+          storeId,
+          name: (item.name || "Produto Sem Nome").trim(),
+          description: (item.description || "Descrição em breve.").trim(),
+          imageUrl: img,
+          priceUSD: Number(item.priceUSD) || 0.0,
+          priceBRL: Number(item.priceBRL) || (Number(item.priceUSD) ? Math.round(Number(item.priceUSD) * 5.2) : 0.0),
+          category: (item.category || "Outros").trim(),
+          brand: (item.brand || "").trim(),
+          sku: (item.sku || `SKU-IMP-${Math.floor(Math.random() * 89999 + 10000)}`).trim(),
+          stockType: item.stockType === "PARTNER_STORE" ? "PARTNER_STORE" : "IN_STOCK",
+          inventory: Number(item.inventory) || 20,
+          tags: Array.isArray(item.tags) ? item.tags : (typeof item.tags === "string" ? item.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : ["importado"]),
+          isFeatured: !!item.isFeatured,
+          createdAt: new Date().toISOString()
+        };
+
+        batch.set(docRef, cleanProduct);
+      }
+
+      await batch.commit();
+    }
+
+    return res.status(200).json({
+      success: true,
+      importedCount
+    });
+  } catch (err: any) {
+    console.error("[Bulk Import Products] Error saving chunk to Firestore:", err);
+    return res.status(500).json({ error: "Erro ao salvar produtos no Firestore.", details: err.message });
   }
 });
 
