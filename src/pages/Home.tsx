@@ -51,7 +51,7 @@ export function Home() {
 
   const handleCopyRef = async () => {
     if (!user) return;
-    const link = `https://dicas-by-ale.vercel.app/?ref=${user.uid}`;
+    const link = `https://dicas-by-ale-snowy.vercel.app/?ref=${user.uid}`;
     await safeCopyText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

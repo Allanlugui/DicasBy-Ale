@@ -104,9 +104,19 @@ export function Support() {
     return () => clearInterval(interval);
   }, [activeTicketId, activeTicket]);
 
+  const messageCount = activeTicket?.messages?.length || 0;
+
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [tickets, activeTicketId, loading]);
+    if (chatEndRef.current) {
+      const container = chatEndRef.current.parentElement;
+      if (container) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [messageCount, activeTicketId, loading]);
 
   if (!user) {
     return (

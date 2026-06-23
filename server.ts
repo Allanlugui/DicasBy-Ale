@@ -1454,7 +1454,7 @@ app.post("/api/notify-ticket", async (req, res) => {
     }
     const recipientsToSend = Array.from(recipientEmails).join(', ');
 
-    const appUrl = process.env.APP_URL || "https://dicasbyale.com";
+    const appUrl = process.env.APP_URL || "https://dicas-by-ale-snowy.vercel.app";
     const adminUrl = `${appUrl}/admin`;
 
     const htmlEmail = `
