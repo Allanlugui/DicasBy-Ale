@@ -2796,7 +2796,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
               </div>
               <div className="absolute bottom-2 left-2 flex flex-col gap-1">
                 <div className="px-2 py-1 bg-stone-900/80 text-white rounded text-[10px] font-bold uppercase tracking-widest inline-block self-start">
-                  {stores.find(s => s.id === p.storeId)?.name || 'Outra Loja'}
+                  {stores ? stores.find(s => s.id === p.storeId)?.name : 'Outra Loja'}
                 </div>
                 {p.category && (
                   <div className="px-2 py-1 bg-rose-500/80 text-white rounded text-[10px] font-bold uppercase tracking-widest inline-block self-start">

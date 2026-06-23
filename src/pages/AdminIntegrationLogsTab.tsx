@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, orderBy, deleteDoc, doc, writeBatch, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Terminal, RefreshCw, Trash2, Search, SlidersHorizontal, CheckCircle2, XCircle, AlertCircle, Eye, CornerDownRight, Calendar, Layers } from 'lucide-react';
+import { safeCopyText } from '../lib/utils';
 
 interface IntegrationLog {
   id: string;
@@ -22,6 +23,7 @@ export function AdminIntegrationLogsTab() {
   const [serviceFilter, setServiceFilter] = useState<'ALL' | 'Vendas' | 'Finanças' | 'Recursos Humanos'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUCCESS' | 'ERROR'>('ALL');
   const [selectedLog, setSelectedLog] = useState<IntegrationLog | null>(null);
+  const [copiedJson, setCopiedJson] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'integrationLogs'), orderBy('timestamp', 'desc'));
@@ -378,13 +380,14 @@ export function AdminIntegrationLogsTab() {
                   Cópia Detalhada de Payload Rejeitado / Recebido
                 </h4>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(JSON.stringify(selectedLog.payload, null, 2));
-                    alert('Payload copiado para a área de transferência!');
+                  onClick={async () => {
+                    await safeCopyText(JSON.stringify(selectedLog.payload, null, 2));
+                    setCopiedJson(true);
+                    setTimeout(() => setCopiedJson(false), 2000);
                   }}
                   className="text-[10px] text-indigo-600 hover:underline font-bold cursor-pointer"
                 >
-                  Copiar JSON completo
+                  {copiedJson ? 'Copiado!' : 'Copiar JSON completo'}
                 </button>
               </div>
               <pre className="p-4 bg-stone-900 text-stone-200 rounded-xl text-[11px] font-mono leading-relaxed max-h-64 overflow-y-auto select-all whitespace-pre">

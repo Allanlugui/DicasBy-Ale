@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight } from 'lucide-react';
 import { useAppContext } from '../context';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, safeCopyText } from '../lib/utils';
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from '../types';
 
 export function Cart() {
@@ -94,8 +94,8 @@ export function Cart() {
   const cleanKey = activePixKey.replace(/[^a-zA-Z0-9@.]/g, '');
   const pixCopyPasteText = `00020101021126580014br.gov.bcb.pix0140${cleanKey.length.toString().padStart(2, '0')}${cleanKey}5204000053039865405${formattedAmount.length.toString().padStart(2, '0')}${formattedAmount}5802BR59${activePixName.length.toString().padStart(2, '0')}${activePixName}60${activePixCity.length.toString().padStart(2, '0')}${activePixCity}62070503***6304`;
 
-  const handleCopyPix = () => {
-    navigator.clipboard.writeText(pixCopyPasteText);
+  const handleCopyPix = async () => {
+    await safeCopyText(pixCopyPasteText);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2500);
   };
@@ -223,8 +223,8 @@ export function Cart() {
             const cleanPixKey = activePixKey.replace(/[^a-zA-Z0-9@.]/g, '');
             const specificPixCode = `00020101021126580014br.gov.bcb.pix0140${cleanPixKey.length.toString().padStart(2, '0')}${cleanPixKey}5204000053039865405${amountFormatted.length.toString().padStart(2, '0')}${amountFormatted}5802BR59${activePixName.length.toString().padStart(2, '0')}${activePixName}60${activePixCity.length.toString().padStart(2, '0')}${activePixCity}62070503***6304`;
 
-            const handleCopySpecificPix = () => {
-              navigator.clipboard.writeText(specificPixCode);
+            const handleCopySpecificPix = async () => {
+              await safeCopyText(specificPixCode);
               setCopiedOrderId(order.id);
               setTimeout(() => setCopiedOrderId(null), 2500);
             };

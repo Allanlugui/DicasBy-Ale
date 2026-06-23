@@ -24,12 +24,20 @@
     
     <!-- Service Worker Registration -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((reg) => console.log('Service Worker registered successfully!', reg.scope))
-            .catch((err) => console.error('Service Worker registration failed:', err));
-        });
+      try {
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then((reg) => {
+                if (reg) console.log('Service Worker registered successfully!', reg.scope);
+              })
+              .catch((err) => {
+                console.warn('Service Worker registration skipped or blocked:', err);
+              });
+          });
+        }
+      } catch (e) {
+        console.warn('Service Worker registration was blocked:', e);
       }
     </script>
   </body>

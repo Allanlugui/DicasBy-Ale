@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context';
 import { ShoppingBag, Star, Share2, Copy, CheckCircle2, Search, Sparkles, HelpCircle, DollarSign, Clock, MapPin, Check, X, LogIn, Loader2, SlidersHorizontal, ChevronRight, Store as StoreIcon, Filter } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, safeCopyText } from '../lib/utils';
 import { Product } from '../types';
 import { ProductCarousel, StoreCarousel } from '../components/FeaturedCarousels';
 
@@ -49,10 +49,10 @@ export function Home() {
     }
   }, []);
 
-  const handleCopyRef = () => {
+  const handleCopyRef = async () => {
     if (!user) return;
     const link = `https://dicas-by-ale.vercel.app/?ref=${user.uid}`;
-    navigator.clipboard.writeText(link);
+    await safeCopyText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1153,7 +1153,8 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
 
 function ProductCard({ product, onSelect }: { key?: React.Key; product: Product, onSelect: () => void }) {
   const { stores, addToCart } = useAppContext();
-  const store = stores.find(s => s.id === product.storeId);
+  if (!product) return null;
+  const store = stores ? stores.find(s => s.id === product.storeId) : null;
 
   const hasVariants = product.variants && product.variants.length > 0;
 
@@ -1226,7 +1227,7 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
   const { addToCart, stores } = useAppContext();
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(product.variants?.[0]?.id || null);
   const [quantity, setQuantity] = useState(1);
-  const store = stores.find(s => s.id === product.storeId);
+  const store = stores ? stores.find(s => s.id === product.storeId) : null;
 
   const selectedVariant = product.variants?.find(v => v.id === selectedVariantId);
   
