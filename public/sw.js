@@ -84,7 +84,8 @@ self.addEventListener('fetch', (event) => {
             return cachedResponse;
           }
           // If completely offline and looking for index, return cached root
-          if (event.request.headers.get('accept').includes('text/html')) {
+          const acceptHeader = event.request.headers.get('accept');
+          if (acceptHeader && acceptHeader.includes('text/html')) {
             return caches.match('/');
           }
         });

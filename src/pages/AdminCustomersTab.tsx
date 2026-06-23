@@ -29,6 +29,8 @@ export function AdminCustomersTab() {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'profiles'), (snap) => {
       setCustomers(snap.docs.map(d => ({ id: d.id, userId: d.id, ...d.data() } as unknown as UserProfile)));
+    }, (err) => {
+      console.error('Error listening to profiles:', err);
     });
     return () => unsub();
   }, []);

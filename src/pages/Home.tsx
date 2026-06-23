@@ -191,7 +191,7 @@ export function Home() {
 
   // Filter in-store products dynamically
   const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)));
-  const allSizes = Array.from(new Set(products.flatMap(p => p.variants?.map(v => v.name.includes('Size') ? v.name.split(':').pop()?.trim() : null)).filter(Boolean)));
+  const allSizes = Array.from(new Set(products.flatMap(p => p.variants?.map(v => (v?.name && typeof v.name === 'string' && v.name.includes('Size')) ? v.name.split(':').pop()?.trim() : null)).filter(Boolean)));
 
   // Clear internet results when search query is emptied
   useEffect(() => {
@@ -205,7 +205,7 @@ export function Home() {
     const matchesStore = selectedStore ? p.storeId === selectedStore : true;
     const matchesCategory = selectedCategory ? p.category === selectedCategory : true;
     const matchesBrand = selectedBrand ? p.brand === selectedBrand : true;
-    const matchesSize = selectedSize ? p.variants?.some(v => v.name.includes(selectedSize)) : true;
+    const matchesSize = selectedSize ? p.variants?.some(v => v?.name && typeof v.name === 'string' && v.name.includes(selectedSize)) : true;
     const matchesSearch = searchQuery.trim()
       ? p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||

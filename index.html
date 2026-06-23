@@ -25,8 +25,7 @@
     <!-- Service Worker Registration -->
     <script>
       try {
-        const isInIframe = window.self !== window.top;
-        if (!isInIframe && 'serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator) {
           window.addEventListener('load', () => {
             navigator.serviceWorker.register('/sw.js')
               .then((reg) => {
@@ -36,8 +35,6 @@
                 console.warn('Service Worker registration skipped or blocked:', err);
               });
           });
-        } else if (isInIframe) {
-          console.log('Skipping service worker registration inside preview iframe.');
         }
       } catch (e) {
         console.warn('Service Worker registration was blocked:', e);
