@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge } from './types';
-import { generateTrackingId, cleanUndefined } from './lib/utils';
+import { generateTrackingId, cleanUndefined, safeStorage } from './lib/utils';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User, signInWithEmailLink, isSignInWithEmailLink, sendSignInLinkToEmail, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -212,13 +212,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Check for email link sign in
     if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
+      let email = safeStorage.getItem('emailForSignIn');
       if (!email) {
         email = window.prompt('Por favor, confirme seu e-mail para validar o acesso');
       }
       if (email) {
         signInWithEmailLink(auth, email, window.location.href)
-          .then(() => window.localStorage.removeItem('emailForSignIn'))
+          .then(() => safeStorage.removeItem('emailForSignIn'))
           .catch(console.error);
       }
     }
@@ -424,7 +424,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-    window.localStorage.setItem('emailForSignIn', email);
+    safeStorage.setItem('emailForSignIn', email);
   };
 
   const loginWithGoogle = async () => {
@@ -488,7 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         note: 'Pedido recebido, aguardando confirmação de pagamento.'
     };
 
-    const referredBy = localStorage.getItem('referred_by');
+    const referredBy = safeStorage.getItem('referred_by');
     const finalReferredBy = (referredBy && referredBy !== user.uid) ? referredBy : undefined;
 
     const newOrder: Order = {
@@ -529,7 +529,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (finalReferredBy) {
-      localStorage.removeItem('referred_by');
+      safeStorage.removeItem('referred_by');
     }
     clearCart();
     return newOrder;

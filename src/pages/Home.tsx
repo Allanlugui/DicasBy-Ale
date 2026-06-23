@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context';
 import { ShoppingBag, Star, Share2, Copy, CheckCircle2, Search, Sparkles, HelpCircle, DollarSign, Clock, MapPin, Check, X, LogIn, Loader2, SlidersHorizontal, ChevronRight, Store as StoreIcon, Filter } from 'lucide-react';
-import { formatCurrency, safeCopyText } from '../lib/utils';
+import { formatCurrency, safeCopyText, safeStorage } from '../lib/utils';
 import { Product } from '../types';
 import { ProductCarousel, StoreCarousel } from '../components/FeaturedCarousels';
 
@@ -45,7 +45,7 @@ export function Home() {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref) {
-      localStorage.setItem('referred_by', ref);
+      safeStorage.setItem('referred_by', ref);
     }
   }, []);
 

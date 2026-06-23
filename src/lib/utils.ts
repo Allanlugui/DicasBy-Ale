@@ -69,3 +69,69 @@ export async function safeCopyText(text: string): Promise<boolean> {
   }
 }
 
+class SafeLocalStorage {
+  private memoryStorage: Record<string, string> = {};
+  private isAvailable: boolean;
+
+  constructor() {
+    try {
+      const testKey = "__storage_test__";
+      window.localStorage.setItem(testKey, testKey);
+      window.localStorage.removeItem(testKey);
+      this.isAvailable = true;
+    } catch (e) {
+      this.isAvailable = false;
+    }
+  }
+
+  getItem(key: string): string | null {
+    if (this.isAvailable) {
+      try {
+        return window.localStorage.getItem(key);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return this.memoryStorage[key] !== undefined ? this.memoryStorage[key] : null;
+  }
+
+  setItem(key: string, value: string): void {
+    if (this.isAvailable) {
+      try {
+        window.localStorage.setItem(key, value);
+        return;
+      } catch (e) {
+        // fallback
+      }
+    }
+    this.memoryStorage[key] = String(value);
+  }
+
+  removeItem(key: string): void {
+    if (this.isAvailable) {
+      try {
+        window.localStorage.removeItem(key);
+        return;
+      } catch (e) {
+        // fallback
+      }
+    }
+    delete this.memoryStorage[key];
+  }
+
+  clear(): void {
+    if (this.isAvailable) {
+      try {
+        window.localStorage.clear();
+        return;
+      } catch (e) {
+        // fallback
+      }
+    }
+    this.memoryStorage = {};
+  }
+}
+
+export const safeStorage = new SafeLocalStorage();
+
+

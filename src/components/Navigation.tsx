@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ShoppingBag, Package, Settings, PackageSearch, LogIn, LogOut, Instagram, MessageSquare, User, Smartphone, ChevronDown, Menu, X, Bell } from 'lucide-react';
 import { useAppContext } from '../context';
 import { AnimatePresence, motion } from 'motion/react';
+import { safeStorage } from '../lib/utils';
 
 export function Navigation() {
   const { cart, user, isAdmin, logout, notifications } = useAppContext();
@@ -17,14 +18,14 @@ export function Navigation() {
         window.matchMedia('(display-mode: standalone)').matches || 
         (window.navigator as any).standalone === true;
       
-      const installSucceeded = localStorage.getItem('pwa_installed_successfully') === 'true';
+      const installSucceeded = safeStorage.getItem('pwa_installed_successfully') === 'true';
       setIsInstalled(isInStandaloneMode || installSucceeded);
     };
 
     checkInstallation();
 
     const handleAppInstalled = () => {
-      localStorage.setItem('pwa_installed_successfully', 'true');
+      safeStorage.setItem('pwa_installed_successfully', 'true');
       setIsInstalled(true);
     };
 

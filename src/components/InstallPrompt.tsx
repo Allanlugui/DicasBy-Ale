@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Sparkles, Share, PlusSquare, X, Download, ArrowRight, Check, AlertCircle } from 'lucide-react';
+import { safeStorage } from '../lib/utils';
 
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -40,8 +41,8 @@ export function InstallPrompt() {
       setIsReadyToInstall(true);
 
       // Only show banner after first access if not dismissed recently
-      const dismissedTime = localStorage.getItem('pwa_banner_dismissed_at');
-      const installSucceeded = localStorage.getItem('pwa_installed_successfully');
+      const dismissedTime = safeStorage.getItem('pwa_banner_dismissed_at');
+      const installSucceeded = safeStorage.getItem('pwa_installed_successfully');
       
       const shouldShow = !installSucceeded && (!dismissedTime || Date.now() - parseInt(dismissedTime) > 24 * 60 * 60 * 1000 * 3); // 3 days cooling off
       if (shouldShow) {
@@ -58,8 +59,8 @@ export function InstallPrompt() {
     // 4. For iOS devices: Since there is no prompt event, show banner to users directly as iOS fully supports PWAs
     if (isIosDevice) {
       setIsReadyToInstall(true);
-      const dismissedTime = localStorage.getItem('pwa_banner_dismissed_at');
-      const installSucceeded = localStorage.getItem('pwa_installed_successfully');
+      const dismissedTime = safeStorage.getItem('pwa_banner_dismissed_at');
+      const installSucceeded = safeStorage.getItem('pwa_installed_successfully');
       const shouldShow = !installSucceeded && (!dismissedTime || Date.now() - parseInt(dismissedTime) > 24 * 60 * 60 * 1000 * 3);
 
       if (shouldShow) {
@@ -85,7 +86,7 @@ export function InstallPrompt() {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then(({ outcome }: any) => {
           if (outcome === 'accepted') {
-            localStorage.setItem('pwa_installed_successfully', 'true');
+            safeStorage.setItem('pwa_installed_successfully', 'true');
             setShowBanner(false);
           }
         });
@@ -125,14 +126,14 @@ export function InstallPrompt() {
     console.log(`[PWA] User response to install: ${outcome}`);
 
     if (outcome === 'accepted') {
-      localStorage.setItem('pwa_installed_successfully', 'true');
+      safeStorage.setItem('pwa_installed_successfully', 'true');
       setShowBanner(false);
     }
     setDeferredPrompt(null);
   };
 
   const dismissBanner = () => {
-    localStorage.setItem('pwa_banner_dismissed_at', Date.now().toString());
+    safeStorage.setItem('pwa_banner_dismissed_at', Date.now().toString());
     setShowBanner(false);
   };
 
@@ -298,7 +299,7 @@ export function InstallPrompt() {
               <button 
                 onClick={() => {
                   setShowIosModal(false);
-                  localStorage.setItem('pwa_installed_successfully', 'true');
+                  safeStorage.setItem('pwa_installed_successfully', 'true');
                 }}
                 className="cursor-pointer w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition"
               >
