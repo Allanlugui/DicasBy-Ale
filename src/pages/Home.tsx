@@ -377,11 +377,11 @@ export function Home() {
               return activeGroupKeys.map(catKey => {
                 const items = grouped[catKey];
                 return (
-                  <div key={catKey} className="space-y-4 border-b border-stone-50 pb-8 last:border-0 last:pb-0">
+                  <div key={catKey} className="space-y-3 border-b border-stone-50 pb-6 last:border-0 last:pb-0">
                     <div className="flex items-baseline justify-between px-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-display font-black text-stone-900 tracking-tight text-lg">{catKey}</h3>
-                        <span className="text-stone-400 font-bold text-xs bg-stone-100 px-2.5 py-0.5 rounded-full">{items.length}</span>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-display font-black text-stone-900 tracking-tight text-base">{catKey}</h3>
+                        <span className="text-stone-400 font-bold text-[10px] bg-stone-100 px-2 py-0.5 rounded-full">{items.length}</span>
                       </div>
                       <button 
                         onClick={() => setSelectedCategory(catKey)}
@@ -394,10 +394,10 @@ export function Home() {
 
                     {/* Horizontal scroll container - minimal and highly compact */}
                     <div className="relative -mx-4 px-4 sm:mx-0 sm:px-0">
-                      <div className="flex gap-6 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent">
-                        {items.map(product => (
-                          <div key={product.id} className="w-[270px] sm:w-[290px] shrink-0 snap-start">
-                            <ProductCard product={product} onSelect={() => setSelectedProductForModal(product)} />
+                      <div className="flex gap-4 overflow-x-auto pb-3 pt-1 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-stone-200 scrollbar-track-transparent">
+                        {items.filter(Boolean).map(product => (
+                          <div key={product.id} className="w-[150px] sm:w-[190px] shrink-0 snap-start">
+                            <CompactProductCard product={product} onSelect={() => setSelectedProductForModal(product)} />
                           </div>
                         ))}
                       </div>
@@ -1063,6 +1063,90 @@ export function Home() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CompactProductCard({ product, onSelect }: { product: Product; onSelect: () => void }) {
+  const { stores, addToCart } = useAppContext();
+  if (!product) return null;
+  const store = stores ? stores.find(s => s.id === product.storeId) : null;
+  const hasVariants = product.variants && product.variants.length > 0;
+
+  const priceBRL = product.priceBRL || 0;
+  const priceUSD = product.priceUSD || 0;
+
+  return (
+    <div 
+      onClick={onSelect}
+      className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden flex flex-col group hover:shadow-md transition-all duration-300 cursor-pointer p-2.5 h-full relative"
+    >
+      <div className="aspect-square bg-stone-50 rounded-xl relative overflow-hidden flex items-center justify-center mb-2.5 shrink-0 h-32 sm:h-40 w-full">
+        <img 
+          src={product.imageUrl || undefined} 
+          alt={product.name || 'Produto'} 
+          className="max-h-full max-w-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-500"
+          referrerPolicy="no-referrer"
+        />
+        
+        {/* Subtle badges */}
+        <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 max-w-[80%]">
+          {store?.name && (
+            <div className="bg-white/90 backdrop-blur-md text-stone-900 font-extrabold text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm border border-stone-100/30 truncate">
+              {store.name}
+            </div>
+          )}
+        </div>
+        {product.stockType === 'PARTNER_STORE' && (
+          <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white font-black text-[7px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
+            Encomenda
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col flex-grow px-1">
+        <div className="mb-1.5 min-h-[2.25rem]">
+          {product.brand && (
+            <span className="text-[8px] font-black text-rose-500 uppercase tracking-widest block truncate mb-0.5">
+              {product.brand}
+            </span>
+          )}
+          <h3 className="font-sans font-bold text-stone-800 text-xs leading-snug line-clamp-2">
+            {product.name || ''}
+          </h3>
+        </div>
+
+        {/* Essential price info only */}
+        <div className="mt-auto pt-1 flex items-end justify-between">
+          <div className="space-y-0.5">
+            <div className="font-extrabold text-sm sm:text-base text-stone-900 tracking-tight leading-none">
+              {formatCurrency(priceBRL)}
+            </div>
+            <div className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded inline-block leading-none">
+              US$ {priceUSD.toFixed(2)}
+            </div>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasVariants) {
+                onSelect();
+              } else {
+                addToCart(product, 1);
+              }
+            }}
+            className="h-7 w-7 bg-rose-500 text-white rounded-lg flex items-center justify-center hover:bg-rose-600 transition-all active:scale-95 shrink-0 shadow-sm"
+            aria-label="Adicionar ao carrinho"
+          >
+            {hasVariants ? (
+              <Search className="h-3.5 w-3.5" />
+            ) : (
+              <ShoppingBag className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
