@@ -2134,6 +2134,124 @@ async function sendInvoiceNotificationWithAttachments(
 }
 
 // ---------------------------------------------------------------------------------
+// ASAAS INTEGRATION ROUTE
+// ---------------------------------------------------------------------------------
+
+app.post("/api/asaas/create-payment", async (req, res) => {
+  try {
+    const { customerName, customerEmail, customerCpf, value, description } = req.body;
+    
+    const apiKey = process.env.ASAAS_API_KEY;
+    const baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
+
+    if (!apiKey) {
+      console.error("[Asaas] ASAAS_API_KEY não configurada.");
+      return res.status(401).json({ error: "Integração Asaas não configurada corretamente." });
+    }
+
+    if (!customerName || !value) {
+      return res.status(400).json({ error: "Nome do cliente e valor são obrigatórios." });
+    }
+
+    // 1. Buscar se o cliente já existe por CPF/Email (Simplificado)
+    // Para um fluxo real perfeito o CPF é recomendado, aqui usamos o e-mail ou CPF
+    let asaasCustomerId = null;
+    
+    const searchUrl = customerCpf 
+      ? `${baseUrl}/customers?cpfCnpj=${customerCpf}`
+      : `${baseUrl}/customers?email=${customerEmail}`;
+      
+    const searchRes = await fetch(searchUrl, {
+      method: "GET",
+      headers: { "access_token": apiKey }
+    });
+    
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      if (searchData.data && searchData.data.length > 0) {
+        asaasCustomerId = searchData.data[0].id;
+      }
+    }
+
+    // 2. Se não existe, criar o cliente
+    if (!asaasCustomerId) {
+      const createCustomerRes = await fetch(`${baseUrl}/customers`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json", 
+          "access_token": apiKey 
+        },
+        body: JSON.stringify({
+          name: customerName,
+          email: customerEmail,
+          cpfCnpj: customerCpf || undefined
+        })
+      });
+
+      const customerData = await createCustomerRes.json();
+      if (customerData.id) {
+        asaasCustomerId = customerData.id;
+      } else {
+        console.error("[Asaas] Falha ao criar cliente:", customerData);
+        return res.status(400).json({ error: "Falha ao gerar cliente no Asaas." });
+      }
+    }
+
+    // 3. Criar a cobrança (Pix)
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 1); // Vence em 1 dia
+
+    const paymentRes = await fetch(`${baseUrl}/payments`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json", 
+        "access_token": apiKey 
+      },
+      body: JSON.stringify({
+        customer: asaasCustomerId,
+        billingType: "PIX", 
+        value: parseFloat(value),
+        dueDate: dueDate.toISOString().split('T')[0],
+        description: description || "Pedido de Compra",
+        postalService: false
+      })
+    });
+
+    const paymentData = await paymentRes.json();
+
+    if (!paymentData.id) {
+      console.error("[Asaas] Falha ao criar cobrança:", paymentData);
+      return res.status(400).json({ error: "Falha ao gerar a cobrança no Asaas." });
+    }
+
+    // 4. Obter o QrCode Pix Copy/Paste (payload)
+    let pixCopyPaste = "";
+    try {
+      const pixRes = await fetch(`${baseUrl}/payments/${paymentData.id}/pixQrCode`, {
+        headers: { "access_token": apiKey }
+      });
+      if (pixRes.ok) {
+        const pixData = await pixRes.json();
+        pixCopyPaste = pixData.payload;
+      }
+    } catch (pixErr) {
+      console.warn("[Asaas] Erro ao buscar Pix QrCode", pixErr);
+    }
+
+    // Retorna apenas a URL da fatura e a chave copia e cola por segurança
+    return res.json({
+      invoiceUrl: paymentData.invoiceUrl,
+      pixCopyPaste: pixCopyPaste,
+      paymentId: paymentData.id
+    });
+
+  } catch (error: any) {
+    console.error("[Asaas Integration Error]:", error);
+    return res.status(500).json({ error: "Erro interno ao processar pagamento." });
+  }
+});
+
+// ---------------------------------------------------------------------------------
 // ROUTES FOR NOTIFICATIONS
 // ---------------------------------------------------------------------------------
 
@@ -2684,6 +2802,81 @@ app.post("/api/sync-order-erps", async (req, res) => {
   } catch (err: any) {
     console.error("[Delegated Sync Error]:", err);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin System Reset Endpoints
+app.post("/api/admin/reset-system", async (req, res) => {
+  const { action, confirmation } = req.body;
+  if (!action || !confirmation) {
+    return res.status(400).json({ error: "Parâmetros inválidos." });
+  }
+
+  try {
+    if (action === 'TRANSACTIONAL') {
+      if (confirmation !== 'APAGAR-DADOS') {
+        return res.status(400).json({ error: "Palavra de confirmação incorreta." });
+      }
+
+      const collectionsToWipe = [
+        'products',
+        'orders',
+        'quoteRequests',
+        'tickets',
+        'reviews',
+        'folders',
+        'documents',
+        'coupons',
+        'integrationLogs',
+        'notifications'
+      ];
+
+      for (const collName of collectionsToWipe) {
+        const snapshot = await db.collection(collName).get();
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += 500) {
+          const chunk = docs.slice(i, i + 500);
+          const batch = db.batch();
+          chunk.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        }
+      }
+
+      return res.json({ success: true, message: "Dados transacionais apagados com sucesso." });
+    } else if (action === 'CONFIG') {
+      if (confirmation !== 'APAGAR-CONFIG') {
+        return res.status(400).json({ error: "Palavra de confirmação incorreta." });
+      }
+
+      // Regra de Ouro: IA intacta. Lojas mantidas. Perfis (CRM) mantidos.
+      // O segundo botão apagará as configurações.
+      const collectionsToWipe = [
+        'companySettings',
+        'shippingMethods'
+      ];
+
+      for (const collName of collectionsToWipe) {
+        const snapshot = await db.collection(collName).get();
+        const docs = snapshot.docs;
+        for (let i = 0; i < docs.length; i += 500) {
+          const chunk = docs.slice(i, i + 500);
+          const batch = db.batch();
+          chunk.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+        }
+      }
+
+      return res.json({ success: true, message: "Configurações do sistema apagadas com sucesso." });
+    } else {
+      return res.status(400).json({ error: "Ação inválida." });
+    }
+  } catch (err: any) {
+    console.error("Reset system error:", err);
+    return res.status(500).json({ error: "Erro ao resetar sistema: " + err.message });
   }
 });
 

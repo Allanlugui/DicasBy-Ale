@@ -600,6 +600,96 @@ export function AdminSettingsTab() {
         </div>
 
       </form>
+
+      {/* DANGER ZONE */}
+      <div className="bg-red-50 rounded-2xl border border-red-200 p-6 space-y-6 shadow-xs mt-12 mb-20">
+        <div className="flex items-center gap-2 border-b border-red-200 pb-3">
+          <Info className="w-5 h-5 text-red-600" />
+          <h3 className="text-sm font-bold text-red-900">Zona de Perigo (Reset do Sistema)</h3>
+        </div>
+        
+        <p className="text-xs text-red-700">
+          Atenção: As ações abaixo são irreversíveis. Leia atentamente o que será apagado em cada opção antes de prosseguir.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4 p-5 bg-white rounded-xl border border-red-100">
+            <div>
+              <h4 className="text-sm font-bold text-stone-900">Reset de Dados Transacionais</h4>
+              <p className="text-[10px] text-stone-500 mt-1">
+                Apaga vendas, pedidos, orçamentos, estoque (produtos), tickets de suporte, reviews, cupons, arquivos (Drive), destaques e logs.
+                <strong> Mantém intactos: IA Generativa, CRM (usuários), Lojas, Métodos de frete e Configurações da Empresa.</strong>
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const conf = window.prompt("Digite APAGAR-DADOS para confirmar a exclusão completa das transações e zerar estoque:");
+                if (conf === "APAGAR-DADOS") {
+                  try {
+                    const res = await fetch("/api/admin/reset-system", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "TRANSACTIONAL", confirmation: conf })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert("Dados transacionais apagados com sucesso!");
+                      window.location.reload();
+                    } else {
+                      alert("Erro: " + data.error);
+                    }
+                  } catch (e: any) {
+                    alert("Erro ao executar ação.");
+                  }
+                } else if (conf !== null) {
+                  alert("Palavra incorreta. Ação cancelada.");
+                }
+              }}
+              className="w-full text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 py-2.5 rounded-lg transition cursor-pointer"
+            >
+              Resetar Transações e Estoque
+            </button>
+          </div>
+
+          <div className="space-y-4 p-5 bg-white rounded-xl border border-red-100">
+            <div>
+              <h4 className="text-sm font-bold text-stone-900">Reset de Configurações</h4>
+              <p className="text-[10px] text-stone-500 mt-1">
+                Apaga apenas as Configurações do Sistema e Métodos de Frete.
+                <strong> Todo o restante, incluindo IA, Lojas e CRM não será afetado por este botão.</strong>
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const conf = window.prompt("Digite APAGAR-CONFIG para confirmar o reset de configurações e fretes:");
+                if (conf === "APAGAR-CONFIG") {
+                  try {
+                    const res = await fetch("/api/admin/reset-system", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "CONFIG", confirmation: conf })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert("Configurações apagadas com sucesso!");
+                      window.location.reload();
+                    } else {
+                      alert("Erro: " + data.error);
+                    }
+                  } catch (e: any) {
+                    alert("Erro ao executar ação.");
+                  }
+                } else if (conf !== null) {
+                  alert("Palavra incorreta. Ação cancelada.");
+                }
+              }}
+              className="w-full text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 py-2.5 rounded-lg transition cursor-pointer"
+            >
+              Resetar Apenas Configurações
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
