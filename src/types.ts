@@ -65,6 +65,7 @@ export type Product = {
   variants?: ProductVariant[];
   stockType: 'IN_STOCK' | 'PARTNER_STORE';
   inventory: number;
+  isAvailable?: boolean;
   tags?: string[];
   isFeatured?: boolean;
 };

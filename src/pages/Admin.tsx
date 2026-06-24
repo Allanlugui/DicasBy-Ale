@@ -1791,6 +1791,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
   const [brand, setBrand] = useState('');
   const [stockType, setStockType] = useState<'IN_STOCK' | 'PARTNER_STORE'>('IN_STOCK');
   const [inventory, setInventory] = useState(0);
+  const [isAvailable, setIsAvailable] = useState(false);
   const [tags, setTags] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
   const [specifications, setSpecifications] = useState<{key: string, value: string}[]>([]);
@@ -2308,6 +2309,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setBrand('');
     setStockType('IN_STOCK');
     setInventory(0);
+    setIsAvailable(false);
     setTags('');
     setIsFeatured(false);
     setSpecifications([]);
@@ -2323,7 +2325,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
 
     const productData = { 
       storeId, name, description, priceUSD, priceBRL, imageUrl, 
-      sku, category, brand, stockType, inventory, isFeatured,
+      sku, category, brand, stockType, inventory, isFeatured, isAvailable,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
       specifications: specsMap,
       variants: variants.map((v, idx) => ({
@@ -2358,6 +2360,7 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setBrand(p.brand || '');
     setStockType(p.stockType || 'IN_STOCK');
     setInventory(p.inventory || 0);
+    setIsAvailable(p.isAvailable || false);
     setIsFeatured(p.isFeatured || false);
     setTags(p.tags?.join(', ') || '');
     setSpecifications(Object.entries(p.specifications || {}).map(([key, value]) => ({ key, value })));
@@ -2699,6 +2702,16 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
                     className="w-4 h-4 text-rose-500 border-stone-300 rounded focus:ring-rose-500"
                   />
                   <label htmlFor="isFeatured" className="text-sm font-bold text-stone-700">Produto em Destaque (Carrossel)</label>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <input 
+                    type="checkbox" 
+                    id="isAvailable" 
+                    checked={isAvailable} 
+                    onChange={e => setIsAvailable(e.target.checked)}
+                    className="w-4 h-4 text-rose-500 border-stone-300 rounded focus:ring-rose-500"
+                  />
+                  <label htmlFor="isAvailable" className="text-sm font-bold text-stone-700">Disponível para venda</label>
                 </div>
               </div>
             </div>

@@ -1075,6 +1075,7 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
   if (!product) return null;
   const store = stores ? stores.find(s => s.id === product.storeId) : null;
   const hasVariants = product.variants && product.variants.length > 0;
+  const isAvailable = product.inventory > 0 || product.isAvailable === true;
 
   const priceBRL = product.priceBRL || 0;
   const priceUSD = product.priceUSD || 0;
@@ -1082,13 +1083,13 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
   return (
     <div 
       onClick={onSelect}
-      className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden flex flex-col group hover:shadow-md transition-all duration-300 cursor-pointer p-2.5 h-full relative"
+      className={`bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden flex flex-col group transition-all duration-300 cursor-pointer p-2.5 h-full relative ${isAvailable ? 'hover:shadow-md' : 'opacity-80'}`}
     >
       <div className="aspect-square bg-stone-50 rounded-xl relative overflow-hidden flex items-center justify-center mb-2.5 shrink-0 h-32 sm:h-40 w-full">
         <img 
           src={product.imageUrl || undefined} 
           alt={product.name || 'Produto'} 
-          className="max-h-full max-w-full object-contain p-1.5 group-hover:scale-105 transition-transform duration-500"
+          className={`max-h-full max-w-full object-contain p-1.5 transition-transform duration-500 ${isAvailable ? 'group-hover:scale-105' : 'grayscale'}`}
           referrerPolicy="no-referrer"
         />
         
@@ -1100,7 +1101,14 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
             </div>
           )}
         </div>
-        {product.stockType === 'PARTNER_STORE' && (
+        {!isAvailable && (
+          <div className="absolute inset-0 bg-stone-900/30 flex items-center justify-center backdrop-blur-[1px] rounded-xl">
+            <div className="bg-stone-900/90 text-white font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full shadow-lg rotate-[-5deg]">
+              Indisponível
+            </div>
+          </div>
+        )}
+        {product.stockType === 'PARTNER_STORE' && isAvailable && (
           <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white font-black text-[7px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
             Encomenda
           </div>
@@ -1133,14 +1141,16 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!isAvailable) return;
               if (hasVariants) {
                 onSelect();
               } else {
                 addToCart(product, 1);
               }
             }}
-            className="h-7 w-7 bg-rose-500 text-white rounded-lg flex items-center justify-center hover:bg-rose-600 transition-all active:scale-95 shrink-0 shadow-sm"
-            aria-label="Adicionar ao carrinho"
+            disabled={!isAvailable}
+            className={`h-7 w-7 rounded-lg flex items-center justify-center transition-all active:scale-95 shrink-0 shadow-sm ${isAvailable ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+            aria-label={isAvailable ? "Adicionar ao carrinho" : "Indisponível"}
           >
             {hasVariants ? (
               <Search className="h-3.5 w-3.5" />
@@ -1160,17 +1170,18 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
   const store = stores ? stores.find(s => s.id === product.storeId) : null;
 
   const hasVariants = product.variants && product.variants.length > 0;
+  const isAvailable = product.inventory > 0 || product.isAvailable === true;
 
   return (
     <div 
       onClick={onSelect}
-      className="bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden flex flex-col group hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 cursor-pointer"
+      className={`bg-white rounded-3xl shadow-sm border border-stone-100 overflow-hidden flex flex-col group transition-all duration-500 cursor-pointer ${isAvailable ? 'hover:shadow-2xl hover:-translate-y-1' : 'opacity-80'}`}
     >
       <div className="aspect-square bg-stone-50 relative overflow-hidden">
         <img 
           src={product.imageUrl || undefined} 
           alt={product.name} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+          className={`w-full h-full object-cover transition-transform duration-700 ${isAvailable ? 'group-hover:scale-110' : 'grayscale'}`}
         />
         <div className="absolute top-4 left-4 flex flex-col gap-2">
            <div className="bg-white/90 backdrop-blur-md text-stone-900 font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-full shadow-lg border border-stone-100/50">
@@ -1182,7 +1193,14 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
              </div>
            )}
         </div>
-        {product.stockType === 'PARTNER_STORE' && (
+        {!isAvailable && (
+          <div className="absolute inset-0 bg-stone-900/30 flex items-center justify-center backdrop-blur-[2px]">
+            <div className="bg-stone-900/90 text-white font-black text-sm uppercase tracking-widest px-6 py-2 rounded-full shadow-xl rotate-[-5deg]">
+              Indisponível
+            </div>
+          </div>
+        )}
+        {product.stockType === 'PARTNER_STORE' && isAvailable && (
           <div className="absolute top-4 right-4 bg-amber-500 text-white font-black text-[8px] uppercase tracking-widest px-2 py-0.5 rounded shadow-lg">
             Sob Encomenda
           </div>
@@ -1205,19 +1223,21 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
           <button
             onClick={(e) => {
               e.stopPropagation();
+              if (!isAvailable) return;
               if (hasVariants) {
                 onSelect();
               } else {
                 addToCart(product, 1);
               }
             }}
-            className="h-12 w-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 hover:shadow-xl active:scale-95 group/btn"
-            aria-label="Adicionar ao carrinho"
+            disabled={!isAvailable}
+            className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all ${isAvailable ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-100 hover:shadow-xl active:scale-95 group/btn' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+            aria-label={isAvailable ? "Adicionar ao carrinho" : "Indisponível"}
           >
             {hasVariants ? (
-              <Search className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
+              <Search className={`h-6 w-6 ${isAvailable ? 'group-hover/btn:scale-110 transition-transform' : ''}`} />
             ) : (
-              <ShoppingBag className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
+              <ShoppingBag className={`h-6 w-6 ${isAvailable ? 'group-hover/btn:scale-110 transition-transform' : ''}`} />
             )}
           </button>
         </div>
@@ -1236,6 +1256,7 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
   
   const currentPriceBRL = product.priceBRL + (selectedVariant?.priceAdjustBRL || 0);
   const currentPriceUSD = product.priceUSD + (selectedVariant?.priceAdjustUSD || 0);
+  const isAvailable = product.inventory > 0 || product.isAvailable === true;
 
   const handleAddToCart = () => {
     // We add the product with the variant info in the name or description for now
@@ -1364,10 +1385,11 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
 
               <button
                 onClick={handleAddToCart}
-                 className="w-full bg-rose-500 hover:bg-rose-600 active:scale-[0.98] transition-all text-white font-black py-5 rounded-[2rem] shadow-xl shadow-rose-200 flex items-center justify-center gap-3"
+                disabled={!isAvailable}
+                 className={`w-full transition-all font-black py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 ${isAvailable ? 'bg-rose-500 hover:bg-rose-600 active:scale-[0.98] text-white shadow-rose-200' : 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'}`}
               >
-                 <ShoppingBag className="w-6 h-6" />
-                 Adicionar à Sacola
+                 {isAvailable ? <ShoppingBag className="w-6 h-6" /> : <X className="w-6 h-6" />}
+                 {isAvailable ? 'Adicionar à Sacola' : 'Produto Indisponível'}
               </button>
               
               <p className="text-[10px] text-center text-stone-400 uppercase font-black tracking-widest">
