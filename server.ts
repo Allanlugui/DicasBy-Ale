@@ -1575,9 +1575,11 @@ Detalhes da Solicitação de Orçamento:
 Instruções para o comprador:
 "Por favor, analise a solicitação, localize o produto em lojas dos EUA e defina o preço final em BRL (incluindo taxas alfandegárias e de envio) no Painel Administrativo para aprovação do cliente."`;
 
-    const recipientList = collaborators && collaborators.length > 0
-      ? collaborators.map((c: any) => `${c.name} <${c.email}>`).join(', ')
-      : "compras@importafacil.com (Setor de Compras Geral)";
+    const recipientListArray = collaborators && collaborators.length > 0
+      ? collaborators.map((c: any) => c.email).filter(Boolean)
+      : ["jallanluiz@gmail.com"];
+
+    const recipientList = recipientListArray.join(', ');
 
     let quoteEmailText = "";
     const fallbackTemplate = `Olá Equipe de Compras,\n\nUm novo orçamento foi solicitado no sistema!\n• Código do Orçamento: ${quoteId}\n• Cliente: ${customerName} (${customerEmail})\n• Telefone: ${customerPhone || 'Não informado'}\n• Produto de Interesse: ${productName}\n• Detalhes: ${productDescription || 'Não informado'}\n• Valor Estimado: $${priceUSD ? priceUSD.toFixed(2) : '0.00'} USD\n\nPor favor, analise a solicitação, localize o produto em lojas dos EUA e defina o preço final em BRL (incluindo taxas alfandegárias e de envio) no Painel Administrativo para aprovação do cliente.`;
@@ -1605,10 +1607,40 @@ Instruções para o comprador:
       }
     }
 
-    console.log(`\n\n=== E-MAIL DE NOTIFICAÇÃO (ÁREA DE COMPRAS) ===\nDestinatários: ${recipientList}\nAssunto: [ÁREA DE COMPRAS] Nova Solicitação de Orçamento #${quoteId}\n\n${quoteEmailText}\n================================================\n\n`);
+    const subject = `[ÁREA DE COMPRAS] Nova Solicitação de Orçamento #${quoteId}`;
+    
+    // Dispara o e-mail real para a equipe
+    await dispatchEmail({
+      to: recipientList,
+      subject: subject,
+      text: quoteEmailText,
+      html: `<div style="font-family: sans-serif; white-space: pre-wrap;">${quoteEmailText}</div>`
+    });
+
+    // Auditoria Ativa / Logs de Integração
+    await saveIntegrationLog(
+      "Notificação E-mail (Orçamentos)", 
+      "/api/notify-quote", 
+      "SUCCESS", 
+      200, 
+      null, 
+      { to: recipientList, subject, quoteId, customerEmail }
+    );
+
+    console.log(`\n\n=== E-MAIL DE NOTIFICAÇÃO (ÁREA DE COMPRAS) ===\nDestinatários: ${recipientList}\nAssunto: ${subject}\n\n${quoteEmailText}\n================================================\n\n`);
     res.json({ success: true });
-  } catch (e) {
+  } catch (e: any) {
     console.error("[Quote Notifier] Error during quote notification summary:", e);
+    
+    await saveIntegrationLog(
+      "Notificação E-mail (Orçamentos)", 
+      "/api/notify-quote", 
+      "ERROR", 
+      500, 
+      e.message || "Erro desconhecido", 
+      req.body
+    );
+    
     res.json({ success: true, warning: "Fallback trigger error" });
   }
 });

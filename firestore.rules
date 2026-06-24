@@ -208,5 +208,9 @@ service cloud.firestore {
       allow update: if (isAdmin() || hasPermission('tickets')) && isValidKnowledge(incoming());
       allow delete: if isAdmin() || hasPermission('tickets');
     }
+
+    match /integrationLogs/{logId} {
+      allow read, write: if hasPermission('settings') || isAdmin();
+    }
   }
 }
