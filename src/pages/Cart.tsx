@@ -42,6 +42,11 @@ export function Cart() {
   const [cardCvv, setCardCvv] = useState('');
   const [cardInstallments, setCardInstallments] = useState('1');
 
+  // Asaas integration state
+  const [asaasData, setAsaasData] = useState<{ pixCopyPaste: string; invoiceUrl: string; paymentId: string } | null>(null);
+  const [isGeneratingPix, setIsGeneratingPix] = useState(false);
+  const [asaasError, setAsaasError] = useState<string | null>(null);
+
   // Auto pre-fill from user profile
   useEffect(() => {
     if (profile) {
@@ -89,15 +94,48 @@ export function Cart() {
 
   const finalTotalBRL = totalBRL + estimatedShippingBRL;
 
-  // Generate standard BR Code payload for Pix Copy and Paste
-  const formattedAmount = finalTotalBRL.toFixed(2);
-  const cleanKey = activePixKey.replace(/[^a-zA-Z0-9@.]/g, '');
-  const pixCopyPasteText = `00020101021126580014br.gov.bcb.pix0140${cleanKey.length.toString().padStart(2, '0')}${cleanKey}5204000053039865405${formattedAmount.length.toString().padStart(2, '0')}${formattedAmount}5802BR59${activePixName.length.toString().padStart(2, '0')}${activePixName}60${activePixCity.length.toString().padStart(2, '0')}${activePixCity}62070503***6304`;
-
   const handleCopyPix = async () => {
-    await safeCopyText(pixCopyPasteText);
+    const textToCopy = asaasData?.pixCopyPaste || '';
+    if (!textToCopy) return;
+    await safeCopyText(textToCopy);
     setCopiedKey(true);
     setTimeout(() => setCopiedKey(false), 2500);
+  };
+
+  const handleGenerateAsaasPix = async () => {
+    if (cart.length === 0) return;
+    if (!isProfileComplete) return;
+    if (!acceptedConsent || !acceptedCustoms) return;
+    if (!selectedShippingMethodId) {
+      alert("Por favor, selecione uma modalidade de frete.");
+      return;
+    }
+
+    setIsGeneratingPix(true);
+    setAsaasError(null);
+    try {
+      const res = await fetch("/api/asaas/create-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: profile?.fullName || customerName || "Cliente",
+          customerEmail: user?.email || customerEmail || "email@naoinformado.com",
+          customerCpf: profile?.document || "",
+          value: finalTotalBRL,
+          description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.pixCopyPaste) {
+        setAsaasData(data);
+      } else {
+        setAsaasError(data.error || "Erro ao gerar cobrança.");
+      }
+    } catch (err: any) {
+      setAsaasError(err.message || "Erro na conexão com o servidor.");
+    } finally {
+      setIsGeneratingPix(false);
+    }
   };
 
   const handleApplyCoupon = () => {
@@ -152,6 +190,12 @@ export function Cart() {
       return;
     }
     
+    // Se o método for pix e ainda não gerou, gera agora em vez de confirmar pedido.
+    if (paymentMethod === 'pix' && !asaasData) {
+      await handleGenerateAsaasPix();
+      return; // Stop here, wait for them to pay or confirm order after generating
+    }
+
     setIsProcessing(true);
     // Submit order to db
     setTimeout(async () => {
@@ -165,7 +209,9 @@ export function Cart() {
             shippingMethod: selectedShipping,
             shippingEstimateBRL: estimatedShippingBRL,
             shippingEstimateWithMarginBRL: shippingMax,
-            customsResponsibilityAccepted: acceptedCustoms
+            customsResponsibilityAccepted: acceptedCustoms,
+            asaasPaymentId: asaasData?.paymentId,
+            asaasInvoiceUrl: asaasData?.invoiceUrl
           }
         );
         setIsProcessing(false);
@@ -629,50 +675,67 @@ export function Cart() {
                     <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4 text-center">
                       <div className="flex items-center gap-1.5 justify-center">
                         <Landmark className="w-4 h-4 text-rose-500" />
-                        <span className="text-xs font-bold text-stone-700">QR Code Pix para Pagamento Imediato</span>
+                        <span className="text-xs font-bold text-stone-700">Pagamento Imediato via Pix</span>
                       </div>
 
-                      <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
-                        Escaneie com o app de qualquer instituição bancária. Após o pagamento do sinal de 30% ou valor total, envie o comprovante na tela de rastreamento para liberação aduaneira.
-                      </p>
-
-                      {pixCopyPasteText && (
-                        <div className="bg-white p-3 inline-block rounded-2xl border border-stone-200 shadow-xs mx-auto my-1">
-                          <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCopyPasteText)}`} 
-                            alt="QR Code Pix" 
-                            className="w-40 h-40 object-contain mx-auto"
-                          />
+                      {!asaasData ? (
+                        <div className="space-y-4">
+                           <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
+                             Ao clicar em gerar pagamento, nosso sistema irá emitir a cobrança oficial e o QR Code Pix pelo banco Asaas.
+                           </p>
+                           {asaasError && (
+                             <div className="p-2 bg-red-50 text-red-600 text-xs rounded border border-red-200">
+                               {asaasError}
+                             </div>
+                           )}
+                           <button
+                             type="button"
+                             onClick={handleGenerateAsaasPix}
+                             disabled={isGeneratingPix || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId}
+                             className="cursor-pointer w-full py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors bg-white hover:bg-stone-100 text-stone-800 border-stone-300 disabled:opacity-50"
+                           >
+                             {isGeneratingPix ? 'Gerando cobrança...' : 'Gerar QR Code Pix (Asaas)'}
+                           </button>
                         </div>
+                      ) : (
+                        <>
+                          <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
+                            Escaneie com o app de qualquer instituição bancária. Após o pagamento, confirme o pedido abaixo.
+                          </p>
+
+                          <div className="bg-white p-3 inline-block rounded-2xl border border-stone-200 shadow-xs mx-auto my-1">
+                            <img 
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(asaasData.pixCopyPaste)}`} 
+                              alt="QR Code Pix" 
+                              className="w-40 h-40 object-contain mx-auto"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleCopyPix}
+                            className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors ${
+                              copiedKey 
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                                : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-300'
+                            }`}
+                          >
+                            {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
+                            {copiedKey ? 'Copiado para Área de Transferência!' : 'Copiar Chave Pix (Copia e Cola)'}
+                          </button>
+                          
+                          {asaasData.invoiceUrl && (
+                             <a 
+                               href={asaasData.invoiceUrl} 
+                               target="_blank" 
+                               rel="noreferrer"
+                               className="text-[10px] text-rose-600 underline font-semibold block mt-2"
+                             >
+                               Visualizar Fatura Completa (Asaas)
+                             </a>
+                          )}
+                        </>
                       )}
-
-                      <div className="space-y-1 bg-white p-2.5 rounded-xl border border-stone-100 text-left text-[11px]">
-                        <div className="flex justify-between">
-                          <span className="text-stone-400">Beneficiário:</span>
-                          <span className="font-bold text-stone-900">{activePixName}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-stone-400">Localização:</span>
-                          <span className="font-bold text-stone-900 uppercase">{activePixCity}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-stone-400">Chave Pix:</span>
-                          <span className="font-bold text-stone-900 select-all">{activePixKey}</span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleCopyPix}
-                        className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors ${
-                          copiedKey 
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                            : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-300'
-                        }`}
-                      >
-                        {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
-                        {copiedKey ? 'Copiado para Área de Transferência!' : 'Copiar Chave Pix (Copia e Cola)'}
-                      </button>
                     </div>
                   )}
 
@@ -788,10 +851,10 @@ export function Cart() {
               {/* ACTION BTN */}
               <button 
                 type="submit" 
-                disabled={isProcessing || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId}
+                disabled={isProcessing || isGeneratingPix || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId || (paymentMethod === 'pix' && !asaasData)}
                 className="cursor-pointer w-full bg-rose-600 hover:bg-rose-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md shadow-rose-100"
               >
-                {isProcessing ? 'Validando transação com banco...' : (
+                {isProcessing ? 'Confirmando pedido...' : (
                   <>
                     <CreditCard className="h-5 w-5" /> Confirmar Pedido de Importação
                   </>

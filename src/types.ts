@@ -157,6 +157,8 @@ export type Order = {
     adminHub?: { status: 'PENDING' | 'SUCCESS' | 'FAILED'; error?: string; syncedAt?: string; attempts: number };
     nexus?: { status: 'PENDING' | 'SUCCESS' | 'FAILED'; error?: string; syncedAt?: string; attempts: number };
   };
+  asaasPaymentId?: string;
+  asaasInvoiceUrl?: string;
   createdAt: string;
 };
 
