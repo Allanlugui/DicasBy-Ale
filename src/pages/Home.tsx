@@ -6,7 +6,7 @@ import { Product } from '../types';
 import { ProductCarousel, StoreCarousel } from '../components/FeaturedCarousels';
 
 export function Home() {
-  const { user, stores, products, reviews, addToCart, orders, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, loginWithGoogle } = useAppContext();
+  const { user, stores, products, reviews, addToCart, orders, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, loginWithGoogle, companySettings } = useAppContext();
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -51,7 +51,10 @@ export function Home() {
 
   const handleCopyRef = async () => {
     if (!user) return;
-    const link = `https://dicas-by-ale-snowy.vercel.app/?ref=${user.uid}`;
+    const domain = companySettings?.appDomain || "https://dicas-by-ale-snowy.vercel.app";
+    // Ensure domain doesn't end with slash
+    const cleanDomain = domain.endsWith('/') ? domain.slice(0, -1) : domain;
+    const link = `${cleanDomain}/?ref=${user.uid}`;
     await safeCopyText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

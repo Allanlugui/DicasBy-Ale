@@ -183,6 +183,8 @@ export type CompanySettings = {
   companyTradeName?: string; // Nome Fantasia
   companyCnpj: string;
   companyEmail?: string;
+  supportEmail?: string;
+  appDomain?: string;
   companyPhone?: string;
   companyAddress?: string;
   termsOfUse?: string;

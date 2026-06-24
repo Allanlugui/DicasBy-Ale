@@ -49,6 +49,8 @@ export function AdminSettingsTab() {
   const [companyTradeName, setCompanyTradeName] = useState('');
   const [companyCnpj, setCompanyCnpj] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
+  const [supportEmail, setSupportEmail] = useState('');
+  const [appDomain, setAppDomain] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyAddress, setCompanyAddress] = useState('');
   const [termsOfUse, setTermsOfUse] = useState('');
@@ -76,6 +78,8 @@ export function AdminSettingsTab() {
       setCompanyTradeName(companySettings.companyTradeName || '');
       setCompanyCnpj(companySettings.companyCnpj || '');
       setCompanyEmail(companySettings.companyEmail || '');
+      setSupportEmail(companySettings.supportEmail || '');
+      setAppDomain(companySettings.appDomain || '');
       setCompanyPhone(companySettings.companyPhone || '');
       setCompanyAddress(companySettings.companyAddress || '');
       setTermsOfUse(companySettings.termsOfUse || DEFAULT_TERMS);
@@ -151,6 +155,8 @@ export function AdminSettingsTab() {
         companyTradeName,
         companyCnpj,
         companyEmail,
+        supportEmail,
+        appDomain,
         companyPhone,
         companyAddress,
         termsOfUse,
@@ -488,6 +494,28 @@ export function AdminSettingsTab() {
                 value={companyEmail}
                 onChange={e => setCompanyEmail(e.target.value)}
                 placeholder="contato@empresa.com"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">E-mail de Suporte (Remetente / Respostas)</label>
+              <input 
+                type="email"
+                value={supportEmail}
+                onChange={e => setSupportEmail(e.target.value)}
+                placeholder="suporte@seudominio.com"
+                className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">Domínio Principal do App (para links de e-mail e botões)</label>
+              <input 
+                type="url"
+                value={appDomain}
+                onChange={e => setAppDomain(e.target.value)}
+                placeholder="https://app.seudominio.com"
                 className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
               />
             </div>

@@ -1376,6 +1376,16 @@ function getMailTransporter() {
   });
 }
 
+async function getCompanySettings() {
+  try {
+    const snap = await db.collection('settings').doc('company').get();
+    if (snap.exists) return snap.data();
+  } catch(e) {
+    console.error("Error fetching company settings", e);
+  }
+  return null;
+}
+
 // Global email dispatcher helper
 async function dispatchEmail({ to, subject, html, text }: { to: string, subject: string, html?: string, text?: string }) {
   const transporter = getMailTransporter();
@@ -1387,9 +1397,13 @@ async function dispatchEmail({ to, subject, html, text }: { to: string, subject:
   }
   
   try {
-    const fromAddress = process.env.COMPANY_EMAIL_SENDER || process.env.SMTP_USER || "suporte@dicasbyale.com";
+    const settings = await getCompanySettings();
+    const fallbackFrom = settings?.supportEmail || settings?.companyEmail || "suporte@dicasbyale.com";
+    const companyName = settings?.companyName || "Dicas by Alê";
+    const fromAddress = process.env.COMPANY_EMAIL_SENDER || process.env.SMTP_USER || fallbackFrom;
+    
     const info = await transporter.sendMail({
-      from: `"Suporte Dicas by Alê" <${fromAddress}>`,
+      from: `"${companyName} (Suporte)" <${fromAddress}>`,
       to,
       subject,
       text,
@@ -1454,8 +1468,11 @@ app.post("/api/notify-ticket", async (req, res) => {
     }
     const recipientsToSend = Array.from(recipientEmails).join(', ');
 
-    const appUrl = process.env.APP_URL || "https://dicas-by-ale-snowy.vercel.app";
+    const settings = await getCompanySettings();
+    const fallbackDomain = settings?.appDomain || "https://dicas-by-ale-snowy.vercel.app";
+    const appUrl = process.env.APP_URL || fallbackDomain;
     const adminUrl = `${appUrl}/admin`;
+    const companyName = settings?.companyName || "Dicas by Alê";
 
     const htmlEmail = `
       <!DOCTYPE html>
@@ -1483,7 +1500,7 @@ app.post("/api/notify-ticket", async (req, res) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>Dicas by Alê - Nova Notificação</h1>
+            <h1>${companyName} - Nova Notificação</h1>
             <div class="badge">${isUrgent ? 'Suporte Humano Solicitado' : 'Acompanhamento de Atendimento'}</div>
           </div>
           <div class="content">
@@ -1517,7 +1534,7 @@ app.post("/api/notify-ticket", async (req, res) => {
             </div>
           </div>
           <div class="footer">
-            Este é um e-mail automático gerado pelo sistema de suporte Dicas by Alê.<br>
+            Este é um e-mail automático gerado pelo sistema de suporte da empresa ${companyName}.<br>
             Ano Atual: 2026. Todos os direitos reservados.
           </div>
         </div>
@@ -1528,7 +1545,7 @@ app.post("/api/notify-ticket", async (req, res) => {
     await dispatchEmail({
       to: recipientsToSend,
       subject,
-      text: `Dicas by Alê - Chamado #${protocol}\n\nCliente: ${customerName}\n\nResumo:\n${summaryText}\n\nAcesse o Painel do Especialista em: ${adminUrl}`,
+      text: `${companyName} - Chamado #${protocol}\n\nCliente: ${customerName}\n\nResumo:\n${summaryText}\n\nAcesse o Painel do Especialista em: ${adminUrl}`,
       html: htmlEmail
     });
 
@@ -2039,9 +2056,13 @@ async function sendInvoiceNotificationWithAttachments(orderId: string) {
       return { success: true, simulated: true };
     }
 
-    const fromAddress = process.env.COMPANY_EMAIL_SENDER || process.env.SMTP_USER || "suporte@dicasbyale.com";
+    const settings = await getCompanySettings();
+    const fallbackFrom = settings?.supportEmail || settings?.companyEmail || "suporte@dicasbyale.com";
+    const companyName = settings?.companyName || "Dicas by Alê";
+    const fromAddress = process.env.COMPANY_EMAIL_SENDER || process.env.SMTP_USER || fallbackFrom;
+
     await transporter.sendMail({
-      from: `"Suporte Dicas by Alê" <${fromAddress}>`,
+      from: `"${companyName} (Suporte)" <${fromAddress}>`,
       to: order.customerEmail,
       subject,
       html,
@@ -2603,7 +2624,7 @@ app.post("/api/sync-order-erps", async (req, res) => {
 // Only run the server and attach Vite middleware if this file is run directly
 if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
   async function startServer() {
-    const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+    const PORT = 3000;
 
     // Vite middleware for development
     if (process.env.NODE_ENV !== "production") {

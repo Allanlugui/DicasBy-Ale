@@ -110,10 +110,8 @@ export function Support() {
     if (chatEndRef.current) {
       const container = chatEndRef.current.parentElement;
       if (container) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'smooth'
-        });
+        // Use scrollTop for maximum compatibility and to avoid full page scrolls
+        container.scrollTop = container.scrollHeight;
       }
     }
   }, [messageCount, activeTicketId, loading]);
