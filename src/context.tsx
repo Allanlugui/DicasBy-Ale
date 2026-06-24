@@ -521,6 +521,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ orderId })
     }).catch(e => console.error("Error triggering new order purchase email:", e));
     
+    // Dispara a sincronização com o Nexus ERP
+    syncOrderWithERPs(orderId).catch(e => console.error("Error triggering ERP sync:", e));
+    
     // Increment coupon usage
     if (appliedCoupon) {
       await updateDoc(doc(db, 'coupons', appliedCoupon.id), {
@@ -951,6 +954,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ orderId })
     }).catch(e => console.error("Error triggering quote approval order purchase email:", e));
+
+    // Dispara a sincronização com o Nexus ERP
+    syncOrderWithERPs(orderId).catch(e => console.error("Error triggering ERP sync via quote:", e));
   };
 
   const createFolder = async (name: string, parentId: string | null, targetUserId?: string) => {

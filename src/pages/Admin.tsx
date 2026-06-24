@@ -1147,23 +1147,29 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
     
     setIsSendingInvoice(true);
     try {
-      // Primeiro salvamos o estado atual dos documentos no pedido
+      // Primeiro salvamos os nomes dos documentos no pedido (evitando salvar os dados pesados base64 no banco de dados)
       const extraPayload: any = {
-        invoiceBase64: invoiceBase64 || order.invoiceBase64 || "",
         invoiceName: invoiceName || order.invoiceName || "",
-        danfeBase64: danfeBase64 || order.danfeBase64 || "",
         danfeName: danfeName || order.danfeName || "",
-        customsBase64: customsBase64 || order.customsBase64 || "",
         customsName: customsName || order.customsName || "",
       };
       
-      // Persiste no banco de dados
-      await updateOrderStatus(order.id, order.status, 'Salvando documentos anexados...', '', undefined, extraPayload);
+      // Persiste os nomes no banco de dados
+      await updateOrderStatus(order.id, order.status, 'Salvando nomes dos documentos...', '', undefined, extraPayload);
       
+      // Disparamos o e-mail passando os dados Base64 diretamente no corpo do POST
       const res = await fetch("/api/orders/send-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: order.id }),
+        body: JSON.stringify({ 
+          orderId: order.id,
+          invoiceBase64: activeInvoiceB64 || "",
+          invoiceName: invoiceName || order.invoiceName || "",
+          danfeBase64: activeDanfeB64 || "",
+          danfeName: danfeName || order.danfeName || "",
+          customsBase64: activeCustomsB64 || "",
+          customsName: customsName || order.customsName || "",
+        }),
       });
       
       if (!res.ok) {
@@ -1237,12 +1243,9 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
 
     extraFields.totalBRL = calculatedTotal;
 
-    // Document persistence
-    extraFields.invoiceBase64 = invoiceBase64;
+    // Document persistence (only persist the filenames, never the heavy base64 strings in the database)
     extraFields.invoiceName = invoiceName;
-    extraFields.danfeBase64 = danfeBase64;
     extraFields.danfeName = danfeName;
-    extraFields.customsBase64 = customsBase64;
     extraFields.customsName = customsName;
 
     // Se admin anexar foto ou comprovante junto (relatório fotográfico)

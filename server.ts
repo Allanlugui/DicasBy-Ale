@@ -1962,7 +1962,17 @@ async function sendNewSaleNotification(orderId: string) {
   }
 }
 
-async function sendInvoiceNotificationWithAttachments(orderId: string) {
+async function sendInvoiceNotificationWithAttachments(
+  orderId: string,
+  customAttachments?: {
+    invoiceBase64?: string;
+    invoiceName?: string;
+    danfeBase64?: string;
+    danfeName?: string;
+    customsBase64?: string;
+    customsName?: string;
+  }
+) {
   try {
     const docSnap = await db.collection('orders').doc(orderId).get();
     if (!docSnap.exists) {
@@ -1983,28 +1993,37 @@ async function sendInvoiceNotificationWithAttachments(orderId: string) {
       ? order.items.map((item: any) => `${item.product?.name || "Produto"} (Qtd: ${item.quantity || 1})`).join(", ")
       : "Venda Integrada";
 
-    // Set attachments array from database Base64 strings
+    // Set attachments array from provided Base64 or database (fallback)
     const attachments: any[] = [];
-    if (order.invoiceBase64) {
-      const rawBase64 = order.invoiceBase64.includes(',') ? order.invoiceBase64.split(',')[1] : order.invoiceBase64;
+    
+    const activeInvoiceB64 = customAttachments?.invoiceBase64 || order.invoiceBase64;
+    const activeInvoiceName = customAttachments?.invoiceName || order.invoiceName || "Nota_Fiscal.pdf";
+    if (activeInvoiceB64) {
+      const rawBase64 = activeInvoiceB64.includes(',') ? activeInvoiceB64.split(',')[1] : activeInvoiceB64;
       attachments.push({
-        filename: order.invoiceName || "Nota_Fiscal.pdf",
+        filename: activeInvoiceName,
         content: rawBase64,
         encoding: 'base64'
       });
     }
-    if (order.danfeBase64) {
-      const rawBase64 = order.danfeBase64.includes(',') ? order.danfeBase64.split(',')[1] : order.danfeBase64;
+
+    const activeDanfeB64 = customAttachments?.danfeBase64 || order.danfeBase64;
+    const activeDanfeName = customAttachments?.danfeName || order.danfeName || "DANFE.pdf";
+    if (activeDanfeB64) {
+      const rawBase64 = activeDanfeB64.includes(',') ? activeDanfeB64.split(',')[1] : activeDanfeB64;
       attachments.push({
-        filename: order.danfeName || "DANFE.pdf",
+        filename: activeDanfeName,
         content: rawBase64,
         encoding: 'base64'
       });
     }
-    if (order.customsBase64) {
-      const rawBase64 = order.customsBase64.includes(',') ? order.customsBase64.split(',')[1] : order.customsBase64;
+
+    const activeCustomsB64 = customAttachments?.customsBase64 || order.customsBase64;
+    const activeCustomsName = customAttachments?.customsName || order.customsName || "Documento_Importacao_EUA_BR.pdf";
+    if (activeCustomsB64) {
+      const rawBase64 = activeCustomsB64.includes(',') ? activeCustomsB64.split(',')[1] : activeCustomsB64;
       attachments.push({
-        filename: order.customsName || "Documento_Importacao_EUA_BR.pdf",
+        filename: activeCustomsName,
         content: rawBase64,
         encoding: 'base64'
       });
@@ -2025,10 +2044,10 @@ async function sendInvoiceNotificationWithAttachments(orderId: string) {
           <p>Para sua conveniência e conformidade regulatória fiscal no Brasil e internacional, anexamos neste e-mail os documentos emitidos:</p>
           
           <ul style="background-color: #f0fdf4; border: 1px solid #dcfce7; border-radius: 8px; padding: 18px 18px 18px 34px; margin: 20px 0; list-style-type: square; font-size: 13px;">
-            ${order.invoiceBase64 ? `<li><strong>Nota Fiscal Eletrônica:</strong> ${order.invoiceName || "Nota_Fiscal.pdf"}</li>` : ''}
-            ${order.danfeBase64 ? `<li><strong>DANFE Governamental:</strong> ${order.danfeName || "DANFE.pdf"}</li>` : ''}
-            ${order.customsBase64 ? `<li><strong>Trâmites / Customs importação EUA-BR:</strong> ${order.customsName || "Documento_Importacao.pdf"}</li>` : ''}
-            ${(!order.invoiceBase64 && !order.danfeBase64 && !order.customsBase64) ? '<li>Documento de faturamento consolidado. Verifique os anexos do e-mail.</li>' : ''}
+            ${activeInvoiceB64 ? `<li><strong>Nota Fiscal Eletrônica:</strong> ${activeInvoiceName}</li>` : ''}
+            ${activeDanfeB64 ? `<li><strong>DANFE Governamental:</strong> ${activeDanfeName}</li>` : ''}
+            ${activeCustomsB64 ? `<li><strong>Trâmites / Customs importação EUA-BR:</strong> ${activeCustomsName}</li>` : ''}
+            ${(!activeInvoiceB64 && !activeDanfeB64 && !activeCustomsB64) ? '<li>Documento de faturamento consolidado. Verifique os anexos do e-mail.</li>' : ''}
           </ul>
 
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 20px 0; font-size: 13px;">
@@ -2101,12 +2120,29 @@ app.post("/api/orders/notify-new-sale", async (req, res) => {
 });
 
 app.post("/api/orders/send-invoice", async (req, res) => {
-  const { orderId } = req.body || {};
+  const { 
+    orderId,
+    invoiceBase64,
+    invoiceName,
+    danfeBase64,
+    danfeName,
+    customsBase64,
+    customsName
+  } = req.body || {};
+  
   if (!orderId) {
     return res.status(400).json({ error: "orderId is required" });
   }
   
-  const result = await sendInvoiceNotificationWithAttachments(orderId);
+  const result = await sendInvoiceNotificationWithAttachments(orderId, {
+    invoiceBase64,
+    invoiceName,
+    danfeBase64,
+    danfeName,
+    customsBase64,
+    customsName
+  });
+  
   if (result.success) {
     return res.json({ success: true, message: "Nota Fiscal e guias anexadas expedidas para o cliente por e-mail." });
   } else {
@@ -2530,17 +2566,15 @@ async function executeFinanceIntegration(body: any, options: { skipAdminHub?: bo
 
   const nexusPayload = {
     id: orderId,
+    cliente: order.customerName || "Cliente Integração",
+    codigoCliente: order.userId || "CLI-567",
     valorTotal: numericValue,
     valorLiquido: valLiquido,
-    codigoCliente: order.userId || "CLI-567",
-    cliente: order.customerName || "Cliente Integração",
-    produto: produtosArray,
-    autoria: order.customerEmail || "jallanluiz@gmail.com",
-    dataVenda: date,
-    possuiNF: true,
-    numeroNF: order.trackingId ? String(order.trackingId).replace(/\D/g, '').slice(0, 6) : "009142",
-    statusOperacao: "vendida",
-    etapaHomologacao: "Homologação Automática Integrada"
+    produtos: produtosArray,
+    vendedor: "Alessandro Luiz",
+    vendedorId: "ale-dicas-eua",
+    possuiNF: !!(order.invoiceName || order.danfeName || order.customsName),
+    numeroNF: order.trackingId ? String(order.trackingId).replace(/\D/g, '').slice(0, 6) : "009142"
   };
 
   console.log(`[Finance Integration Sync] POSTing options:`, options);
