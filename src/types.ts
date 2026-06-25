@@ -159,6 +159,8 @@ export type Order = {
   };
   asaasPaymentId?: string;
   asaasInvoiceUrl?: string;
+  carrierName?: string;
+  carrierTrackingCode?: string;
   createdAt: string;
 };
 

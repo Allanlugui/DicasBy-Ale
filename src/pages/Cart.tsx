@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight } from 'lucide-react';
+import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight, Truck } from 'lucide-react';
 import { useAppContext } from '../context';
 import { formatCurrency, safeCopyText } from '../lib/utils';
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from '../types';
@@ -533,7 +533,7 @@ export function Cart() {
                       <span className="text-[9px] text-stone-300 italic">Pago após pesagem em Miami</span>
                    </div>
                    {shippingMethods.length > 0 ? (
-                     <div className="grid grid-cols-1 gap-2">
+                     <div className="grid grid-cols-1 gap-3">
                        {shippingMethods.map(method => (
                          <button
                            key={method.id}

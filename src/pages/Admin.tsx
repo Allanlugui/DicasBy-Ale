@@ -1116,6 +1116,8 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
   const [note, setNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
   const [finalShippingFeeBRL, setFinalShippingFeeBRL] = useState(order.finalShippingFeeBRL || order.shippingFeeBRL || 0);
+  const [carrierName, setCarrierName] = useState(order.carrierName || '');
+  const [carrierTrackingCode, setCarrierTrackingCode] = useState(order.carrierTrackingCode || '');
 
   // States for Invoice and documents upload
   const [invoiceBase64, setInvoiceBase64] = useState<string>(order.invoiceBase64 || '');
@@ -1247,6 +1249,8 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
     extraFields.invoiceName = invoiceName;
     extraFields.danfeName = danfeName;
     extraFields.customsName = customsName;
+    extraFields.carrierName = carrierName;
+    extraFields.carrierTrackingCode = carrierTrackingCode;
 
     // Se admin anexar foto ou comprovante junto (relatório fotográfico)
     if (photoUrl) {
@@ -1289,6 +1293,35 @@ function OrderAdminCard({ order, updateOrderStatus }: { key?: React.Key; order: 
       <form onSubmit={handleUpdate} className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
         <div className="space-y-4">
            <h4 className="font-semibold text-gray-900 border-b border-gray-100 pb-2">Status Atual</h4>
+           
+           <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 space-y-3">
+               <div className="flex items-center justify-between">
+                 <h5 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Rastreio da Transportadora</h5>
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-stone-500 uppercase">Nome da Transportadora</label>
+                   <input 
+                     type="text" 
+                     placeholder="Ex: FedEx, DHL, UPS"
+                     value={carrierName}
+                     onChange={e => setCarrierName(e.target.value)}
+                     className="w-full bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-2 focus:ring-rose-500 outline-none"
+                   />
+                 </div>
+                 <div className="space-y-1">
+                   <label className="text-[10px] font-bold text-stone-500 uppercase">Código de Rastreio Externo</label>
+                   <input 
+                     type="text" 
+                     placeholder="Código oficial"
+                     value={carrierTrackingCode}
+                     onChange={e => setCarrierTrackingCode(e.target.value)}
+                     className="w-full bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-2 focus:ring-rose-500 outline-none"
+                   />
+                 </div>
+               </div>
+            </div>
+
            <div className="bg-green-50 text-green-800 text-sm p-3 rounded-lg border border-green-200">
               <span className="font-bold block mb-1">Última atualização:</span>
               <span className="font-mono text-xs text-green-700">{new Date(currentEvent.date).toLocaleString()}</span>

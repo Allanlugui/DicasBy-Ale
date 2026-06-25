@@ -2188,11 +2188,17 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         })
       });
 
+      if (!createCustomerRes.ok) {
+        const errText = await createCustomerRes.text();
+        console.error("[Asaas] Falha ao criar cliente (HTTP Error):", createCustomerRes.status, errText);
+        return res.status(400).json({ error: "Falha ao gerar cliente no Asaas. Verifique os dados fornecidos." });
+      }
+
       const customerData = await createCustomerRes.json();
       if (customerData.id) {
         asaasCustomerId = customerData.id;
       } else {
-        console.error("[Asaas] Falha ao criar cliente:", customerData);
+        console.error("[Asaas] Resposta inválida ao criar cliente:", customerData);
         return res.status(400).json({ error: "Falha ao gerar cliente no Asaas." });
       }
     }
@@ -2216,6 +2222,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         postalService: false
       })
     });
+
+    if (!paymentRes.ok) {
+      const errText = await paymentRes.text();
+      console.error("[Asaas] Falha ao criar cobrança (HTTP Error):", paymentRes.status, errText);
+      return res.status(400).json({ error: "Falha ao gerar a cobrança no Asaas. Detalhes: " + errText });
+    }
 
     const paymentData = await paymentRes.json();
 
