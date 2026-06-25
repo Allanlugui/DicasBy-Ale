@@ -237,56 +237,75 @@ export function Tracking() {
           </div>
 
           {/* Carrier Tracking Info */}
-          {(order.carrierName || order.carrierTrackingCode) && (
-            <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl shadow-lg p-6 text-white animate-scale-in relative overflow-hidden group">
-               {/* Decorative Background Elements */}
-               <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
-                  <Truck className="w-32 h-32" />
-               </div>
-               
-               <div className="relative z-10 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-white/20 rounded-lg">
-                      <Truck className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold font-display">Rastreio da Transportadora</h3>
-                      <p className="text-[10px] text-indigo-100 uppercase tracking-widest font-bold">Acompanhamento em Tempo Real</p>
-                    </div>
-                  </div>
+          {(order.carrierName || order.carrierTrackingCode) && (() => {
+            const carrierLogo = order.carrierName?.toLowerCase().includes('fedex') 
+              ? 'https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg'
+              : order.carrierName?.toLowerCase().includes('dhl')
+              ? 'https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg'
+              : order.carrierName?.toLowerCase().includes('ups')
+              ? 'https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg'
+              : order.carrierName?.toLowerCase().includes('usps')
+              ? 'https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg'
+              : null;
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white/10 rounded-xl p-5 backdrop-blur-sm border border-white/10">
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Transportadora</span>
-                      <span className="text-lg font-bold block">{order.carrierName || 'Não especificada'}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Código de Rastreio</span>
+            return (
+              <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl shadow-lg p-6 text-white animate-scale-in relative overflow-hidden group">
+                 {/* Decorative Background Elements */}
+                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                    <Truck className="w-32 h-32" />
+                 </div>
+                 
+                 <div className="relative z-10 space-y-4">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg font-mono font-bold select-all">{order.carrierTrackingCode || 'Pendente'}</span>
-                        {order.carrierTrackingCode && (
-                          <button 
-                            onClick={() => {
-                              safeCopyText(order.carrierTrackingCode || '');
-                              alert('Código copiado!');
-                            }}
-                            className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
-                            title="Copiar Código"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        )}
+                        <div className="p-2 bg-white/20 rounded-lg">
+                          <Truck className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold font-display">Rastreio da Transportadora</h3>
+                          <p className="text-[10px] text-indigo-100 uppercase tracking-widest font-bold">Acompanhamento em Tempo Real</p>
+                        </div>
+                      </div>
+                      {carrierLogo && (
+                        <div className="h-8 px-3 bg-white rounded-lg flex items-center justify-center">
+                          <img src={carrierLogo} alt={order.carrierName} className="h-5 object-contain" referrerPolicy="no-referrer" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white/10 rounded-xl p-5 backdrop-blur-sm border border-white/10">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Transportadora</span>
+                        <span className="text-lg font-bold block">{order.carrierName || 'Não especificada'}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Código de Rastreio</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-mono font-bold select-all">{order.carrierTrackingCode || 'Pendente'}</span>
+                          {order.carrierTrackingCode && (
+                            <button 
+                              onClick={() => {
+                                safeCopyText(order.carrierTrackingCode || '');
+                                alert('Código copiado!');
+                              }}
+                              className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                              title="Copiar Código"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 text-[11px] text-indigo-100 italic">
-                    <Info className="w-3 h-3 shrink-0" />
-                    <span>Utilize o código acima no site oficial da transportadora para detalhes logísticos granulares.</span>
-                  </div>
-               </div>
-            </div>
-          )}
+                    <div className="flex items-center gap-2 text-[11px] text-indigo-100 italic">
+                      <Info className="w-3 h-3 shrink-0" />
+                      <span>Utilize o código acima no site oficial da transportadora para detalhes logísticos granulares.</span>
+                    </div>
+                 </div>
+              </div>
+            );
+          })()}
 
           {/* Payment Details for PENDING_PAYMENT or AWAITING_SHIPPING_PAYMENT */}
           {(order.status === 'PENDING_PAYMENT' || order.status === 'AWAITING_SHIPPING_PAYMENT') && (() => {

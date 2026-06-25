@@ -210,7 +210,9 @@ service cloud.firestore {
     }
 
     match /integrationLogs/{logId} {
-      allow read, write: if hasPermission('settings') || isAdmin();
+      allow list: if isAdmin() || hasPermission('settings');
+      allow get: if isAdmin() || hasPermission('settings');
+      allow write: if hasPermission('settings') || isAdmin();
     }
   }
 }

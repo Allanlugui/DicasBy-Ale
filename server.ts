@@ -2166,10 +2166,19 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       headers: { "access_token": apiKey }
     });
     
-    if (searchRes.ok) {
-      const searchData = await searchRes.json();
-      if (searchData.data && searchData.data.length > 0) {
-        asaasCustomerId = searchData.data[0].id;
+    if (!searchRes.ok) {
+      const errText = await searchRes.text();
+      console.warn("[Asaas] Erro ao buscar cliente:", searchRes.status, errText);
+    } else {
+      const contentType = searchRes.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const searchData = await searchRes.json();
+        if (searchData.data && searchData.data.length > 0) {
+          asaasCustomerId = searchData.data[0].id;
+        }
+      } else {
+        const text = await searchRes.text();
+        console.warn("[Asaas] Resposta não-JSON ao buscar cliente:", text.substring(0, 100));
       }
     }
 

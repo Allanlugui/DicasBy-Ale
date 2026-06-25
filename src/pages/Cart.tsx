@@ -533,26 +533,62 @@ export function Cart() {
                       <span className="text-[9px] text-stone-300 italic">Pago após pesagem em Miami</span>
                    </div>
                    {shippingMethods.length > 0 ? (
-                     <div className="grid grid-cols-1 gap-3">
-                       {shippingMethods.map(method => (
-                         <button
-                           key={method.id}
-                           type="button"
-                           onClick={() => setSelectedShippingMethodId(method.id)}
-                           className={`flex justify-between items-center p-3 rounded-xl border text-left transition-all ${
-                             selectedShippingMethodId === method.id 
-                               ? 'border-rose-500 bg-rose-50/10 ring-1 ring-rose-500' 
-                               : 'border-stone-100 bg-stone-50 hover:border-stone-200'
-                           }`}
-                         >
-                           <div className="flex flex-col">
-                              <span className="text-xs font-bold text-stone-900">{method.name} ({method.carrier})</span>
-                              <span className="text-[10px] text-stone-500 italic">Entrega em aprox. {method.estimatedDays}</span>
-                           </div>
-                           <span className="text-xs font-black text-stone-800">{formatCurrency(method.basePriceBRL)}*</span>
-                         </button>
-                       ))}
-                     </div>
+                      <div className="grid grid-cols-1 gap-4">
+                        {shippingMethods.map(method => {
+                          const carrierLogo = method.carrier.toLowerCase().includes('fedex') 
+                            ? 'https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg'
+                            : method.carrier.toLowerCase().includes('dhl')
+                            ? 'https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg'
+                            : method.carrier.toLowerCase().includes('ups')
+                            ? 'https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg'
+                            : method.carrier.toLowerCase().includes('usps')
+                            ? 'https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg'
+                            : null;
+
+                          return (
+                            <button
+                              key={method.id}
+                              type="button"
+                              onClick={() => setSelectedShippingMethodId(method.id)}
+                              className={`flex justify-between items-center p-5 rounded-2xl border text-left transition-all relative overflow-hidden group ${
+                                selectedShippingMethodId === method.id 
+                                  ? 'border-rose-500 bg-rose-50/20 ring-2 ring-rose-500/20 shadow-lg shadow-rose-100/50' 
+                                  : 'border-stone-100 bg-white hover:border-stone-300 shadow-sm'
+                              }`}
+                            >
+                              {selectedShippingMethodId === method.id && (
+                                <div className="absolute top-0 right-0 p-1.5 bg-rose-500 rounded-bl-xl">
+                                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center gap-4">
+                                {carrierLogo ? (
+                                  <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center p-2 shrink-0 group-hover:scale-105 transition-transform">
+                                    <img src={carrierLogo} alt={method.carrier} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center shrink-0">
+                                    <Truck className="w-6 h-6 text-stone-400" />
+                                  </div>
+                                )}
+                                <div className="flex flex-col">
+                                   <span className="text-sm font-bold text-stone-900 leading-tight">{method.name}</span>
+                                   <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{method.carrier}</span>
+                                      <span className="text-[10px] text-stone-400">•</span>
+                                      <span className="text-[10px] text-stone-500 font-medium italic">Entrega em aprox. {method.estimatedDays}</span>
+                                   </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-sm font-black text-stone-800 block">{formatCurrency(method.basePriceBRL)}*</span>
+                                <span className="text-[9px] text-stone-400 uppercase tracking-tighter">Custo Base</span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                    ) : (
                      <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-center">
                         <span className="text-[11px] text-stone-500">Nenhum método de envio configurado. Entre em contato com o suporte.</span>
