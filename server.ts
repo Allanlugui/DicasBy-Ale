@@ -2184,11 +2184,16 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       return res.status(400).json({ error: "Nome do cliente e valor são obrigatórios." });
     }
 
-    // 1. Buscar se o cliente já existe por CPF/Email (Simplificado)
+    // 1. Limpar formatação de dados antes de enviar ao Asaas (Essencial para homologação e transações transparentes sem checkout)
+    const cleanCpfCnpj = customerCpf ? customerCpf.replace(/\D/g, "") : undefined;
+    const cleanZipCode = customerZipCode ? customerZipCode.replace(/\D/g, "") : undefined;
+    const cleanPhone = customerPhone ? customerPhone.replace(/\D/g, "") : undefined;
+
+    // Buscar se o cliente já existe por CPF ou Email no Asaas
     let asaasCustomerId = null;
     
-    const searchUrl = customerCpf 
-      ? `${baseUrl}/customers?cpfCnpj=${customerCpf}`
+    const searchUrl = cleanCpfCnpj 
+      ? `${baseUrl}/customers?cpfCnpj=${cleanCpfCnpj}`
       : `${baseUrl}/customers?email=${customerEmail}`;
       
     const searchRes = await fetch(searchUrl, {
@@ -2217,12 +2222,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         body: JSON.stringify({
           name: customerName,
           email: customerEmail,
-          phone: customerPhone || undefined,
-          postalCode: customerZipCode || undefined,
+          phone: cleanPhone || undefined,
+          postalCode: cleanZipCode || undefined,
           address: customerStreet || undefined,
           addressNumber: customerNumber || undefined,
           province: "Bairro",
-          cpfCnpj: customerCpf || undefined,
+          cpfCnpj: cleanCpfCnpj || undefined,
           notificationDisabled: true
         })
       });
@@ -2259,8 +2264,8 @@ app.post("/api/asaas/create-payment", async (req, res) => {
             "access_token": apiKey 
           },
           body: JSON.stringify({
-            phone: customerPhone || undefined,
-            postalCode: customerZipCode || undefined,
+            phone: cleanPhone || undefined,
+            postalCode: cleanZipCode || undefined,
             address: customerStreet || undefined,
             addressNumber: customerNumber || undefined,
           })
@@ -2290,11 +2295,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       paymentBody.creditCardHolderInfo = {
         name: creditCardHolderInfo?.name || customerName,
         email: creditCardHolderInfo?.email || customerEmail,
-        cpfCnpj: creditCardHolderInfo?.cpfCnpj || customerCpf,
-        postalCode: creditCardHolderInfo?.postalCode || customerZipCode || "01001000",
+        cpfCnpj: (creditCardHolderInfo?.cpfCnpj || customerCpf || "").replace(/\D/g, ""),
+        postalCode: (creditCardHolderInfo?.postalCode || customerZipCode || "01001000").replace(/\D/g, ""),
         addressNumber: creditCardHolderInfo?.addressNumber || customerNumber || "1",
         addressComplement: creditCardHolderInfo?.addressComplement || "",
-        phone: creditCardHolderInfo?.phone || customerPhone || "",
+        phone: (creditCardHolderInfo?.phone || customerPhone || "").replace(/\D/g, ""),
+        mobilePhone: (creditCardHolderInfo?.mobilePhone || creditCardHolderInfo?.phone || customerPhone || "").replace(/\D/g, ""),
       };
       // Credit card transactions require setting remoteIp for anti-fraud
       paymentBody.remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
@@ -2360,11 +2366,39 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       }
     }
 
+    // 5. Se for BOLETO, obter a linha digitável e o código de barras real do Asaas
+    let barCode = null;
+    let identificationField = null;
+    if (type === "BOLETO") {
+      try {
+        const boletoRes = await fetch(`${baseUrl}/payments/${paymentData.id}/identificationField`, {
+          headers: { "access_token": apiKey }
+        });
+        if (boletoRes.ok) {
+          const boletoContentType = boletoRes.headers.get("content-type") || "";
+          if (boletoContentType.includes("application/json")) {
+            const boletoData = await boletoRes.json();
+            barCode = boletoData.barCode || null;
+            identificationField = boletoData.identificationField || null;
+          } else {
+            const rawText = await boletoRes.text();
+            console.warn("[Asaas] boletoRes returned non-JSON response:", boletoContentType, rawText.substring(0, 200));
+          }
+        } else {
+          const rawText = await boletoRes.text();
+          console.warn("[Asaas] boletoRes error response status:", boletoRes.status, "Body:", rawText.substring(0, 200));
+        }
+      } catch (boletoErr) {
+        console.warn("[Asaas] Erro ao buscar dados do boleto", boletoErr);
+      }
+    }
+
     // Retorna os dados necessários para o frontend exibir a confirmação
     return res.json({
       invoiceUrl: paymentData.invoiceUrl,
       bankSlipUrl: paymentData.bankSlipUrl || null,
-      barCode: paymentData.barCode || null,
+      barCode: identificationField || barCode || paymentData.barCode || null,
+      identificationField: identificationField || null,
       nossoNumero: paymentData.nossoNumero || null,
       pixCopyPaste: pixCopyPaste,
       paymentId: paymentData.id,

@@ -332,6 +332,7 @@ export function Tracking() {
             };
 
             const isShipping = order.status === 'AWAITING_SHIPPING_PAYMENT';
+            const method = order.paymentMethod || 'pix';
 
             return (
               <div className={`bg-white rounded-2xl border ${isShipping ? 'border-rose-200' : 'border-rose-100'} p-6 md:p-8 space-y-6 shadow-sm animate-scale-in`}>
@@ -342,74 +343,229 @@ export function Tracking() {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                  <div className="space-y-4">
-                    <p className="text-xs text-stone-600 leading-relaxed">
-                      {isShipping 
-                        ? 'Sua encomenda já está pronta no nosso galpão! Para que possamos prosseguir com o despacho internacional para o Brasil, por favor efetue o pagamento do frete final calculado.'
-                        : 'Sua compra internacional aguarda confirmação de transferência Pix para darmos início ao faturamento aduaneiro seguro.'}
-                    </p>
+                {/* Se for frete, ou se o método de pagamento principal do pedido for PIX, exibe o fluxo de Pix */}
+                {(isShipping || method === 'pix') ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        {isShipping 
+                          ? 'Sua encomenda já está pronta no nosso galpão! Para que possamos prosseguir com o despacho internacional para o Brasil, por favor efetue o pagamento do frete final calculado.'
+                          : 'Sua compra internacional aguarda confirmação de transferência Pix para darmos início ao faturamento aduaneiro seguro.'}
+                      </p>
 
-                    <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-stone-400">Beneficiário:</span>
-                        <strong className="text-stone-900">{activePixName}</strong>
+                      <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Beneficiário:</span>
+                          <strong className="text-stone-900">{activePixName}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Chave Pix:</span>
+                          <strong className="text-stone-900 select-all font-mono">{activePixKey}</strong>
+                        </div>
+                        <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
+                          <span className="text-stone-500 font-bold">{isShipping ? 'Frete a Pagar:' : 'Valor do Pedido:'}</span>
+                          <strong className="text-rose-600 text-sm font-semibold">{formatCurrency(amount)}</strong>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-stone-400">Chave Pix:</span>
-                        <strong className="text-stone-900 select-all font-mono">{activePixKey}</strong>
-                      </div>
-                      <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
-                        <span className="text-stone-500 font-bold">{isShipping ? 'Frete a Pagar:' : 'Valor do Pedido:'}</span>
-                        <strong className="text-rose-600 text-sm font-semibold">{formatCurrency(amount)}</strong>
+
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={copyPix}
+                          className={`cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
+                            copiedKey 
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                              : 'bg-stone-900 hover:bg-stone-800 text-white border-transparent'
+                          }`}
+                        >
+                          {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600 animate-bounce" /> : <Copy className="w-4 h-4" />}
+                          {copiedKey ? 'Copiado!' : 'Copiar Código Pix Copia e Cola'}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={copyPix}
-                        className={`cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                          copiedKey 
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                            : 'bg-stone-900 hover:bg-stone-800 text-white border-transparent'
-                        }`}
-                      >
-                        {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600 animate-bounce" /> : <Copy className="w-4 h-4" />}
-                        {copiedKey ? 'Copiado!' : 'Copiar Código Pix Copia e Cola'}
-                      </button>
+                    <div className="space-y-4 text-center flex flex-col items-center">
+                      <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200 inline-block shadow-inner hover:scale-[1.02] transition">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}`} 
+                          alt="QR Code Pix" 
+                          className="w-40 h-40 object-contain mx-auto"
+                        />
+                      </div>
+                      
+                      <div className="w-full max-w-sm space-y-2 text-left">
+                        <label className="text-[11px] font-bold text-stone-600 block">Já efetuou o pagamento{isShipping ? ' do frete' : ''}? Envie o comprovante:</label>
+                        {uploadedReceipt ? (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Comprovante registrado com sucesso!</span>
+                            </div>
+                            <span className="text-[10px] text-emerald-600 font-normal block leading-snug">Seu comprovante foi anexado e enviado ao nosso setor administrativo. A liberação de logística ocorrerá em instantes.</span>
+                          </div>
+                        ) : (
+                          <ImageInput 
+                            value=""
+                            placeholder="Anexar comprovante de pagamento..."
+                            onChange={url => { if (url) handleUploadReceipt(url, order); }}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
+                ) : method === 'boleto' ? (
+                  // Se for BOLETO
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        Seu pedido foi registrado e o boleto bancário já está disponível para pagamento! Pague pelo seu internet banking copiando o código de barras abaixo ou visualize o boleto completo em PDF.
+                      </p>
 
-                  <div className="space-y-4 text-center flex flex-col items-center">
-                    <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200 inline-block shadow-inner hover:scale-[1.02] transition">
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}`} 
-                        alt="QR Code Pix" 
-                        className="w-40 h-40 object-contain mx-auto"
-                      />
+                      <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-stone-500 font-bold">Valor do Boleto:</span>
+                          <strong className="text-rose-600 text-sm font-semibold">{formatCurrency(amount)}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Vencimento:</span>
+                          <strong className="text-stone-800">1 dia útil</strong>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3.5 pt-2">
+                        {order.bankSlipUrl && (
+                          <a
+                            href={order.bankSlipUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
+                          >
+                            <FileDown className="w-4 h-4" /> Visualizar Boleto em PDF
+                          </a>
+                        )}
+
+                        {order.asaasInvoiceUrl && (
+                          <a
+                            href={order.asaasInvoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cursor-pointer py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-300 text-center"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Fatura Completa no Asaas
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    
-                    <div className="w-full max-w-sm space-y-2 text-left">
-                      <label className="text-[11px] font-bold text-stone-600 block">Já efetuou o pagamento{isShipping ? ' do frete' : ''}? Envie o comprovante:</label>
-                      {uploadedReceipt ? (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
-                          <div className="flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>Comprovante registrado com sucesso!</span>
+
+                    <div className="space-y-5">
+                      {order.barCode ? (
+                        <div className="space-y-2">
+                          <label className="text-[10px] text-stone-400 uppercase font-black tracking-widest block">Linha Digitável (Copiar e Colar)</label>
+                          <div className="p-3 bg-stone-50 rounded-xl border border-stone-150 font-mono text-xs text-stone-700 select-all break-all leading-relaxed">
+                            {order.barCode}
                           </div>
-                          <span className="text-[10px] text-emerald-600 font-normal block leading-snug">Seu comprovante foi anexado e enviado ao nosso setor administrativo. A liberação de logística ocorrerá em instantes.</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await safeCopyText(order.barCode || "");
+                              setCopiedKey(true);
+                              setTimeout(() => setCopiedKey(false), 2500);
+                            }}
+                            className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
+                              copiedKey 
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                                : 'bg-rose-600 hover:bg-rose-700 text-white border-transparent'
+                            }`}
+                          >
+                            {copiedKey ? <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedKey ? 'Código de Barras Copiado!' : 'Copiar Código de Barras'}
+                          </button>
                         </div>
                       ) : (
-                        <ImageInput 
-                          value=""
-                          placeholder="Anexar comprovante de pagamento..."
-                          onChange={url => { if (url) handleUploadReceipt(url, order); }}
-                        />
+                        <div className="bg-stone-50 rounded-xl p-4 text-center border border-dashed border-stone-200 text-xs text-stone-400">
+                          Código de barras sendo gerado pelo banco. Caso demore, visualize a fatura completa no link ao lado.
+                        </div>
                       )}
+
+                      <div className="w-full space-y-2 text-left pt-1">
+                        <label className="text-[11px] font-bold text-stone-600 block">Já pagou o boleto? Envie o comprovante:</label>
+                        {uploadedReceipt ? (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Comprovante registrado com sucesso!</span>
+                            </div>
+                            <span className="text-[10px] text-emerald-600 font-normal block leading-snug">Seu comprovante foi anexado e enviado ao nosso setor administrativo. A liberação de logística ocorrerá em instantes.</span>
+                          </div>
+                        ) : (
+                          <ImageInput 
+                            value=""
+                            placeholder="Anexar comprovante de boleto..."
+                            onChange={url => { if (url) handleUploadReceipt(url, order); }}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  // Se for CARTÃO DE CRÉDITO
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                      <p className="text-xs text-stone-600 leading-relaxed">
+                        Seu pagamento por cartão de crédito está sob análise de risco e verificação de segurança antifraude aduaneira no Asaas. Esse processo geralmente leva alguns minutos.
+                      </p>
+
+                      <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-stone-500 font-bold">Valor Autorizado:</span>
+                          <strong className="text-rose-600 text-sm font-semibold">{formatCurrency(amount)}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-stone-400">Status da Transação:</span>
+                          <strong className="text-amber-600 font-bold uppercase tracking-wide text-[10px] bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Em Análise</strong>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-2">
+                        {order.asaasInvoiceUrl && (
+                          <a
+                            href={order.asaasInvoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
+                          >
+                            <ExternalLink className="w-4 h-4" /> Acessar Minha Fatura no Asaas
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="bg-stone-50 rounded-xl p-5 border border-stone-200 text-xs space-y-2 text-stone-600 leading-relaxed">
+                        <strong className="text-stone-950 block text-xs">🔒 Transações com Cartão Protegidas</strong>
+                        <span>O banco Asaas exige a validação aduaneira do portador do cartão. Se houver qualquer divergência cadastral, a transação poderá ser estornada automaticamente para sua segurança.</span>
+                      </div>
+
+                      <div className="w-full space-y-2 text-left">
+                        <label className="text-[11px] font-bold text-stone-600 block">Deseja anexar a fatura ou comprovante?</label>
+                        {uploadedReceipt ? (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Comprovante anexado!</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <ImageInput 
+                            value=""
+                            placeholder="Anexar comprovante de transação..."
+                            onChange={url => { if (url) handleUploadReceipt(url, order); }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
