@@ -728,8 +728,57 @@ export function Admin() {
 }
 
 function OrdersTab({ orders, updateOrderStatus }: { orders: any[], updateOrderStatus: any }) {
+  const { createOrder } = useAppContext();
   const [selectedStatus, setSelectedStatus] = useState<string>('ACTIVE_NOT_CANCELLED');
   const [sortBy, setSortBy] = useState<'date_newest' | 'date_oldest' | 'value_highest' | 'value_lowest'>('date_newest');
+  const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+  const [manualOrderData, setManualOrderData] = useState({
+    customerName: '',
+    customerEmail: '',
+    customerDocument: '',
+    productName: '',
+    value: '',
+    status: 'PAYMENT_RECEIVED' as OrderStatus
+  });
+  const [isCreatingManual, setIsCreatingManual] = useState(false);
+
+  const handleCreateManualOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualOrderData.customerName || !manualOrderData.customerEmail || !manualOrderData.value || !manualOrderData.productName) {
+      alert('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    setIsCreatingManual(true);
+    try {
+      const extraFields: Partial<Order> = {
+        status: manualOrderData.status,
+        items: [{
+          id: Math.random().toString(36).substring(7),
+          name: manualOrderData.productName,
+          quantity: 1,
+          priceBRL: parseFloat(manualOrderData.value),
+          totalBRL: parseFloat(manualOrderData.value),
+          weightLbs: 0,
+          category: 'Manual',
+          status: 'IN_STOCK'
+        }],
+        subtotalBRL: parseFloat(manualOrderData.value),
+        totalBRL: parseFloat(manualOrderData.value),
+        customerCpf: manualOrderData.customerDocument
+      };
+
+      await createOrder(manualOrderData.customerName, manualOrderData.customerEmail, undefined, 0, extraFields);
+      alert('Pedido manual criado com sucesso!');
+      setShowManualOrderModal(false);
+      setManualOrderData({ customerName: '', customerEmail: '', customerDocument: '', productName: '', value: '', status: 'PAYMENT_RECEIVED' });
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao criar pedido manual.');
+    } finally {
+      setIsCreatingManual(false);
+    }
+  };
 
   // Calculates stats
   const totalAll = orders.length;
@@ -1049,18 +1098,27 @@ function OrdersTab({ orders, updateOrderStatus }: { orders: any[], updateOrderSt
             <p className="text-xs text-stone-500">Separado e organizado por etapa operacional</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-stone-500">Ordenar por:</span>
-            <select 
-              value={sortBy} 
-              onChange={e => setSortBy(e.target.value as any)}
-              className="bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-1.5 font-medium focus:ring-rose-500 focus:border-rose-500 outline-none"
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setShowManualOrderModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition flex items-center gap-2 cursor-pointer shadow-sm shadow-indigo-100"
             >
-              <option value="date_newest">Mais recente</option>
-              <option value="date_oldest">Mais antigo</option>
-              <option value="value_highest">Maior valor</option>
-              <option value="value_lowest">Menor valor</option>
-            </select>
+              <Plus className="w-4 h-4" /> Novo Pedido Manual
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-stone-500">Ordenar por:</span>
+              <select 
+                value={sortBy} 
+                onChange={e => setSortBy(e.target.value as any)}
+                className="bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-1.5 font-medium focus:ring-rose-500 focus:border-rose-500 outline-none"
+              >
+                <option value="date_newest">Mais recente</option>
+                <option value="date_oldest">Mais antigo</option>
+                <option value="value_highest">Maior valor</option>
+                <option value="value_lowest">Menor valor</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1103,6 +1161,134 @@ function OrdersTab({ orders, updateOrderStatus }: { orders: any[], updateOrderSt
           {filteredOrdersList.map(order => (
             <OrderAdminCard key={order.id} order={order} updateOrderStatus={updateOrderStatus} />
           ))}
+        </div>
+      )}
+
+      {/* Manual Order Modal */}
+      {showManualOrderModal && (
+        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-stone-200 p-8 max-w-lg w-full shadow-2xl relative animate-scale-up overflow-y-auto max-h-[90vh]">
+            <button 
+              onClick={() => setShowManualOrderModal(false)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
+                <Plus className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-stone-900">Novo Pedido Manual</h3>
+                <p className="text-xs text-stone-500">Crie um registro de compra manual para rastreio</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateManualOrder} className="space-y-5">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Nome do Cliente *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={manualOrderData.customerName}
+                    onChange={e => setManualOrderData({...manualOrderData, customerName: e.target.value})}
+                    className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                    placeholder="Nome completo"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">E-mail *</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={manualOrderData.customerEmail}
+                      onChange={e => setManualOrderData({...manualOrderData, customerEmail: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                      placeholder="cliente@email.com"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">CPF/Documento</label>
+                    <input 
+                      type="text" 
+                      value={manualOrderData.customerDocument}
+                      onChange={e => setManualOrderData({...manualOrderData, customerDocument: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Descrição do Produto/Lote *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={manualOrderData.productName}
+                    onChange={e => setManualOrderData({...manualOrderData, productName: e.target.value})}
+                    className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                    placeholder="Ex: iPhone 15 Pro Max 256GB"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Valor Total (R$) *</label>
+                    <input 
+                      type="number" 
+                      required
+                      step="0.01"
+                      value={manualOrderData.value}
+                      onChange={e => setManualOrderData({...manualOrderData, value: e.target.value})}
+                      className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Status Inicial</label>
+                    <select 
+                      value={manualOrderData.status}
+                      onChange={e => setManualOrderData({...manualOrderData, status: e.target.value as OrderStatus})}
+                      className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
+                    >
+                      <option value="PENDING_PAYMENT">Aguardando Pagamento</option>
+                      <option value="PAYMENT_RECEIVED">Pago (Aguardando Compra)</option>
+                      <option value="PURCHASED_IN_STORE">Comprado na Loja</option>
+                      <option value="STORED_IN_US">Armazenado em Miami</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setShowManualOrderModal(false)}
+                  className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold py-3 rounded-xl transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isCreatingManual}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-lg shadow-indigo-100"
+                >
+                  {isCreatingManual ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    'Criar Pedido'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

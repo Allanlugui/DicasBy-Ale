@@ -125,7 +125,16 @@ export function Cart() {
           description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`
         })
       });
-      const data = await res.json();
+
+      let data;
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Resposta inesperada do servidor (${res.status}). Por favor, tente novamente.`);
+      }
+
       if (res.ok && data.pixCopyPaste) {
         setAsaasData(data);
       } else {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Package, MapPin, Truck, CheckCircle, Clock, Camera, Star, Upload, XCircle, Landmark, Copy, Info, ArrowRight, DollarSign, FileText, FileDown, ExternalLink } from 'lucide-react';
+import { Search, Package, MapPin, Truck, CheckCircle, Clock, Camera, Star, Upload, XCircle, Landmark, Copy, Info, ArrowRight, DollarSign, FileText, FileDown, ExternalLink, Box } from 'lucide-react';
 import { useAppContext } from '../context';
 import { ImageInput } from '../components/ImageInput';
 import { Trash2 } from 'lucide-react';
@@ -238,69 +238,74 @@ export function Tracking() {
 
           {/* Carrier Tracking Info */}
           {(order.carrierName || order.carrierTrackingCode) && (() => {
-            const carrierLogo = order.carrierName?.toLowerCase().includes('fedex') 
+            const carrier = (order.carrierName || '').toLowerCase();
+            const carrierLogo = carrier.includes('fedex') 
               ? 'https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg'
-              : order.carrierName?.toLowerCase().includes('dhl')
+              : carrier.includes('dhl')
               ? 'https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg'
-              : order.carrierName?.toLowerCase().includes('ups')
+              : carrier.includes('ups')
               ? 'https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg'
-              : order.carrierName?.toLowerCase().includes('usps')
+              : carrier.includes('usps')
               ? 'https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg'
               : null;
 
             return (
-              <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-2xl shadow-lg p-6 text-white animate-scale-in relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl shadow-xl p-6 text-white animate-scale-in relative overflow-hidden group border border-white/10">
                  {/* Decorative Background Elements */}
-                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-700 pointer-events-none">
                     <Truck className="w-32 h-32" />
                  </div>
                  
-                 <div className="relative z-10 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-white/20 rounded-lg">
-                          <Truck className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold font-display">Rastreio da Transportadora</h3>
-                          <p className="text-[10px] text-indigo-100 uppercase tracking-widest font-bold">Acompanhamento em Tempo Real</p>
-                        </div>
+                 <div className="relative z-10 space-y-5">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-md">
+                        <Truck className="w-5 h-5 text-white" />
                       </div>
-                      {carrierLogo && (
-                        <div className="h-8 px-3 bg-white rounded-lg flex items-center justify-center">
-                          <img src={carrierLogo} alt={order.carrierName} className="h-5 object-contain" referrerPolicy="no-referrer" />
-                        </div>
-                      )}
+                      <div>
+                        <h3 className="text-lg font-bold font-display leading-tight">Rastreio da Transportadora</h3>
+                        <p className="text-[10px] text-indigo-100 uppercase tracking-[0.2em] font-black opacity-80">Logística Internacional</p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-white/10 rounded-xl p-5 backdrop-blur-sm border border-white/10">
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Transportadora</span>
-                        <span className="text-lg font-bold block">{order.carrierName || 'Não especificada'}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm border border-white/10 flex items-center gap-4">
+                        {carrierLogo ? (
+                          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center p-2 shrink-0 shadow-inner">
+                            <img src={carrierLogo} alt={order.carrierName} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                            <Box className="w-6 h-6 text-white/60" />
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Transportadora</span>
+                          <span className="text-base font-bold block leading-tight">{order.carrierName || 'Não especificada'}</span>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block">Código de Rastreio</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg font-mono font-bold select-all">{order.carrierTrackingCode || 'Pendente'}</span>
+
+                      <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm border border-white/10">
+                        <span className="text-[10px] text-indigo-200 uppercase font-black tracking-widest block mb-1">Código de Rastreio</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl font-mono font-bold tracking-tight select-all">{order.carrierTrackingCode || 'Pendente'}</span>
                           {order.carrierTrackingCode && (
                             <button 
                               onClick={() => {
                                 safeCopyText(order.carrierTrackingCode || '');
-                                alert('Código copiado!');
                               }}
-                              className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-all cursor-pointer active:scale-95"
                               title="Copiar Código"
                             >
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-4 h-4" />
                             </button>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-indigo-100 italic">
-                      <Info className="w-3 h-3 shrink-0" />
-                      <span>Utilize o código acima no site oficial da transportadora para detalhes logísticos granulares.</span>
+                    <div className="flex items-start gap-2.5 text-[11px] text-indigo-50 leading-relaxed bg-indigo-800/30 p-3 rounded-xl border border-white/5">
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-indigo-200" />
+                      <span>Copie o código acima e utilize no site oficial da <strong>{order.carrierName || 'transportadora'}</strong> para acompanhar o deslocamento em tempo real.</span>
                     </div>
                  </div>
               </div>
