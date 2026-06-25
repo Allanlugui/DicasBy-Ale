@@ -751,21 +751,28 @@ function OrdersTab({ orders, updateOrderStatus }: { orders: any[], updateOrderSt
 
     setIsCreatingManual(true);
     try {
+      const productId = Math.random().toString(36).substring(7);
       const extraFields: Partial<Order> = {
         status: manualOrderData.status,
         items: [{
-          id: Math.random().toString(36).substring(7),
-          name: manualOrderData.productName,
+          productId,
           quantity: 1,
-          priceBRL: parseFloat(manualOrderData.value),
-          totalBRL: parseFloat(manualOrderData.value),
-          weightLbs: 0,
-          category: 'Manual',
-          status: 'IN_STOCK'
+          product: {
+            id: productId,
+            storeId: 'manual',
+            name: manualOrderData.productName,
+            description: 'Item de pedido manual',
+            imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=200',
+            priceUSD: parseFloat(manualOrderData.value) / 5.0,
+            priceBRL: parseFloat(manualOrderData.value),
+            category: 'Manual',
+            stockType: 'IN_STOCK',
+            inventory: 1
+          }
         }],
         subtotalBRL: parseFloat(manualOrderData.value),
         totalBRL: parseFloat(manualOrderData.value),
-        customerCpf: manualOrderData.customerDocument
+        customerDocument: manualOrderData.customerDocument
       };
 
       await createOrder(manualOrderData.customerName, manualOrderData.customerEmail, undefined, 0, extraFields);

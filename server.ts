@@ -2137,12 +2137,43 @@ async function sendInvoiceNotificationWithAttachments(
 // ASAAS INTEGRATION ROUTE
 // ---------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------
+// ASAAS INTEGRATION ROUTE & WEBHOOKS
+// ---------------------------------------------------------------------------------
+
 app.post("/api/asaas/create-payment", async (req, res) => {
   try {
-    const { customerName, customerEmail, customerCpf, value, description } = req.body;
+    const { 
+      customerName, 
+      customerEmail, 
+      customerCpf, 
+      value, 
+      description, 
+      billingType, 
+      creditCard, 
+      creditCardHolderInfo,
+      customerPhone,
+      customerZipCode,
+      customerStreet,
+      customerNumber,
+      customerCity,
+      customerState
+    } = req.body;
     
     const apiKey = process.env.ASAAS_API_KEY;
-    const baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
+    let baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
+    
+    // Automatically correct common Asaas API URL mistakes:
+    // Standard sandbox endpoint is https://sandbox.asaas.com/api/v3
+    // Standard production endpoint is https://api.asaas.com/v3
+    if (baseUrl.includes("sandbox.asaas.com") && !baseUrl.includes("/api/")) {
+      baseUrl = baseUrl.replace("/v3", "/api/v3");
+      if (!baseUrl.endsWith("/api/v3")) {
+        baseUrl = "https://sandbox.asaas.com/api/v3";
+      }
+    }
+    // Remove trailing slash
+    baseUrl = baseUrl.replace(/\/+$/, "");
 
     if (!apiKey) {
       console.error("[Asaas] ASAAS_API_KEY não configurada.");
@@ -2154,7 +2185,6 @@ app.post("/api/asaas/create-payment", async (req, res) => {
     }
 
     // 1. Buscar se o cliente já existe por CPF/Email (Simplificado)
-    // Para um fluxo real perfeito o CPF é recomendado, aqui usamos o e-mail ou CPF
     let asaasCustomerId = null;
     
     const searchUrl = customerCpf 
@@ -2166,19 +2196,13 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       headers: { "access_token": apiKey }
     });
     
-    if (!searchRes.ok) {
-      const errText = await searchRes.text();
-      console.warn("[Asaas] Erro ao buscar cliente:", searchRes.status, errText);
-    } else {
+    if (searchRes.ok) {
       const contentType = searchRes.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const searchData = await searchRes.json();
         if (searchData.data && searchData.data.length > 0) {
           asaasCustomerId = searchData.data[0].id;
         }
-      } else {
-        const text = await searchRes.text();
-        console.warn("[Asaas] Resposta não-JSON ao buscar cliente:", text.substring(0, 100));
       }
     }
 
@@ -2193,28 +2217,93 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         body: JSON.stringify({
           name: customerName,
           email: customerEmail,
-          cpfCnpj: customerCpf || undefined
+          phone: customerPhone || undefined,
+          postalCode: customerZipCode || undefined,
+          address: customerStreet || undefined,
+          addressNumber: customerNumber || undefined,
+          province: "Bairro",
+          cpfCnpj: customerCpf || undefined,
+          notificationDisabled: true
         })
       });
 
       if (!createCustomerRes.ok) {
         const errText = await createCustomerRes.text();
         console.error("[Asaas] Falha ao criar cliente (HTTP Error):", createCustomerRes.status, errText);
-        return res.status(400).json({ error: "Falha ao gerar cliente no Asaas. Verifique os dados fornecidos." });
+        return res.status(400).json({ error: `Falha ao gerar cliente no Asaas. Status: ${createCustomerRes.status}. Detalhes: ${errText.substring(0, 200)}` });
       }
 
-      const customerData = await createCustomerRes.json();
+      const customerContentType = createCustomerRes.headers.get("content-type") || "";
+      let customerData: any;
+      if (customerContentType.includes("application/json")) {
+        customerData = await createCustomerRes.json();
+      } else {
+        const rawText = await createCustomerRes.text();
+        console.error("[Asaas] Resposta não-JSON ao criar cliente:", customerContentType, rawText.substring(0, 500));
+        return res.status(400).json({ error: "O gateway de pagamento retornou uma resposta inválida (não-JSON)." });
+      }
+
       if (customerData.id) {
         asaasCustomerId = customerData.id;
       } else {
-        console.error("[Asaas] Resposta inválida ao criar cliente:", customerData);
-        return res.status(400).json({ error: "Falha ao gerar cliente no Asaas." });
+        console.error("[Asaas] Resposta inválida ao criar cliente (sem ID):", customerData);
+        return res.status(400).json({ error: "Falha ao gerar cliente no Asaas (resposta sem ID)." });
+      }
+    } else {
+      // Se o cliente já existe, atualiza as informações de endereço/telefone para garantir sucesso no antifraude
+      try {
+        await fetch(`${baseUrl}/customers/${asaasCustomerId}`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json", 
+            "access_token": apiKey 
+          },
+          body: JSON.stringify({
+            phone: customerPhone || undefined,
+            postalCode: customerZipCode || undefined,
+            address: customerStreet || undefined,
+            addressNumber: customerNumber || undefined,
+          })
+        });
+      } catch (errUpdate) {
+        console.warn("[Asaas] Falha silenciosa ao atualizar dados do cliente:", errUpdate);
       }
     }
 
-    // 3. Criar a cobrança (Pix)
+    // 3. Criar a cobrança (Pix, Cartão ou Boleto)
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1); // Vence em 1 dia
+
+    const type = billingType || "PIX";
+
+    const paymentBody: any = {
+      customer: asaasCustomerId,
+      billingType: type, 
+      value: parseFloat(value),
+      dueDate: dueDate.toISOString().split('T')[0],
+      description: description || "Pedido de Compra",
+      postalService: false
+    };
+
+    if (type === "CREDIT_CARD") {
+      paymentBody.creditCard = creditCard;
+      paymentBody.creditCardHolderInfo = {
+        name: creditCardHolderInfo?.name || customerName,
+        email: creditCardHolderInfo?.email || customerEmail,
+        cpfCnpj: creditCardHolderInfo?.cpfCnpj || customerCpf,
+        postalCode: creditCardHolderInfo?.postalCode || customerZipCode || "01001000",
+        addressNumber: creditCardHolderInfo?.addressNumber || customerNumber || "1",
+        addressComplement: creditCardHolderInfo?.addressComplement || "",
+        phone: creditCardHolderInfo?.phone || customerPhone || "",
+      };
+      // Credit card transactions require setting remoteIp for anti-fraud
+      paymentBody.remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
+      if (typeof paymentBody.remoteIp === 'string' && paymentBody.remoteIp.includes(',')) {
+        paymentBody.remoteIp = paymentBody.remoteIp.split(',')[0].trim();
+      }
+    }
+
+    console.log(`[Asaas] Creating payment on baseUrl: ${baseUrl} with type: ${type}`);
 
     const paymentRes = await fetch(`${baseUrl}/payments`, {
       method: "POST",
@@ -2222,53 +2311,185 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         "Content-Type": "application/json", 
         "access_token": apiKey 
       },
-      body: JSON.stringify({
-        customer: asaasCustomerId,
-        billingType: "PIX", 
-        value: parseFloat(value),
-        dueDate: dueDate.toISOString().split('T')[0],
-        description: description || "Pedido de Compra",
-        postalService: false
-      })
+      body: JSON.stringify(paymentBody)
     });
 
     if (!paymentRes.ok) {
       const errText = await paymentRes.text();
       console.error("[Asaas] Falha ao criar cobrança (HTTP Error):", paymentRes.status, errText);
-      return res.status(400).json({ error: "Falha ao gerar a cobrança no Asaas. Detalhes: " + errText });
+      return res.status(400).json({ error: `Falha ao gerar cobrança no Asaas. Status: ${paymentRes.status}. Detalhes: ${errText.substring(0, 200)}` });
     }
 
-    const paymentData = await paymentRes.json();
+    const paymentContentType = paymentRes.headers.get("content-type") || "";
+    let paymentData: any;
+    if (paymentContentType.includes("application/json")) {
+      paymentData = await paymentRes.json();
+    } else {
+      const rawText = await paymentRes.text();
+      console.error("[Asaas] Resposta não-JSON ao criar cobrança:", paymentContentType, rawText.substring(0, 500));
+      return res.status(400).json({ error: "O gateway de pagamento retornou uma resposta de cobrança inválida (não-JSON)." });
+    }
 
     if (!paymentData.id) {
-      console.error("[Asaas] Falha ao criar cobrança:", paymentData);
+      console.error("[Asaas] Falha ao criar cobrança (ID ausente):", paymentData);
       return res.status(400).json({ error: "Falha ao gerar a cobrança no Asaas." });
     }
 
-    // 4. Obter o QrCode Pix Copy/Paste (payload)
+    // 4. Se for PIX, obter o QrCode Pix Copy/Paste (payload)
     let pixCopyPaste = "";
-    try {
-      const pixRes = await fetch(`${baseUrl}/payments/${paymentData.id}/pixQrCode`, {
-        headers: { "access_token": apiKey }
-      });
-      if (pixRes.ok) {
-        const pixData = await pixRes.json();
-        pixCopyPaste = pixData.payload;
+    if (type === "PIX") {
+      try {
+        const pixRes = await fetch(`${baseUrl}/payments/${paymentData.id}/pixQrCode`, {
+          headers: { "access_token": apiKey }
+        });
+        if (pixRes.ok) {
+          const pixContentType = pixRes.headers.get("content-type") || "";
+          if (pixContentType.includes("application/json")) {
+            const pixData = await pixRes.json();
+            pixCopyPaste = pixData.payload;
+          } else {
+            const rawText = await pixRes.text();
+            console.warn("[Asaas] pixRes returned non-JSON response:", pixContentType, rawText.substring(0, 200));
+          }
+        } else {
+          const rawText = await pixRes.text();
+          console.warn("[Asaas] pixRes error response status:", pixRes.status, "Body:", rawText.substring(0, 200));
+        }
+      } catch (pixErr) {
+        console.warn("[Asaas] Erro ao buscar Pix QrCode", pixErr);
       }
-    } catch (pixErr) {
-      console.warn("[Asaas] Erro ao buscar Pix QrCode", pixErr);
     }
 
-    // Retorna apenas a URL da fatura e a chave copia e cola por segurança
+    // Retorna os dados necessários para o frontend exibir a confirmação
     return res.json({
       invoiceUrl: paymentData.invoiceUrl,
+      bankSlipUrl: paymentData.bankSlipUrl || null,
+      barCode: paymentData.barCode || null,
+      nossoNumero: paymentData.nossoNumero || null,
       pixCopyPaste: pixCopyPaste,
-      paymentId: paymentData.id
+      paymentId: paymentData.id,
+      status: paymentData.status
     });
 
   } catch (error: any) {
     console.error("[Asaas Integration Error]:", error);
     return res.status(500).json({ error: "Erro interno ao processar pagamento." });
+  }
+});
+
+// WEBHOOK ENDPOINT
+app.post("/api/asaas/webhook", async (req, res) => {
+  try {
+    const webhookToken = req.headers["asaas-access-token"];
+    const expectedToken = process.env.AZAS_WEBHOOK_TOKEN || process.env.ASAAS_WEBHOOK_TOKEN;
+
+    console.log("[Asaas Webhook] Received webhook payload:", JSON.stringify(req.body));
+
+    if (expectedToken && webhookToken !== expectedToken) {
+      console.warn("[Asaas Webhook] Token mismatch. Expected:", expectedToken, "Received:", webhookToken);
+      return res.status(401).json({ error: "Unauthorized token mismatch" });
+    }
+
+    const { event, payment } = req.body || {};
+    if (!payment || !payment.id) {
+      return res.status(400).json({ error: "Invalid webhook payload structure" });
+    }
+
+    const paymentId = payment.id;
+    const paymentStatus = payment.status;
+    const externalRef = payment.externalReference;
+
+    const isSuccessEvent = [
+      "PAYMENT_CONFIRMED",
+      "PAYMENT_RECEIVED",
+      "PAYMENT_RECEIVED_IN_CASH"
+    ].includes(event);
+
+    if (isSuccessEvent) {
+      console.log(`[Asaas Webhook] Payment ${paymentId} confirmed! Status: ${paymentStatus}. Searching for order...`);
+
+      let orderDoc = null;
+      let orderId = null;
+
+      const ordersRef = db.collection('orders');
+      
+      const q1 = await ordersRef.where("asaasPaymentId", "==", paymentId).get();
+      if (!q1.empty) {
+        orderDoc = q1.docs[0];
+        orderId = orderDoc.id;
+      } else if (externalRef) {
+        const docRef = ordersRef.doc(externalRef);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+          orderDoc = docSnap;
+          orderId = docSnap.id;
+        }
+      }
+
+      if (orderDoc && orderId) {
+        const orderData = orderDoc.data();
+        console.log(`[Asaas Webhook] Order found: ${orderId}. Current status: ${orderData.status}`);
+
+        if (orderData.status === 'PENDING_PAYMENT') {
+          await ordersRef.doc(orderId).update({
+            status: 'PAYMENT_RECEIVED',
+            paymentReceivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          const eventRef = ordersRef.doc(orderId).collection('events');
+          await eventRef.add({
+            status: 'PAYMENT_RECEIVED',
+            title: 'Pagamento Recebido',
+            description: `Pagamento automático confirmado via webhook Asaas (${payment.billingType}).`,
+            timestamp: new Date().toISOString()
+          });
+
+          await db.collection('integrationLogs').add({
+            timestamp: new Date().toISOString(),
+            type: 'Asaas Webhook',
+            message: `Pagamento confirmado para o pedido ${orderId}. Valor: R$ ${payment.value}.`,
+            status: 'success',
+            details: JSON.stringify({ paymentId, event, billingType: payment.billingType })
+          });
+
+          console.log(`[Asaas Webhook] Order ${orderId} successfully updated to PAYMENT_RECEIVED`);
+        } else if (orderData.status === 'AWAITING_SHIPPING_PAYMENT') {
+          await ordersRef.doc(orderId).update({
+            status: 'SHIPPING_PAID',
+            shippingPaidAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          const eventRef = ordersRef.doc(orderId).collection('events');
+          await eventRef.add({
+            status: 'SHIPPING_PAID',
+            title: 'Frete Pago',
+            description: `Pagamento de frete internacional confirmado via webhook Asaas (${payment.billingType}).`,
+            timestamp: new Date().toISOString()
+          });
+
+          await db.collection('integrationLogs').add({
+            timestamp: new Date().toISOString(),
+            type: 'Asaas Webhook',
+            message: `Pagamento de frete confirmado para o pedido ${orderId}. Valor: R$ ${payment.value}.`,
+            status: 'success',
+            details: JSON.stringify({ paymentId, event, billingType: payment.billingType })
+          });
+
+          console.log(`[Asaas Webhook] Order ${orderId} shipping successfully marked as SHIPPING_PAID`);
+        } else {
+          console.log(`[Asaas Webhook] Order ${orderId} is in status ${orderData.status}. No update needed.`);
+        }
+      } else {
+        console.warn(`[Asaas Webhook] No order found in system for paymentId: ${paymentId} or externalReference: ${externalRef}`);
+      }
+    }
+
+    return res.status(200).json({ received: true });
+  } catch (err: any) {
+    console.error("[Asaas Webhook Error]:", err);
+    return res.status(500).json({ error: "Internal webhook processing error" });
   }
 });
 

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight, Truck } from 'lucide-react';
+import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight, Truck, FileText } from 'lucide-react';
 import { useAppContext } from '../context';
-import { formatCurrency, safeCopyText } from '../lib/utils';
+import { formatCurrency, safeCopyText, generatePixCode } from '../lib/utils';
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from '../types';
 
 export function Cart() {
@@ -21,7 +21,7 @@ export function Cart() {
 
 
   // Payment Options State
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
   const [copiedKey, setCopiedKey] = useState(false);
   const [acceptedConsent, setAcceptedConsent] = useState(false);
   const [acceptedCustoms, setAcceptedCustoms] = useState(false);
@@ -43,7 +43,7 @@ export function Cart() {
   const [cardInstallments, setCardInstallments] = useState('1');
 
   // Asaas integration state
-  const [asaasData, setAsaasData] = useState<{ pixCopyPaste: string; invoiceUrl: string; paymentId: string } | null>(null);
+  const [asaasData, setAsaasData] = useState<{ pixCopyPaste?: string; invoiceUrl?: string; paymentId?: string; bankSlipUrl?: string; barCode?: string } | null>(null);
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [asaasError, setAsaasError] = useState<string | null>(null);
 
@@ -102,51 +102,6 @@ export function Cart() {
     setTimeout(() => setCopiedKey(false), 2500);
   };
 
-  const handleGenerateAsaasPix = async () => {
-    if (cart.length === 0) return;
-    if (!isProfileComplete) return;
-    if (!acceptedConsent || !acceptedCustoms) return;
-    if (!selectedShippingMethodId) {
-      alert("Por favor, selecione uma modalidade de frete.");
-      return;
-    }
-
-    setIsGeneratingPix(true);
-    setAsaasError(null);
-    try {
-      const res = await fetch("/api/asaas/create-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: profile?.fullName || customerName || "Cliente",
-          customerEmail: user?.email || customerEmail || "email@naoinformado.com",
-          customerCpf: profile?.document || "",
-          value: finalTotalBRL,
-          description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`
-        })
-      });
-
-      let data;
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(`Resposta inesperada do servidor (${res.status}). Por favor, tente novamente.`);
-      }
-
-      if (res.ok && data.pixCopyPaste) {
-        setAsaasData(data);
-      } else {
-        setAsaasError(data.error || "Erro ao gerar cobrança.");
-      }
-    } catch (err: any) {
-      setAsaasError(err.message || "Erro na conexão com o servidor.");
-    } finally {
-      setIsGeneratingPix(false);
-    }
-  };
-
   const handleApplyCoupon = () => {
     setCouponError(null);
     const code = couponCodeInput.trim().toUpperCase();
@@ -198,17 +153,13 @@ export function Cart() {
       alert("Por favor, selecione uma modalidade de frete.");
       return;
     }
-    
-    // Se o método for pix e ainda não gerou, gera agora em vez de confirmar pedido.
-    if (paymentMethod === 'pix' && !asaasData) {
-      await handleGenerateAsaasPix();
-      return; // Stop here, wait for them to pay or confirm order after generating
-    }
 
     setIsProcessing(true);
-    // Submit order to db
-    setTimeout(async () => {
-      try {
+    setAsaasError(null);
+
+    try {
+      if (paymentMethod === 'pix') {
+        // Direct Pix using company settings - fast, solid and reliable!
         const order = await createOrder(
           customerName || profile?.fullName || 'Nome Não Fornecido', 
           customerEmail || user?.email || 'Email Não Fornecido', 
@@ -219,19 +170,149 @@ export function Cart() {
             shippingEstimateBRL: estimatedShippingBRL,
             shippingEstimateWithMarginBRL: shippingMax,
             customsResponsibilityAccepted: acceptedCustoms,
-            asaasPaymentId: asaasData?.paymentId,
-            asaasInvoiceUrl: asaasData?.invoiceUrl
+            paymentMethod: 'pix'
           }
         );
         setIsProcessing(false);
         if (order) {
           navigate(`/rastreio?id=${order.trackingId}`);
         }
-      } catch (err) {
-        console.error(err);
+      } else if (paymentMethod === 'credit_card') {
+        // Credit card via Asaas API
+        if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
+          throw new Error("Por favor, preencha todos os campos do cartão de crédito.");
+        }
+
+        const [expiryMonth, expiryYear] = cardExpiry.split('/');
+        if (!expiryMonth || !expiryYear) {
+          throw new Error("Validade do cartão deve estar no formato MM/AA (ex: 12/29).");
+        }
+
+        const res = await fetch("/api/asaas/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: profile?.fullName || customerName || "Cliente",
+            customerEmail: user?.email || customerEmail || "email@naoinformado.com",
+            customerCpf: profile?.document || "",
+            customerPhone: profile?.phone || "",
+            customerZipCode: profile?.zipCode || "",
+            customerStreet: profile?.street || "",
+            customerNumber: profile?.number || "",
+            customerCity: profile?.city || "",
+            customerState: profile?.state || "",
+            value: finalTotalBRL,
+            description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`,
+            billingType: "CREDIT_CARD",
+            creditCard: {
+              holderName: cardName,
+              number: cardNumber.replace(/\s/g, ''),
+              expiryMonth: expiryMonth.trim(),
+              expiryYear: "20" + expiryYear.trim(),
+              ccv: cardCvv
+            }
+          })
+        });
+
+        let data;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          throw new Error(`Resposta inesperada do servidor (${res.status}). Por favor, tente novamente.`);
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erro ao processar pagamento com cartão.");
+        }
+
+        // Create order with card payment reference
+        const isPaid = data.status === 'CONFIRMED' || data.status === 'RECEIVED';
+        const order = await createOrder(
+          customerName || profile?.fullName || 'Nome Não Fornecido', 
+          customerEmail || user?.email || 'Email Não Fornecido', 
+          appliedCoupon?.code || undefined, 
+          discountBRL || undefined,
+          {
+            shippingMethod: selectedShipping,
+            shippingEstimateBRL: estimatedShippingBRL,
+            shippingEstimateWithMarginBRL: shippingMax,
+            customsResponsibilityAccepted: acceptedCustoms,
+            asaasPaymentId: data.paymentId,
+            asaasInvoiceUrl: data.invoiceUrl,
+            status: isPaid ? 'PAYMENT_RECEIVED' : 'PENDING_PAYMENT',
+            paymentMethod: 'credit_card'
+          }
+        );
+
         setIsProcessing(false);
+        if (order) {
+          navigate(`/rastreio?id=${order.trackingId}`);
+        }
+      } else if (paymentMethod === 'boleto') {
+        // Boleto via Asaas API
+        const res = await fetch("/api/asaas/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: profile?.fullName || customerName || "Cliente",
+            customerEmail: user?.email || customerEmail || "email@naoinformado.com",
+            customerCpf: profile?.document || "",
+            customerPhone: profile?.phone || "",
+            customerZipCode: profile?.zipCode || "",
+            customerStreet: profile?.street || "",
+            customerNumber: profile?.number || "",
+            customerCity: profile?.city || "",
+            customerState: profile?.state || "",
+            value: finalTotalBRL,
+            description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`,
+            billingType: "BOLETO"
+          })
+        });
+
+        let data;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          data = await res.json();
+        } else {
+          const text = await res.text();
+          throw new Error(`Resposta inesperada do servidor (${res.status}). Por favor, tente novamente.`);
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Erro ao gerar boleto.");
+        }
+
+        // Create the order with boleto reference
+        const order = await createOrder(
+          customerName || profile?.fullName || 'Nome Não Fornecido', 
+          customerEmail || user?.email || 'Email Não Fornecido', 
+          appliedCoupon?.code || undefined, 
+          discountBRL || undefined,
+          {
+            shippingMethod: selectedShipping,
+            shippingEstimateBRL: estimatedShippingBRL,
+            shippingEstimateWithMarginBRL: shippingMax,
+            customsResponsibilityAccepted: acceptedCustoms,
+            asaasPaymentId: data.paymentId,
+            asaasInvoiceUrl: data.invoiceUrl,
+            bankSlipUrl: data.bankSlipUrl || undefined,
+            barCode: data.barCode || undefined,
+            paymentMethod: 'boleto'
+          }
+        );
+
+        setIsProcessing(false);
+        if (order) {
+          navigate(`/rastreio?id=${order.trackingId}`);
+        }
       }
-    }, 1500);
+    } catch (err: any) {
+      console.error(err);
+      setAsaasError(err.message || "Ocorreu um erro ao processar o pagamento.");
+      setIsProcessing(false);
+    }
   };
 
   // If both standard cart and pending quote requests are empty
@@ -274,9 +355,7 @@ export function Cart() {
 
         <div className="space-y-8">
           {pendingQuoteOrders.map((order, index) => {
-            const amountFormatted = order.totalBRL.toFixed(2);
-            const cleanPixKey = activePixKey.replace(/[^a-zA-Z0-9@.]/g, '');
-            const specificPixCode = `00020101021126580014br.gov.bcb.pix0140${cleanPixKey.length.toString().padStart(2, '0')}${cleanPixKey}5204000053039865405${amountFormatted.length.toString().padStart(2, '0')}${amountFormatted}5802BR59${activePixName.length.toString().padStart(2, '0')}${activePixName}60${activePixCity.length.toString().padStart(2, '0')}${activePixCity}62070503***6304`;
+            const specificPixCode = generatePixCode(activePixKey, activePixName, activePixCity, order.totalBRL);
 
             const handleCopySpecificPix = async () => {
               await safeCopyText(specificPixCode);
@@ -689,29 +768,56 @@ export function Cart() {
                 <div className="space-y-4 border-t border-stone-100 pt-6">
                   <div className="text-xs font-bold text-stone-600">Selecione o Meio de Pagamento:</div>
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod('pix')}
-                      className={`cursor-pointer p-3 rounded-xl border flex flex-col items-center gap-1 transition ${
+                      onClick={() => {
+                        setPaymentMethod('pix');
+                        setAsaasError(null);
+                      }}
+                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
                         paymentMethod === 'pix' 
-                          ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold' 
+                          ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
                           : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
                       }`}
+                      id="payment-method-pix"
                     >
-                      <Landmark className="w-5 h-5 text-rose-500" />
-                      <span className="text-xs">Chave Pix</span>
+                      <Landmark className="w-4.5 h-4.5 text-rose-500" />
+                      <span className="text-[11px]">Chave Pix</span>
                     </button>
 
                     <button
                       type="button"
-                      disabled
-                      className={`cursor-not-allowed opacity-60 p-3 rounded-xl border flex flex-col items-center gap-1 transition-all border-stone-200 bg-stone-50 text-stone-400`}
-                      title="Cartão de crédito em desenvolvimento"
+                      onClick={() => {
+                        setPaymentMethod('credit_card');
+                        setAsaasError(null);
+                      }}
+                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === 'credit_card' 
+                          ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
+                          : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
+                      }`}
+                      id="payment-method-card"
                     >
-                      <CreditCard className="w-5 h-5" />
-                      <span className="text-xs">Cartão de Crédito</span>
-                      <span className="text-[9px] bg-stone-200 px-1.5 rounded-sm">Em breve</span>
+                      <CreditCard className="w-4.5 h-4.5 text-rose-500" />
+                      <span className="text-[11px]">Cartão</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('boleto');
+                        setAsaasError(null);
+                      }}
+                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === 'boleto' 
+                          ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
+                          : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
+                      }`}
+                      id="payment-method-boleto"
+                    >
+                      <FileText className="w-4.5 h-4.5 text-rose-500" />
+                      <span className="text-[11px]">Boleto</span>
                     </button>
                   </div>
 
@@ -723,64 +829,35 @@ export function Cart() {
                         <span className="text-xs font-bold text-stone-700">Pagamento Imediato via Pix</span>
                       </div>
 
-                      {!asaasData ? (
-                        <div className="space-y-4">
-                           <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
-                             Ao clicar em gerar pagamento, nosso sistema irá emitir a cobrança oficial e o QR Code Pix pelo banco Asaas.
-                           </p>
-                           {asaasError && (
-                             <div className="p-2 bg-red-50 text-red-600 text-xs rounded border border-red-200">
-                               {asaasError}
-                             </div>
-                           )}
-                           <button
-                             type="button"
-                             onClick={handleGenerateAsaasPix}
-                             disabled={isGeneratingPix || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId}
-                             className="cursor-pointer w-full py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors bg-white hover:bg-stone-100 text-stone-800 border-stone-300 disabled:opacity-50"
-                           >
-                             {isGeneratingPix ? 'Gerando cobrança...' : 'Gerar QR Code Pix (Asaas)'}
-                           </button>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
-                            Escaneie com o app de qualquer instituição bancária. Após o pagamento, confirme o pedido abaixo.
-                          </p>
+                      <p className="text-[10px] text-stone-500 leading-relaxed max-w-xs mx-auto">
+                        Escaneie com o app de qualquer instituição bancária. Chave registrada em nome do administrador no painel.
+                      </p>
 
-                          <div className="bg-white p-3 inline-block rounded-2xl border border-stone-200 shadow-xs mx-auto my-1">
-                            <img 
-                              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(asaasData.pixCopyPaste)}`} 
-                              alt="QR Code Pix" 
-                              className="w-40 h-40 object-contain mx-auto"
-                            />
-                          </div>
+                      <div className="bg-white p-3 inline-block rounded-2xl border border-stone-200 shadow-xs mx-auto my-1">
+                        <img 
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(generatePixCode(companySettings?.pixKey || 'admin@pix.com', companySettings?.pixName || 'Importação Admin', companySettings?.pixCity || 'Sao Paulo', finalTotalBRL))}`} 
+                          alt="QR Code Pix" 
+                          className="w-40 h-40 object-contain mx-auto"
+                        />
+                      </div>
 
-                          <button
-                            type="button"
-                            onClick={handleCopyPix}
-                            className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors ${
-                              copiedKey 
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                                : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-300'
-                            }`}
-                          >
-                            {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
-                            {copiedKey ? 'Copiado para Área de Transferência!' : 'Copiar Chave Pix (Copia e Cola)'}
-                          </button>
-                          
-                          {asaasData.invoiceUrl && (
-                             <a 
-                               href={asaasData.invoiceUrl} 
-                               target="_blank" 
-                               rel="noreferrer"
-                               className="text-[10px] text-rose-600 underline font-semibold block mt-2"
-                             >
-                               Visualizar Fatura Completa (Asaas)
-                             </a>
-                          )}
-                        </>
-                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const code = generatePixCode(companySettings?.pixKey || 'admin@pix.com', companySettings?.pixName || 'Importação Admin', companySettings?.pixCity || 'Sao Paulo', finalTotalBRL);
+                          await safeCopyText(code);
+                          setCopiedKey(true);
+                          setTimeout(() => setCopiedKey(false), 2500);
+                        }}
+                        className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition-colors ${
+                          copiedKey 
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                            : 'bg-white hover:bg-stone-100 text-stone-800 border-stone-300'
+                        }`}
+                      >
+                        {copiedKey ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-500" />}
+                        {copiedKey ? 'Copiado para Área de Transferência!' : 'Copiar Chave Pix (Copia e Cola)'}
+                      </button>
                     </div>
                   )}
 
@@ -896,7 +973,7 @@ export function Cart() {
               {/* ACTION BTN */}
               <button 
                 type="submit" 
-                disabled={isProcessing || isGeneratingPix || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId || (paymentMethod === 'pix' && !asaasData)}
+                disabled={isProcessing || !isProfileComplete || !acceptedConsent || !acceptedCustoms || !selectedShippingMethodId}
                 className="cursor-pointer w-full bg-rose-600 hover:bg-rose-700 disabled:bg-stone-300 disabled:text-stone-500 disabled:cursor-not-allowed text-white font-bold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md shadow-rose-100"
               >
                 {isProcessing ? 'Confirmando pedido...' : (

@@ -12,6 +12,65 @@ export function formatCurrency(value: number) {
   }).format(value);
 }
 
+export function calculateCRC16(payload: string): string {
+  let crc = 0xFFFF;
+  const polynomial = 0x1021;
+
+  for (let i = 0; i < payload.length; i++) {
+    const charCode = payload.charCodeAt(i);
+    for (let j = 0; j < 8; j++) {
+      const bit = ((charCode >> (7 - j)) & 1) === 1;
+      const c15 = ((crc >> 15) & 1) === 1;
+      crc <<= 1;
+      if (c15 !== bit) {
+        crc ^= polynomial;
+      }
+    }
+  }
+
+  crc &= 0xFFFF;
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+export function generatePixCode(key: string, name: string, city: string, amount: number): string {
+  const cleanKey = key.replace(/[^a-zA-Z0-9@.-]/g, '');
+  const cleanName = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .substring(0, 25);
+  const cleanCity = (city || 'SAO PAULO')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .substring(0, 15);
+
+  const keyLen = cleanKey.length.toString().padStart(2, '0');
+  const merchantAccountInfo = `0014br.gov.bcb.pix01${keyLen}${cleanKey}`;
+  const merchantAccountInfoLen = merchantAccountInfo.length.toString().padStart(2, '0');
+
+  const formattedAmount = amount.toFixed(2);
+  const amountLen = formattedAmount.length.toString().padStart(2, '0');
+
+  const nameLen = cleanName.length.toString().padStart(2, '0');
+  const cityLen = cleanCity.length.toString().padStart(2, '0');
+
+  const part1 = "000201";
+  const part2 = `26${merchantAccountInfoLen}${merchantAccountInfo}`;
+  const part3 = "52040000";
+  const part4 = "5303986";
+  const part5 = `54${amountLen}${formattedAmount}`;
+  const part6 = "5802BR";
+  const part7 = `59${nameLen}${cleanName}`;
+  const part8 = `60${cityLen}${cleanCity}`;
+  const part9 = "62070503***";
+  const part10 = "6304";
+
+  const payload = `${part1}${part2}${part3}${part4}${part5}${part6}${part7}${part8}${part9}${part10}`;
+  const crc = calculateCRC16(payload);
+  return `${payload}${crc}`;
+}
+
 export function generateTrackingId() {
   return 'TRK' + Math.random().toString(36).substring(2, 9).toUpperCase();
 }

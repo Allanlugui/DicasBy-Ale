@@ -5,7 +5,7 @@ import { useAppContext } from '../context';
 import { ImageInput } from '../components/ImageInput';
 import { Trash2 } from 'lucide-react';
 import { Order, OrderStatus, OrderEvent, Review } from '../types';
-import { formatCurrency, safeCopyText } from '../lib/utils';
+import { formatCurrency, safeCopyText, generatePixCode } from '../lib/utils';
 
 const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
   'PENDING_PAYMENT': Clock,
@@ -323,9 +323,7 @@ export function Tracking() {
               ? (order.finalShippingFeeBRL || order.shippingFeeBRL || 0)
               : order.totalBRL;
 
-            const formattedAmount = amount.toFixed(2);
-            const cleanKey = activePixKey.replace(/[^a-zA-Z0-9@.]/g, '');
-            const pixCode = `00020101021126580014br.gov.bcb.pix0140${cleanKey.length.toString().padStart(2, '0')}${cleanKey}5204000053039865405${formattedAmount.length.toString().padStart(2, '0')}${formattedAmount}5802BR59${activePixName.length.toString().padStart(2, '0')}${activePixName}60${activePixCity.length.toString().padStart(2, '0')}${activePixCity}62070503***6304`;
+            const pixCode = generatePixCode(activePixKey, activePixName, activePixCity, amount);
 
             const copyPix = async () => {
               await safeCopyText(pixCode);
