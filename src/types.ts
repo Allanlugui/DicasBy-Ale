@@ -296,3 +296,27 @@ export type SystemKnowledge = {
   updatedAt: string;
 };
 
+export type CartFeedback = {
+  id: string;
+  email: string;
+  score: number; // 1 to 5 stars or 1 to 10
+  ratingService: number; // 1 to 5 stars
+  ratingOffers: number;  // 1 to 5 stars
+  reason: 'price' | 'shipping' | 'delivery_time' | 'changed_mind' | 'other';
+  details?: string;
+  isPositive: boolean;
+  type: 'ABANDONMENT' | 'GENERAL';
+  productName?: string; // name of product that was removed
+  createdAt: string;
+};
+
+export type AbandonedEmailLog = {
+  id: string;
+  email: string;
+  productName: string;
+  productPrice: number;
+  status: 'SENT' | 'RECOVERED';
+  sentAt: string;
+};
+
+

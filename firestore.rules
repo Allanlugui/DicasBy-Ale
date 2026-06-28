@@ -218,5 +218,14 @@ service cloud.firestore {
       allow get: if isAdmin() || hasPermission('settings');
       allow write: if hasPermission('settings') || isAdmin();
     }
+
+    match /cartFeedbacks/{feedbackId} {
+      allow create: if true;
+      allow read, update, delete: if true;
+    }
+
+    match /abandonedEmailLogs/{logId} {
+      allow create, read, update, delete: if true;
+    }
   }
 }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge } from './types';
+import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge, CartFeedback, AbandonedEmailLog } from './types';
 import { generateTrackingId, cleanUndefined, safeStorage } from './lib/utils';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User, signInWithEmailLink, isSignInWithEmailLink, sendSignInLinkToEmail, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -148,6 +148,11 @@ interface AppContextType {
   deleteSystemKnowledge: (id: string) => Promise<void>;
   learnFromTicket: (ticketId: string) => Promise<void>;
   syncOrderWithERPs: (orderId: string) => Promise<void>;
+  cartFeedbacks: CartFeedback[];
+  abandonedEmailLogs: AbandonedEmailLog[];
+  addCartFeedback: (feedback: Omit<CartFeedback, 'id' | 'createdAt'>) => Promise<void>;
+  addAbandonedEmailLog: (log: Omit<AbandonedEmailLog, 'id' | 'sentAt'>) => Promise<void>;
+  updateAbandonedEmailLog: (id: string, status: 'SENT' | 'RECOVERED') => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -171,6 +176,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [coupons, setCoupons] = useState<DiscountCoupon[]>([]);
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [systemKnowledge, setSystemKnowledge] = useState<SystemKnowledge[]>([]);
+  const [cartFeedbacks, setCartFeedbacks] = useState<CartFeedback[]>([]);
+  const [abandonedEmailLogs, setAbandonedEmailLogs] = useState<AbandonedEmailLog[]>([]);
   const [dbQuotaExceeded, setDbQuotaExceeded] = useState(false);
 
   useEffect(() => {
@@ -344,6 +351,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     unsubs.push(onSnapshot(collection(db, 'systemKnowledge'), (snap) => {
       setSystemKnowledge(snap.docs.map(d => ({ id: d.id, ...d.data() } as SystemKnowledge)));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'systemKnowledge')));
+
+    unsubs.push(onSnapshot(collection(db, 'cartFeedbacks'), (snap) => {
+      setCartFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() } as CartFeedback)));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'cartFeedbacks')));
+
+    unsubs.push(onSnapshot(collection(db, 'abandonedEmailLogs'), (snap) => {
+      setAbandonedEmailLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as AbandonedEmailLog)));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'abandonedEmailLogs')));
 
     return () => unsubs.forEach(u => u());
   }, [isAdmin]);
@@ -1128,8 +1143,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await deleteDoc(doc(db, 'shippingMethods', id));
   };
 
+  const addCartFeedback = async (feedback: Omit<CartFeedback, 'id' | 'createdAt'>) => {
+    const ref = doc(collection(db, 'cartFeedbacks'));
+    const createdAt = new Date().toISOString();
+    await setDoc(ref, cleanUndefined({ ...feedback, id: ref.id, createdAt }));
+  };
+
+  const addAbandonedEmailLog = async (log: Omit<AbandonedEmailLog, 'id' | 'sentAt'>) => {
+    const ref = doc(collection(db, 'abandonedEmailLogs'));
+    const sentAt = new Date().toISOString();
+    await setDoc(ref, cleanUndefined({ ...log, id: ref.id, sentAt }));
+  };
+
+  const updateAbandonedEmailLog = async (id: string, status: 'SENT' | 'RECOVERED') => {
+    await updateDoc(doc(db, 'abandonedEmailLogs', id), { status });
+  };
+
   return (
-    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs }}>
+    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs, cartFeedbacks, abandonedEmailLogs, addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog }}>
       {children}
     </AppContext.Provider>
   );

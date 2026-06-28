@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight, Truck, FileText } from 'lucide-react';
+import { Trash2, CreditCard, Box, Plane, Info, ShoppingBag, Landmark, Copy, CheckCircle, ShieldAlert, FileWarning, ArrowRight, Truck, FileText, Star, Smile, Frown, Heart, Mail, Send } from 'lucide-react';
 import { useAppContext } from '../context';
 import { formatCurrency, safeCopyText, generatePixCode } from '../lib/utils';
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from '../types';
@@ -8,7 +8,9 @@ import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from '../types';
 export function Cart() {
   const { 
     user, orders, cart, removeFromCart, createOrder, profile, 
-    companySettings, calculateCartTotals, shippingMethods, coupons 
+    companySettings, calculateCartTotals, shippingMethods, coupons,
+    addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog,
+    abandonedEmailLogs
   } = useAppContext();
   const navigate = useNavigate();
   
@@ -18,6 +20,20 @@ export function Cart() {
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Cart abandonment and satisfaction survey state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [removedProduct, setRemovedProduct] = useState<{ id: string; name: string; priceBRL: number } | null>(null);
+  const [surveyScore, setSurveyScore] = useState<number>(5);
+  const [ratingService, setRatingService] = useState<number>(5);
+  const [ratingOffers, setRatingOffers] = useState<number>(5);
+  const [surveyReason, setSurveyReason] = useState<'price' | 'shipping' | 'delivery_time' | 'changed_mind' | 'other'>('price');
+  const [surveyDetails, setSurveyDetails] = useState('');
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
+  // Simulated email state
+  const [showRecoveryEmailModal, setShowRecoveryEmailModal] = useState(false);
+  const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
 
 
   // Payment Options State
@@ -116,6 +132,98 @@ export function Cart() {
   const shippingMax = estimatedShippingBRL + shippingMarginOfError;
 
   const finalTotalBRL = totalBRL + estimatedShippingBRL;
+
+  const handleRemoveProductWithFeedback = async (productId: string, productName: string, priceBRL: number) => {
+    setRemovedProduct({ id: productId, name: productName, priceBRL });
+    setSurveyScore(5);
+    setRatingService(5);
+    setRatingOffers(5);
+    setSurveyReason('price');
+    setSurveyDetails('');
+    setFeedbackSubmitted(false);
+    
+    setShowFeedbackModal(true);
+    
+    try {
+      await addAbandonedEmailLog({
+        email: user?.email || customerEmail || 'cliente@exemplo.com',
+        productName,
+        productPrice: priceBRL,
+        status: 'SENT'
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
+    removeFromCart(productId);
+  };
+
+  const handleSendFeedback = async () => {
+    if (!removedProduct) return;
+    try {
+      const isPositive = surveyScore >= 4;
+      await addCartFeedback({
+        email: user?.email || customerEmail || 'cliente@exemplo.com',
+        score: surveyScore,
+        ratingService,
+        ratingOffers,
+        reason: surveyReason,
+        details: surveyDetails,
+        isPositive,
+        type: 'ABANDONMENT',
+        productName: removedProduct.name
+      });
+      setFeedbackSubmitted(true);
+      setTimeout(() => {
+        setShowFeedbackModal(false);
+        setFeedbackSubmitted(false);
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSimulateForgetCart = async () => {
+    if (cart.length === 0) return;
+    const firstItem = cart[0];
+    
+    try {
+      await addAbandonedEmailLog({
+        email: user?.email || customerEmail || 'cliente_esqueceu@exemplo.com',
+        productName: firstItem.product.name,
+        productPrice: firstItem.product.priceBRL,
+        status: 'SENT'
+      });
+      setRecoveryEmailSent(true);
+      setShowRecoveryEmailModal(true);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleApplyRecoveryCoupon = async () => {
+    setAppliedCoupon({
+      id: 'recovery-10',
+      code: 'VOLTAPRAMIM',
+      type: 'PERCENT',
+      value: 10,
+      active: true,
+      usageCount: 0
+    });
+    
+    const userEmail = user?.email || customerEmail || 'cliente_esqueceu@exemplo.com';
+    const sentLogs = (abandonedEmailLogs || []).filter(l => l.email === userEmail && l.status === 'SENT');
+    if (sentLogs.length > 0) {
+      const lastSentLog = sentLogs[sentLogs.length - 1];
+      try {
+        await updateAbandonedEmailLog(lastSentLog.id, 'RECOVERED');
+      } catch (err) {
+        console.error("Error updating abandoned email log status:", err);
+      }
+    }
+    
+    setShowRecoveryEmailModal(false);
+  };
 
   const handleCopyPix = async () => {
     const textToCopy = asaasData?.pixCopyPaste || '';
@@ -540,6 +648,28 @@ export function Cart() {
 
       <h1 className="text-3xl font-display font-bold tracking-tight text-stone-900 mb-8">Finalizar Pedido</h1>
 
+      {/* PERSISTENT TESTING & SIMULATION BANNER */}
+      <div className="bg-amber-50 border border-amber-200/80 rounded-3xl p-5 mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-sm">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-1 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+              <Mail className="w-4 h-4" />
+            </span>
+            <h4 className="text-sm font-extrabold text-amber-950 uppercase tracking-wider">Simulador de Carrinho Esquecido (Abandono)</h4>
+          </div>
+          <p className="text-xs text-amber-900/80 leading-relaxed max-w-2xl">
+            Simule que você adicionou produtos e esqueceu de concluir a compra. Nosso sistema gera um <strong>e-mail persuasivo altamente convincente</strong> com um cupom de desconto especial para incentivar o cliente a retornar e finalizar o pedido.
+          </p>
+        </div>
+        <button 
+          onClick={handleSimulateForgetCart}
+          className="cursor-pointer bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4.5 py-3 rounded-xl transition shadow-sm border-none flex items-center gap-1.5 shrink-0"
+        >
+          <Send className="w-3.5 h-3.5" />
+          Simular E-mail
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* LEFT COLUMN: Cart Items & Profile completeness warning */}
@@ -601,7 +731,7 @@ export function Cart() {
                               ? 'Sob Encomenda' 
                               : formatCurrency(item.product.priceBRL * item.quantity)}
                           </span>
-                          <button onClick={() => removeFromCart(item.productId)} className="cursor-pointer text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition">
+                          <button onClick={() => handleRemoveProductWithFeedback(item.productId, item.product.name, item.product.priceBRL)} className="cursor-pointer text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition">
                             <Trash2 className="h-4.5 w-4.5" />
                           </button>
                        </div>
@@ -1069,6 +1199,259 @@ export function Cart() {
         </div>
 
       </div>
+
+      {/* FEEDBACK QUESTIONNAIRE MODAL */}
+      {showFeedbackModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full border border-stone-200 overflow-hidden shadow-2xl relative">
+            <button 
+              onClick={() => setShowFeedbackModal(false)}
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 cursor-pointer p-2 rounded-full hover:bg-stone-50 transition"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            {feedbackSubmitted ? (
+              <div className="p-8 text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-10 h-10" />
+                </div>
+                <h3 className="text-xl font-bold text-stone-900 font-display">Feedback Enviado com Sucesso!</h3>
+                <p className="text-xs text-stone-500 leading-relaxed max-w-sm mx-auto">
+                  Agradecemos imensamente por compartilhar sua avaliação. Sua opinião (positiva ou negativa) é crucial para monitorarmos nossa performance e qualidade.
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 md:p-8 space-y-6">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-rose-600 font-bold text-[10px] tracking-wider uppercase">
+                    <Heart className="w-3.5 h-3.5 fill-current" /> Pesquisa de Satisfação
+                  </div>
+                  <h3 className="text-lg font-bold text-stone-900 font-display">Ajude-nos a melhorar!</h3>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Vimos que você removeu o item <strong className="text-stone-800">"{removedProduct?.name}"</strong>. Compreender sua experiência nos ajuda a aprimorar nosso serviço e reter nossos clientes.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Score 1-10 Slider or clickable buttons */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-stone-700">
+                      Como você avalia sua satisfação geral com esta visita? ({surveyScore} / 10)
+                    </label>
+                    <div className="flex gap-1 justify-between">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+                        <button
+                          key={score}
+                          type="button"
+                          onClick={() => setSurveyScore(score)}
+                          className={`w-8 h-8 rounded-lg font-bold text-xs transition cursor-pointer flex items-center justify-center ${
+                            surveyScore === score
+                              ? score >= 8 
+                                ? 'bg-emerald-600 text-white' 
+                                : score >= 5 
+                                  ? 'bg-amber-500 text-white' 
+                                  : 'bg-rose-600 text-white'
+                              : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                          }`}
+                        >
+                          {score}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-stone-400 font-medium px-1">
+                      <span className="flex items-center gap-1"><Frown className="w-3.5 h-3.5 text-rose-400" /> Insatisfeito</span>
+                      <span className="flex items-center gap-1">Satisfeito <Smile className="w-3.5 h-3.5 text-emerald-400" /></span>
+                    </div>
+                  </div>
+
+                  {/* Rating Service and Rating Offers */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-stone-700">Qualidade das Ofertas / Preços:</label>
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setRatingOffers(star)}
+                            className="cursor-pointer text-amber-400 hover:scale-110 transition p-0.5"
+                          >
+                            <Star className={`w-5 h-5 ${ratingOffers >= star ? 'fill-current' : 'text-stone-300'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-stone-700">Qualidade de Atendimento:</label>
+                      <div className="flex gap-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setRatingService(star)}
+                            className="cursor-pointer text-amber-400 hover:scale-110 transition p-0.5"
+                          >
+                            <Star className={`w-5 h-5 ${ratingService >= star ? 'fill-current' : 'text-stone-300'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reason Selection */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-stone-700">Qual foi o motivo principal da desistência?</label>
+                    <select
+                      value={surveyReason}
+                      onChange={(e: any) => setSurveyReason(e.target.value)}
+                      className="w-full text-xs bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none"
+                    >
+                      <option value="price">💸 Preço do produto muito elevado</option>
+                      <option value="shipping">🚚 Custo do frete alto demais</option>
+                      <option value="delivery_time">⏱️ Prazo de entrega muito longo</option>
+                      <option value="changed_mind">🤷 Desisti de comprar / Mudei de ideia</option>
+                      <option value="other">📝 Outro motivo</option>
+                    </select>
+                  </div>
+
+                  {/* Suggestion Textarea */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-stone-700">O que poderíamos fazer para mudar sua opinião? (Opcional)</label>
+                    <textarea
+                      value={surveyDetails}
+                      onChange={(e) => setSurveyDetails(e.target.value)}
+                      rows={3}
+                      placeholder="Ex: Oferecer desconto extra, mais opções de frete rápido..."
+                      className="w-full text-xs bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 focus:ring-1 focus:ring-rose-500 focus:outline-none placeholder-stone-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFeedbackModal(false)}
+                    className="cursor-pointer bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold text-xs px-5 py-3 rounded-xl transition"
+                  >
+                    Ignorar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendFeedback}
+                    className="cursor-pointer bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs px-5 py-3 rounded-xl transition flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5" /> Enviar Avaliação
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SIMULATED ABANDONED CART EMAIL MODAL */}
+      {showRecoveryEmailModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
+          <div className="bg-stone-100 rounded-3xl max-w-2xl w-full border border-stone-300 overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">
+            {/* Window control bars */}
+            <div className="bg-stone-200 px-6 py-3 border-b border-stone-300 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-rose-500 inline-block" />
+                <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
+                <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
+                <span className="text-xs font-bold text-stone-500 ml-2 font-mono">Caixa de Entrada - Outlook / Gmail</span>
+              </div>
+              <button 
+                onClick={() => setShowRecoveryEmailModal(false)}
+                className="text-stone-500 hover:text-stone-800 cursor-pointer text-xs font-bold font-mono"
+              >
+                [ FECHAR ]
+              </button>
+            </div>
+
+            {/* Email headers */}
+            <div className="bg-white px-6 py-4 border-b border-stone-100 text-xs text-stone-600 space-y-1.5 shrink-0">
+              <div><strong>De:</strong> ImportaGringa VIP &lt;<span className="text-rose-600 font-mono">vip@importagringa.com</span>&gt;</div>
+              <div><strong>Para:</strong> {user?.email || customerEmail || 'cliente@exemplo.com'}</div>
+              <div><strong>Assunto:</strong> <span className="text-stone-900 font-bold">🛒 Só hoje! Separamos seu {cart[0]?.product.name || 'item'} com desconto extra de 10% + Frete Seguro</span></div>
+            </div>
+
+            {/* Email content viewport */}
+            <div className="overflow-y-auto p-6 flex-grow bg-stone-50">
+              <div className="bg-white rounded-2xl border border-stone-200/60 p-6 md:p-8 max-w-lg mx-auto shadow-xs text-stone-800 space-y-6">
+                <div className="text-center pb-4 border-b border-stone-100">
+                  <h2 className="text-xl font-display font-black tracking-tight text-stone-900">ImportaGringa VIP</h2>
+                  <span className="text-[10px] text-stone-400 uppercase tracking-widest font-bold">Assessoria de Importações de Luxo</span>
+                </div>
+
+                <div className="space-y-4 text-xs md:text-sm leading-relaxed text-stone-700">
+                  <p>Olá, <strong className="text-stone-900">{customerName || 'Cliente ImportaGringa'}</strong>!</p>
+                  
+                  <p>
+                    Percebemos que você adicionou o sensacional <strong className="text-stone-900">{cart[0]?.product.name || 'produto'}</strong> na sua sacola de importação, mas acabou saindo sem concluir o pedido.
+                  </p>
+
+                  <div className="bg-rose-50/50 rounded-2xl p-4 border border-rose-100 flex gap-4 items-center">
+                    {cart[0]?.product.imageUrl && (
+                      <img 
+                        src={cart[0].product.imageUrl} 
+                        alt="Produto" 
+                        className="w-16 h-16 rounded-xl object-cover border border-stone-200 bg-white" 
+                      />
+                    )}
+                    <div>
+                      <h4 className="text-xs font-bold text-stone-900">{cart[0]?.product.name}</h4>
+                      <p className="text-[11px] text-stone-500 mt-0.5">Disponível em estoque americano</p>
+                      <span className="font-bold text-xs text-rose-600 mt-1 block">{formatCurrency(cart[0]?.product.priceBRL || 0)}</span>
+                    </div>
+                  </div>
+
+                  <p>
+                    Não se preocupe! Nós reservamos as quotas alfandegárias deste item por tempo limitado. Para te ajudar a realizar este sonho e garantir frete com tarifas reduzidas na nossa assessoria, liberamos um cupom especial de <strong>10% de DESCONTO</strong> imediato!
+                  </p>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center space-y-2">
+                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Seu Cupom Exclusivo de Recuperação</span>
+                    <span className="font-mono text-xl font-black text-amber-950 bg-white border border-amber-300 px-4 py-1.5 rounded-lg inline-block select-all tracking-widest">
+                      VOLTAPRAMIM
+                    </span>
+                    <span className="text-[10px] text-amber-600 block">Válido pelas próximas 2 horas</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-center">
+                  <button
+                    onClick={() => {
+                      handleApplyRecoveryCoupon();
+                      // Also update the status of this log to RECOVERED in abandonedEmailLogs
+                    }}
+                    className="cursor-pointer bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-6 py-3.5 rounded-xl transition shadow-lg shadow-rose-100 inline-flex items-center gap-2 border-none"
+                  >
+                    <ShoppingBag className="w-4 h-4" /> Aplicar Cupom e Finalizar Compra!
+                  </button>
+                  <p className="text-[10px] text-stone-400 mt-3 leading-relaxed">
+                    Clique no botão acima para aplicar o cupom automaticamente e voltar à finalização!
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Email footer actions */}
+            <div className="bg-stone-50 px-6 py-4 border-t border-stone-200 flex justify-between items-center text-xs shrink-0">
+              <span className="text-stone-400 font-mono text-[10px]">E-mail de Abandono de Carrinho Simulado</span>
+              <button 
+                onClick={() => setShowRecoveryEmailModal(false)}
+                className="cursor-pointer bg-stone-200 hover:bg-stone-300 text-stone-700 font-bold px-4 py-2 rounded-lg transition"
+              >
+                Voltar à Loja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

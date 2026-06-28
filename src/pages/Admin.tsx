@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell, Download, Brain, Sparkles, BookOpen, Clock, Pause } from 'lucide-react';
+import { Settings, Plus, RefreshCw, Upload, Image as ImageIcon, Link as LinkIcon, Store as StoreIcon, Trash2, Edit2, Search, MessageSquare, Star, Mail, Eraser, FileText, TrendingUp, DollarSign, CheckCircle, AlertCircle, XCircle, Filter, Percent, Users, Truck, Scale, Bell, Download, Brain, Sparkles, BookOpen, Clock, Pause, Smile, Frown } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { useAppContext } from '../context';
-import { OrderStatus, Product, Store, Ticket, Review, TicketMessage, Order, SystemNotification, SystemKnowledge } from '../types';
+import { OrderStatus, Product, Store, Ticket, Review, TicketMessage, Order, SystemNotification, SystemKnowledge, CartFeedback, AbandonedEmailLog } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { jsPDF } from 'jspdf';
 
@@ -235,6 +235,317 @@ export function ReviewsTab({ reviews }: { reviews: Review[] }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+export function SatisfactionTab() {
+  const { cartFeedbacks = [], abandonedEmailLogs = [] } = useAppContext();
+
+  const totalFeedbacks = cartFeedbacks.length;
+  const totalEmailsSent = abandonedEmailLogs.length;
+  const totalEmailsRecovered = abandonedEmailLogs.filter(l => l.status === 'RECOVERED').length;
+  
+  const recoveryRate = totalEmailsSent > 0 
+    ? Math.round((totalEmailsRecovered / totalEmailsSent) * 100) 
+    : 0;
+
+  const avgSatisfactionScore = totalFeedbacks > 0 
+    ? Number((cartFeedbacks.reduce((sum, f) => sum + (f.score || 0), 0) / totalFeedbacks).toFixed(1))
+    : 0;
+
+  const avgServiceRating = totalFeedbacks > 0
+    ? Number((cartFeedbacks.reduce((sum, f) => sum + (f.ratingService || 0), 0) / totalFeedbacks).toFixed(1))
+    : 0;
+
+  const avgOffersRating = totalFeedbacks > 0
+    ? Number((cartFeedbacks.reduce((sum, f) => sum + (f.ratingOffers || 0), 0) / totalFeedbacks).toFixed(1))
+    : 0;
+
+  const reasonsCount = {
+    price: 0,
+    shipping: 0,
+    delivery_time: 0,
+    changed_mind: 0,
+    other: 0
+  };
+
+  cartFeedbacks.forEach(f => {
+    if (f.reason && f.reason in reasonsCount) {
+      reasonsCount[f.reason as keyof typeof reasonsCount]++;
+    } else {
+      reasonsCount.other++;
+    }
+  });
+
+  const getReasonPercentage = (key: keyof typeof reasonsCount) => {
+    if (totalFeedbacks === 0) return 0;
+    return Math.round((reasonsCount[key] / totalFeedbacks) * 100);
+  };
+
+  const positiveFeedbacks = cartFeedbacks.filter(f => (f.score || 0) >= 7).length;
+  const negativeFeedbacks = totalFeedbacks - positiveFeedbacks;
+  const positivePercentage = totalFeedbacks > 0 ? Math.round((positiveFeedbacks / totalFeedbacks) * 100) : 0;
+  const negativePercentage = totalFeedbacks > 0 ? 100 - positivePercentage : 0;
+
+  return (
+    <div className="space-y-8">
+      {/* Metrics Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs flex items-center gap-4">
+          <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl">
+            <Smile className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Satisfação Geral</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black text-stone-900">{avgSatisfactionScore}</span>
+              <span className="text-xs text-stone-400 font-bold">/ 10 NPS</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs flex items-center gap-4">
+          <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl">
+            <Mail className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Fidelização de Clientes</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black text-stone-900">{totalEmailsSent}</span>
+              <span className="text-xs text-stone-400 font-semibold">Envios de Recuperação</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs flex items-center gap-4">
+          <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Carrinhos Recuperados</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black text-stone-900">{totalEmailsRecovered}</span>
+              <span className="text-xs text-stone-400 font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md ml-1">{recoveryRate}% taxa</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs flex items-center gap-4">
+          <div className="p-4 bg-stone-50 text-stone-600 rounded-2xl">
+            <MessageSquare className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-stone-400 tracking-wider block">Feedbacks de Desistência</span>
+            <div className="flex items-baseline gap-1.5 mt-0.5">
+              <span className="text-3xl font-black text-stone-900">{totalFeedbacks}</span>
+              <span className="text-xs text-stone-400 font-semibold">Formulários Respondidos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Breakdown Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs space-y-6">
+            <h3 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider pb-3 border-b border-stone-100">Performance de Serviço</h3>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-xs font-bold text-stone-700 block">Qualidade de Atendimento</span>
+                  <span className="text-[11px] text-stone-400">Feedback direto do cliente</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-base font-black text-stone-900 block">{avgServiceRating} / 5.0</span>
+                  <div className="flex text-amber-400 gap-0.5 mt-0.5">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Star key={s} className={`w-3 h-3 ${Math.round(avgServiceRating) >= s ? 'fill-current' : 'text-stone-200'}`} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <div>
+                  <span className="text-xs font-bold text-stone-700 block">Qualidade das Ofertas</span>
+                  <span className="text-[11px] text-stone-400">Adequação de preços e marcas</span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-base font-black text-stone-900 block">{avgOffersRating} / 5.0</span>
+                  <div className="flex text-amber-400 gap-0.5 mt-0.5">
+                    {[1, 2, 3, 4, 5].map(s => (
+                      <Star key={s} className={`w-3 h-3 ${Math.round(avgOffersRating) >= s ? 'fill-current' : 'text-stone-200'}`} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-100 space-y-2">
+              <div className="flex justify-between text-xs font-bold">
+                <span className="text-emerald-700">Promotores (Score 7-10): {positivePercentage}%</span>
+                <span className="text-rose-600">Detratores (Score 1-6): {negativePercentage}%</span>
+              </div>
+              <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden flex">
+                <div className="bg-emerald-500 h-full" style={{ width: `${positivePercentage}%` }} />
+                <div className="bg-rose-500 h-full" style={{ width: `${negativePercentage}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs space-y-4">
+            <h3 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider pb-3 border-b border-stone-100">Causas de Abandono</h3>
+            
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <div className="flex justify-between font-bold text-stone-700">
+                  <span>💸 Preço do produto elevado</span>
+                  <span className="font-mono">{getReasonPercentage('price')}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="bg-rose-500 h-full" style={{ width: `${getReasonPercentage('price')}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-bold text-stone-700">
+                  <span>🚚 Custo do frete alto</span>
+                  <span className="font-mono">{getReasonPercentage('shipping')}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="bg-amber-500 h-full" style={{ width: `${getReasonPercentage('shipping')}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-bold text-stone-700">
+                  <span>⏱️ Prazo de entrega longo</span>
+                  <span className="font-mono">{getReasonPercentage('delivery_time')}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="bg-blue-500 h-full" style={{ width: `${getReasonPercentage('delivery_time')}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-bold text-stone-700">
+                  <span>🤷 Desisti de comprar</span>
+                  <span className="font-mono">{getReasonPercentage('changed_mind')}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="bg-stone-500 h-full" style={{ width: `${getReasonPercentage('changed_mind')}%` }} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between font-bold text-stone-700">
+                  <span>📝 Outro motivo</span>
+                  <span className="font-mono">{getReasonPercentage('other')}%</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
+                  <div className="bg-stone-300 h-full" style={{ width: `${getReasonPercentage('other')}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs space-y-4">
+            <h3 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider pb-3 border-b border-stone-100">Avaliações de Desistência Recebidas</h3>
+            {cartFeedbacks.length === 0 ? (
+              <p className="text-xs text-stone-400 py-6 text-center">Nenhum formulário de avaliação recebido ainda nesta sessão.</p>
+            ) : (
+              <div className="divide-y divide-stone-100 max-h-[350px] overflow-y-auto pr-2 space-y-4">
+                {cartFeedbacks.map((fb) => (
+                  <div key={fb.id} className="pt-4 first:pt-0 space-y-2">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <span className="text-xs font-bold text-stone-800">{fb.email}</span>
+                        <span className="text-[10px] text-stone-400 font-mono block">{fb.createdAt ? new Date(fb.createdAt).toLocaleString('pt-BR') : ''}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          fb.score >= 8 
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                            : fb.score >= 5 
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200' 
+                              : 'bg-rose-50 text-rose-800 border border-rose-200'
+                        }`}>
+                          Nota Geral: {fb.score} / 10
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-stone-50 p-3 rounded-xl border border-stone-150/60 text-xs space-y-1">
+                      <div>
+                        <strong className="text-stone-900">Item Removido:</strong> <span className="text-stone-600 font-medium">"{fb.productName}"</span>
+                      </div>
+                      <div>
+                        <strong className="text-stone-900">Motivo:</strong>{' '}
+                        <span className="text-stone-600">
+                          {fb.reason === 'price' && '💸 Preço muito elevado'}
+                          {fb.reason === 'shipping' && '🚚 Custo de frete alto'}
+                          {fb.reason === 'delivery_time' && '⏱️ Prazo de entrega longo'}
+                          {fb.reason === 'changed_mind' && '🤷 Desistiu de comprar'}
+                          {fb.reason === 'other' && '📝 Outro motivo'}
+                        </span>
+                      </div>
+                      {fb.details && (
+                        <div className="mt-1.5 pt-1.5 border-t border-stone-200/50 italic text-stone-500">
+                          "{fb.details}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white p-6 rounded-3xl border border-stone-150 shadow-xs space-y-4">
+            <h3 className="text-sm font-extrabold text-stone-900 uppercase tracking-wider pb-3 border-b border-stone-100">Disparos de Recuperação de Carrinho</h3>
+            {abandonedEmailLogs.length === 0 ? (
+              <p className="text-xs text-stone-400 py-6 text-center">Nenhum e-mail de abandono enviado ou simulado ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-stone-150 text-stone-400 uppercase tracking-widest text-[9px] font-extrabold">
+                      <th className="pb-3 font-bold">Destinatário</th>
+                      <th className="pb-3 font-bold">Produto</th>
+                      <th className="pb-3 font-bold">Preço</th>
+                      <th className="pb-3 font-bold">Data de Envio</th>
+                      <th className="pb-3 font-bold text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {abandonedEmailLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-stone-50/50 transition-colors">
+                        <td className="py-3 font-medium text-stone-800">{log.email}</td>
+                        <td className="py-3 text-stone-600 max-w-[150px] truncate">{log.productName}</td>
+                        <td className="py-3 font-mono font-bold text-stone-950">{formatCurrency(log.productPrice)}</td>
+                        <td className="py-3 text-stone-400">{log.sentAt ? new Date(log.sentAt).toLocaleString('pt-BR') : ''}</td>
+                        <td className="py-3 text-right">
+                          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+                            log.status === 'RECOVERED'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/50'
+                              : 'bg-amber-50 text-amber-800 border border-amber-200/50'
+                          }`}>
+                            {log.status === 'RECOVERED' ? '🎉 Recuperado' : '✉️ Enviado'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -487,20 +798,21 @@ function ShippingMethodsTab() {
 
 export function Admin() {
   const { collaborator, user, orders, stores, products, tickets, reviews, updateOrderStatus, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, updateTicket, notifications, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge } = useAppContext();
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'settings' | 'team' | 'shipping' | 'highlights' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | 'integration_logs' | null>(null);
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'stores' | 'tickets' | 'reviews' | 'satisfaction' | 'settings' | 'team' | 'shipping' | 'highlights' | 'quotes' | 'documents' | 'customers' | 'notifications' | 'coupons' | 'shipping_methods' | 'inventory' | 'knowledge' | 'integration_logs' | null>(null);
 
   const hasPermission = (perm: string) => {
     if (user?.email === 'jallanluiz@gmail.com') return true;
     if (!collaborator) return false;
     // Allow access to highlights if they have products or stores permission
     if (perm === 'highlights') return collaborator.permissions.includes('products') || collaborator.permissions.includes('stores');
+    if (perm === 'satisfaction') return collaborator.permissions.includes('reviews') || collaborator.permissions.includes('settings');
     return collaborator.permissions.includes(perm);
   };
 
   // Automatically select the first visible/permitted tab on load or profile load
   useEffect(() => {
     const tabs: (typeof activeTab)[] = [
-      'orders', 'products', 'stores', 'highlights', 'tickets', 'team', 'shipping', 'reviews', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory', 'knowledge'
+      'orders', 'products', 'stores', 'highlights', 'tickets', 'team', 'shipping', 'reviews', 'satisfaction', 'settings', 'quotes', 'documents', 'customers', 'coupons', 'shipping_methods', 'inventory', 'knowledge'
     ];
     const allowed = tabs.find(t => {
       if (t === 'shipping') return hasPermission('orders');
@@ -510,6 +822,7 @@ export function Admin() {
       if (t === 'coupons') return hasPermission('settings');
       if (t === 'shipping_methods') return hasPermission('settings');
       if (t === 'knowledge') return hasPermission('tickets');
+      if (t === 'satisfaction') return hasPermission('reviews') || hasPermission('settings');
       return t && hasPermission(t);
     });
     if (allowed) {
@@ -628,8 +941,17 @@ export function Admin() {
             onClick={() => setActiveTab('reviews')}
             className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === 'reviews' ? 'text-rose-600' : 'text-stone-500 hover:text-stone-800'}`}
           >
-            Satisfação
+            Satisfação (Reviews)
             {activeTab === 'reviews' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
+          </button>
+        )}
+        {(hasPermission('reviews') || hasPermission('settings')) && (
+          <button 
+            onClick={() => setActiveTab('satisfaction')}
+            className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === 'satisfaction' ? 'text-rose-600' : 'text-stone-500 hover:text-stone-800'}`}
+          >
+            Fidelização & NPS
+            {activeTab === 'satisfaction' && <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>}
           </button>
         )}
         {hasPermission('settings') && (
@@ -706,6 +1028,7 @@ export function Admin() {
       {activeTab === 'team' && hasPermission('team') && <AdminCollaboratorsTab />}
       {activeTab === 'shipping' && hasPermission('orders') && <AdminShippingLabelsTab orders={orders} />}
       {activeTab === 'reviews' && hasPermission('reviews') && <ReviewsTab reviews={reviews} />}
+      {activeTab === 'satisfaction' && (hasPermission('reviews') || hasPermission('settings')) && <SatisfactionTab />}
       {activeTab === 'settings' && hasPermission('settings') && <AdminSettingsTab />}
       {activeTab === 'integration_logs' && hasPermission('settings') && <AdminIntegrationLogsTab />}
       {activeTab === 'quotes' && (hasPermission('orders') || hasPermission('products')) && <AdminQuotesTab />}

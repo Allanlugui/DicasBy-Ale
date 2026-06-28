@@ -159,6 +159,39 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "title", "description", "category", "createdAt", "updatedAt"]
+    },
+    "CartFeedback": {
+      "title": "CartFeedback",
+      "description": "Customer satisfaction feedback and cart abandonment survey responses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "score": { "type": "number" },
+        "ratingService": { "type": "number" },
+        "ratingOffers": { "type": "number" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "isPositive": { "type": "boolean" },
+        "type": { "type": "string" },
+        "productName": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "score", "ratingService", "ratingOffers", "reason", "isPositive", "type", "createdAt"]
+    },
+    "AbandonedEmailLog": {
+      "title": "AbandonedEmailLog",
+      "description": "Logs of simulated abandoned cart emails sent to customers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "productName": { "type": "string" },
+        "productPrice": { "type": "number" },
+        "status": { "type": "string" },
+        "sentAt": { "type": "string" }
+      },
+      "required": ["id", "email", "productName", "productPrice", "status", "sentAt"]
     }
   },
   "firestore": {
@@ -197,6 +230,14 @@
     "/systemKnowledge/{factId}": {
       "schema": "SystemKnowledge",
       "description": "Regenerative AI persistent knowledge and learned system operations rules"
+    },
+    "/cartFeedbacks/{feedbackId}": {
+      "schema": "CartFeedback",
+      "description": "Client feedback and customer satisfaction scores"
+    },
+    "/abandonedEmailLogs/{logId}": {
+      "schema": "AbandonedEmailLog",
+      "description": "Simulated abandoned cart emails and recovery stats"
     }
   }
 }
