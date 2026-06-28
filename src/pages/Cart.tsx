@@ -21,6 +21,7 @@ import {
   Heart,
   Mail,
   Send,
+  AlertCircle,
 } from "lucide-react";
 import { useAppContext } from "../context";
 import { formatCurrency, safeCopyText, generatePixCode } from "../lib/utils";
@@ -1559,6 +1560,13 @@ export function Cart() {
                       </label>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {asaasError && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-sm font-medium animate-fade-in flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <span>{asaasError}</span>
                 </div>
               )}
 

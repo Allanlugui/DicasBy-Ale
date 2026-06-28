@@ -541,6 +541,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const createOrder = async (customerName: string, customerEmail: string, couponCode?: string, discountBRL?: number, extraOrderFields?: Partial<Order>) => {
     if (!user) throw new Error("Need to be logged in to order");
     
+    // Validate Stock Before Order Creation
+    for (const item of cart) {
+      const baseId = item.productId.split('-')[0];
+      const dbProduct = products.find(p => p.id === baseId);
+      
+      if (!dbProduct) {
+        throw new Error(`Produto não encontrado: ${item.product.name}`);
+      }
+
+      if (dbProduct.stockType === 'IN_STOCK') {
+        const itemSku = item.product.sku;
+        
+        if (dbProduct.variants && dbProduct.variants.length > 0) {
+          const variant = dbProduct.variants.find(v => v.sku === itemSku);
+          if (!variant) {
+            // Se for um item de encomenda especial (sem estoque), podemos pular a validação ou tratar como PARTNER_STORE
+            if (item.product.stockType === 'PARTNER_STORE') continue;
+            throw new Error(`Variação não encontrada para: ${item.product.name}`);
+          }
+          if (variant.stock < item.quantity) {
+             throw new Error(`Estoque insuficiente para: ${item.product.name} (Disponível: ${variant.stock})`);
+          }
+        } else {
+          if ((dbProduct.inventory || 0) < item.quantity) {
+             throw new Error(`Estoque insuficiente para: ${item.product.name} (Disponível: ${dbProduct.inventory || 0})`);
+          }
+        }
+      }
+    }
+
     // Find coupon if code provided
     let appliedCoupon: DiscountCoupon | undefined = undefined;
     if (couponCode) {
@@ -583,6 +613,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const cleanedOrder = cleanUndefined(newOrder);
     await setDoc(doc(db, 'orders', orderId), cleanedOrder);
+    
+    // Decrease Stock in Database
+    for (const item of cart) {
+      const baseId = item.productId.split('-')[0];
+      const dbProduct = products.find(p => p.id === baseId);
+      if (dbProduct && dbProduct.stockType === 'IN_STOCK' && item.product.stockType !== 'PARTNER_STORE') {
+        const itemSku = item.product.sku;
+        if (dbProduct.variants && dbProduct.variants.length > 0) {
+           const updatedVariants = dbProduct.variants.map(v => {
+             if (v.sku === itemSku) {
+               return { ...v, stock: Math.max(0, v.stock - item.quantity) };
+             }
+             return v;
+           });
+           // Use updateDoc directly to ensure immediate sync
+           await updateDoc(doc(db, 'products', baseId), { variants: updatedVariants });
+        } else {
+           const newInventory = Math.max(0, (dbProduct.inventory || 0) - item.quantity);
+           await updateDoc(doc(db, 'products', baseId), { inventory: newInventory });
+        }
+      }
+    }
+
     
     // Trigger purchase email notification automatically
     fetch('/api/orders/notify-new-sale', {
