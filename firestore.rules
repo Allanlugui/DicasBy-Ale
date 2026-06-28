@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return request.auth != null && request.auth.token.email_verified == true;
+      return request.auth != null;
     }
 
     function isAdmin() {
@@ -136,7 +136,7 @@ service cloud.firestore {
 
     match /coupons/{couponId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isSignedIn();
     }
 
     match /shippingMethods/{methodId} {

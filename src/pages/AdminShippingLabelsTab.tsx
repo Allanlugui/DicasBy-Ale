@@ -1,42 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Order, UserProfile, OrderStatus } from '../types';
-import { Printer, CheckSquare, Square, Truck, Tag, QrCode, ClipboardList, Package, Info, Search, RefreshCw, AlertCircle } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
-import { useAppContext } from '../context';
+import React, { useState, useEffect } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { Order, UserProfile, OrderStatus } from "../types";
+import {
+  Printer,
+  CheckSquare,
+  Square,
+  Truck,
+  Tag,
+  QrCode,
+  ClipboardList,
+  Package,
+  Info,
+  Search,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
+import { formatCurrency } from "../lib/utils";
+import { useAppContext } from "../context";
 
 // Generates a mathematically accurate, physically scannable barcode SVG string for printing Compatibility
 function getBarcodeSvgHtml(value: string) {
   const getBarPattern = (char: string) => {
     const table: { [key: string]: string } = {
-      '0': '10100110110', '1': '11010010110', '2': '11011010010', '3': '11011011010',
-      '4': '10011010110', '5': '10011011010', '6': '10110010110', '7': '10110011010',
-      '8': '10110110010', '9': '10110110110', 'A': '11010100110', 'B': '11010110010',
-      'C': '11011010100', 'D': '11011011010', 'E': '11011011010', 'F': '10110110110',
-      '-': '10110111010', 'U': '11001101010', 'S': '11011001010',
-      'R': '11010110010'
+      "0": "10100110110",
+      "1": "11010010110",
+      "2": "11011010010",
+      "3": "11011011010",
+      "4": "10011010110",
+      "5": "10011011010",
+      "6": "10110010110",
+      "7": "10110011010",
+      "8": "10110110010",
+      "9": "10110110110",
+      A: "11010100110",
+      B: "11010110010",
+      C: "11011010100",
+      D: "11011011010",
+      E: "11011011010",
+      F: "10110110110",
+      "-": "10110111010",
+      U: "11001101010",
+      S: "11011001010",
+      R: "11010110010",
     };
-    return table[char.toUpperCase()] || '10101101100';
+    return table[char.toUpperCase()] || "10101101100";
   };
 
-  const cleanVal = value.replace(/[^A-Za-z0-9-]/g, '');
-  let binaryString = '11010010110'; // Start character
+  const cleanVal = value.replace(/[^A-Za-z0-9-]/g, "");
+  let binaryString = "11010010110"; // Start character
   for (let i = 0; i < cleanVal.length; i++) {
     binaryString += getBarPattern(cleanVal[i]);
   }
-  binaryString += '1100011101011'; // Stop character
+  binaryString += "1100011101011"; // Stop character
 
   const barWidth = 1.8;
   const barcodeHeight = 45;
   const totalWidth = binaryString.length * barWidth;
 
-  const rects = binaryString.split('').map((bit, idx) => {
-    if (bit === '1') {
-      return `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${barcodeHeight}" />`;
-    }
-    return '';
-  }).join('');
+  const rects = binaryString
+    .split("")
+    .map((bit, idx) => {
+      if (bit === "1") {
+        return `<rect x="${idx * barWidth}" y="0" width="${barWidth}" height="${barcodeHeight}" />`;
+      }
+      return "";
+    })
+    .join("");
 
   return `
     <svg width="280px" height="${barcodeHeight}px" viewBox="0 0 ${totalWidth} ${barcodeHeight}" preserveAspectRatio="none" style="display: block; margin: 0 auto;">
@@ -52,22 +82,36 @@ function BarcodeSvg({ value }: { value: string }) {
   // Convert value characters to binary-like stripes
   const getBarPattern = (char: string) => {
     const table: { [key: string]: string } = {
-      '0': '10100110110', '1': '11010010110', '2': '11011010010', '3': '11011011010',
-      '4': '10011010110', '5': '10011011010', '6': '10110010110', '7': '10110011010',
-      '8': '10110110010', '9': '10110110110', 'A': '11010100110', 'B': '11010110010',
-      'C': '11011010100', 'D': '11011011010', 'E': '11011011010', 'F': '10110110110',
-      '-': '10110111010', 'U': '11001101010', 'S': '11011001010',
-      'R': '11010110010'
+      "0": "10100110110",
+      "1": "11010010110",
+      "2": "11011010010",
+      "3": "11011011010",
+      "4": "10011010110",
+      "5": "10011011010",
+      "6": "10110010110",
+      "7": "10110011010",
+      "8": "10110110010",
+      "9": "10110110110",
+      A: "11010100110",
+      B: "11010110010",
+      C: "11011010100",
+      D: "11011011010",
+      E: "11011011010",
+      F: "10110110110",
+      "-": "10110111010",
+      U: "11001101010",
+      S: "11011001010",
+      R: "11010110010",
     };
-    return table[char.toUpperCase()] || '10101101100';
+    return table[char.toUpperCase()] || "10101101100";
   };
 
-  const cleanVal = value.replace(/[^A-Za-z0-9-]/g, '');
-  let binaryString = '11010010110'; // Start character
+  const cleanVal = value.replace(/[^A-Za-z0-9-]/g, "");
+  let binaryString = "11010010110"; // Start character
   for (let i = 0; i < cleanVal.length; i++) {
     binaryString += getBarPattern(cleanVal[i]);
   }
-  binaryString += '1100011101011'; // Stop character
+  binaryString += "1100011101011"; // Stop character
 
   const barWidth = 2.5;
   const barcodeHeight = 55;
@@ -75,10 +119,16 @@ function BarcodeSvg({ value }: { value: string }) {
 
   return (
     <div className="flex flex-col items-center select-none bg-white p-1">
-      <svg width="100%" height={barcodeHeight} viewBox={`0 0 ${totalWidth} ${barcodeHeight}`} preserveAspectRatio="none" className="block">
+      <svg
+        width="100%"
+        height={barcodeHeight}
+        viewBox={`0 0 ${totalWidth} ${barcodeHeight}`}
+        preserveAspectRatio="none"
+        className="block"
+      >
         <g fill="black">
-          {binaryString.split('').map((bit, idx) => {
-            if (bit === '1') {
+          {binaryString.split("").map((bit, idx) => {
+            if (bit === "1") {
               return (
                 <rect
                   key={idx}
@@ -100,40 +150,51 @@ function BarcodeSvg({ value }: { value: string }) {
   );
 }
 
-export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Order[] }) {
+export function AdminShippingLabelsTab({
+  orders: initialOrders,
+}: {
+  orders: Order[];
+}) {
   const { companySettings } = useAppContext();
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string>('PAYMENT_RECEIVED'); // Default to newly paid/sold
-  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>("PAYMENT_RECEIVED"); // Default to newly paid/sold
+  const [searchTerm, setSearchTerm] = useState("");
   const [loadingProfiles, setLoadingProfiles] = useState(true);
 
   // Fetch all user profiles to match addresses
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'profiles'), (snap) => {
-      setProfiles(snap.docs.map(doc => doc.data() as UserProfile));
-      setLoadingProfiles(false);
-    }, (err) => {
-      console.error('Error fetching profiles:', err);
-      setLoadingProfiles(false);
-    });
+    const unsub = onSnapshot(
+      collection(db, "profiles"),
+      (snap) => {
+        setProfiles(snap.docs.map((doc) => doc.data() as UserProfile));
+        setLoadingProfiles(false);
+      },
+      (err) => {
+        console.error("Error fetching profiles:", err);
+        setLoadingProfiles(false);
+      },
+    );
     return unsub;
   }, []);
 
   // Filter orders related to shipping/logistics phases
   const getShippingCandidateOrders = () => {
-    let candidates = initialOrders.filter(o => o.status !== 'CANCELLED' && o.status !== 'PENDING_PAYMENT');
-    
-    if (statusFilter !== 'ALL') {
-      candidates = candidates.filter(o => o.status === statusFilter);
+    let candidates = initialOrders.filter(
+      (o) => o.status !== "CANCELLED" && o.status !== "PENDING_PAYMENT",
+    );
+
+    if (statusFilter !== "ALL") {
+      candidates = candidates.filter((o) => o.status === statusFilter);
     }
 
-    if (searchTerm.trim() !== '') {
+    if (searchTerm.trim() !== "") {
       const term = searchTerm.toLowerCase();
-      candidates = candidates.filter(o =>
-        o.trackingId.toLowerCase().includes(term) ||
-        o.customerName.toLowerCase().includes(term) ||
-        o.customerEmail.toLowerCase().includes(term)
+      candidates = candidates.filter(
+        (o) =>
+          o.trackingId.toLowerCase().includes(term) ||
+          o.customerName.toLowerCase().includes(term) ||
+          o.customerEmail.toLowerCase().includes(term),
       );
     }
 
@@ -143,8 +204,8 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
   const displayOrders = getShippingCandidateOrders();
 
   const toggleSelectOrder = (id: string) => {
-    setSelectedOrderIds(prev =>
-      prev.includes(id) ? prev.filter(oid => oid !== id) : [...prev, id]
+    setSelectedOrderIds((prev) =>
+      prev.includes(id) ? prev.filter((oid) => oid !== id) : [...prev, id],
     );
   };
 
@@ -152,69 +213,84 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
     if (selectedOrderIds.length === displayOrders.length) {
       setSelectedOrderIds([]);
     } else {
-      setSelectedOrderIds(displayOrders.map(o => o.id));
+      setSelectedOrderIds(displayOrders.map((o) => o.id));
     }
   };
 
   const getCustomerAddress = (userId: string, order: Order) => {
-    const profile = profiles.find(p => p.userId === userId);
+    const profile = profiles.find((p) => p.userId === userId);
     if (profile) {
       return {
         name: profile.fullName || order.customerName,
-        street: profile.street || '',
-        number: profile.number || '',
-        complement: profile.complement || '',
-        neighborhood: profile.neighborhood || '',
-        city: profile.city || '',
-        state: profile.state || '',
-        zipCode: profile.zipCode || ''
+        street: profile.street || "",
+        number: profile.number || "",
+        complement: profile.complement || "",
+        neighborhood: profile.neighborhood || "",
+        city: profile.city || "",
+        state: profile.state || "",
+        zipCode: profile.zipCode || "",
       };
     }
     // Fallback if profile address is missing or not registered yet
     return {
       name: order.customerName,
-      street: 'Endereço não completado pelo cliente',
-      number: 'S/N',
-      complement: '',
-      neighborhood: 'Pendente',
-      city: 'Aguardando cadastro no Perfil',
-      state: 'UF',
-      zipCode: '00000-000'
+      street: "Endereço não completado pelo cliente",
+      number: "S/N",
+      complement: "",
+      neighborhood: "Pendente",
+      city: "Aguardando cadastro no Perfil",
+      state: "UF",
+      zipCode: "00000-000",
     };
   };
 
   // Trigger batch list printing using native CSS @media print
   const handlePrintBatch = () => {
     if (selectedOrderIds.length === 0) {
-      alert('Selecione pelo menos um pedido para gerar a etiqueta de envio.');
+      alert("Selecione pelo menos um pedido para gerar a etiqueta de envio.");
       return;
     }
 
-    const senderName = companySettings?.companyTradeName || companySettings?.companyName || 'DICAS BY ALÊ LTDA';
-    const senderAddress = companySettings?.companyAddress || 'Logística Nacional Integrada e Armazenamento Internacional CEP 05400-000';
-    const senderContact = companySettings?.companyEmail 
-      ? `Contato: ${companySettings.companyEmail}${companySettings.companyPhone ? ' | ' + companySettings.companyPhone : ''}`
-      : 'Contato: suporte@dicasbyale.com | São Paulo - SP';
+    const senderName =
+      companySettings?.companyTradeName ||
+      companySettings?.companyName ||
+      "DICAS BY ALÊ LTDA";
+    const senderAddress =
+      companySettings?.companyAddress ||
+      "Logística Nacional Integrada e Armazenamento Internacional CEP 05400-000";
+    const senderContact = companySettings?.companyEmail
+      ? `Contato: ${companySettings.companyEmail}${companySettings.companyPhone ? " | " + companySettings.companyPhone : ""}`
+      : "Contato: suporte@dicasbyale.com | São Paulo - SP";
 
     // Add specialized print elements dynamically
-    const printContainer = document.createElement('div');
-    printContainer.id = 'thermal-print-area';
-    printContainer.className = 'fixed inset-0 z-[99999] bg-white text-black overflow-y-auto block';
+    const printContainer = document.createElement("div");
+    printContainer.id = "thermal-print-area";
+    printContainer.className =
+      "fixed inset-0 z-[99999] bg-white text-black overflow-y-auto block";
 
-    const selectedOrders = initialOrders.filter(o => selectedOrderIds.includes(o.id));
+    const selectedOrders = initialOrders.filter((o) =>
+      selectedOrderIds.includes(o.id),
+    );
 
-    let htmlContent = '';
-    selectedOrders.forEach(o => {
+    let htmlContent = "";
+    selectedOrders.forEach((o) => {
       const addr = getCustomerAddress(o.userId, o);
-      const totalItemsQty = o.items.reduce((acc, item) => acc + item.quantity, 0);
-      const itemsListHtml = o.items.map((item, idx) => `
+      const totalItemsQty = o.items.reduce(
+        (acc, item) => acc + item.quantity,
+        0,
+      );
+      const itemsListHtml = o.items
+        .map(
+          (item, idx) => `
         <tr style="border-bottom: 1px dashed black; font-size: 11px;">
-          <td style="padding: 3px 0; text-align: center; font-weight: bold;">${idx+1}</td>
+          <td style="padding: 3px 0; text-align: center; font-weight: bold;">${idx + 1}</td>
           <td style="padding: 3px 5px; font-weight: bold;">${item.product.name}</td>
           <td style="padding: 3px 0; text-align: center; font-weight: bold;">${item.quantity}</td>
           <td style="padding: 3px 0; text-align: right; font-weight: bold;">${formatCurrency(item.product.priceBRL * item.quantity)}</td>
         </tr>
-      `).join('');
+      `,
+        )
+        .join("");
 
       // Create label body
       htmlContent += `
@@ -254,7 +330,7 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
                 <span style="border: 1px solid black; padding: 0.5px 3px; font-size: 7.5px; font-weight: 900; background: #000; color: #fff; margin-right: 3px;">DESTINATÁRIO</span>
                 <strong style="font-size: 10px; display: block; margin-top: 3.5px; text-transform: uppercase;">${addr.name}</strong>
                 <div style="margin-top: 2.5px;">
-                  ${addr.street}, ${addr.number} ${addr.complement ? '- ' + addr.complement : ''}<br/>
+                  ${addr.street}, ${addr.number} ${addr.complement ? "- " + addr.complement : ""}<br/>
                   Bairro: ${addr.neighborhood}<br/>
                   Cidade: <strong>${addr.city} - ${addr.state.toUpperCase()}</strong>
                 </div>
@@ -264,7 +340,7 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
                 <span style="border: 1px solid black; padding: 0.22px 3px; font-size: 7.5px; font-weight: 900; margin-right: 3px;">REMETENTE</span>
                 <strong style="font-size: 8.5px; display: block; margin-top: 2px;">${senderName}</strong>
                 <div style="font-size: 8px; color: #444;">
-                  ${senderAddress}${companySettings?.companyCnpj ? `<br/>CNPJ: ${companySettings.companyCnpj}` : ''}<br/>
+                  ${senderAddress}${companySettings?.companyCnpj ? `<br/>CNPJ: ${companySettings.companyCnpj}` : ""}<br/>
                   ${senderContact}
                 </div>
               </div>
@@ -373,26 +449,41 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
             Emissão de Etiquetas (Logística)
           </h2>
           <p className="text-xs text-stone-400">
-            Etiquetas otimizadas de alta precisão para envio imediato por transportadoras e Correios
+            Etiquetas otimizadas de alta precisão para envio imediato por
+            transportadoras e Correios
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2.5">
           <div className="bg-white/10 px-4 py-2 rounded-2xl border border-white/5 text-center">
-            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">Aguardando Envio</span>
+            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
+              Aguardando Envio
+            </span>
             <span className="text-xl font-black text-rose-400">
-              {initialOrders.filter(o => o.status === 'PAYMENT_RECEIVED' || o.status === 'PURCHASED_IN_STORE').length}
+              {
+                initialOrders.filter(
+                  (o) =>
+                    o.status === "PAYMENT_RECEIVED" ||
+                    o.status === "PURCHASED_IN_STORE",
+                ).length
+              }
             </span>
           </div>
           <div className="bg-white/10 px-4 py-2 rounded-2xl border border-white/5 text-center">
-            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">Preparando</span>
+            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
+              Preparando
+            </span>
             <span className="text-xl font-black text-amber-400">
-              {initialOrders.filter(o => o.status === 'STORED_IN_US').length}
+              {initialOrders.filter((o) => o.status === "STORED_IN_US").length}
             </span>
           </div>
           <div className="bg-white/10 px-4 py-2 rounded-2xl border border-white/5 text-center">
-            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">Selecionados</span>
-            <span className="text-xl font-black text-sky-400">{selectedOrderIds.length}</span>
+            <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
+              Selecionados
+            </span>
+            <span className="text-xl font-black text-sky-400">
+              {selectedOrderIds.length}
+            </span>
           </div>
         </div>
       </div>
@@ -401,19 +492,29 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
       <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
         {/* Sorting options */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs font-bold text-stone-500 whitespace-nowrap">Status Logístico:</span>
+          <span className="text-xs font-bold text-stone-500 whitespace-nowrap">
+            Status Logístico:
+          </span>
           <select
             value={statusFilter}
-            onChange={e => {
+            onChange={(e) => {
               setStatusFilter(e.target.value);
               setSelectedOrderIds([]); // Clear selection when filter switches
             }}
             className="bg-stone-50 border border-stone-200 text-xs rounded-xl px-2.5 py-1.5 font-bold focus:ring-rose-500 outline-none"
           >
-            <option value="PAYMENT_RECEIVED">Pagamento Confirmado (Pronto para Iniciar)</option>
-            <option value="PURCHASED_IN_STORE">Comprado na Loja (Empacotando)</option>
-            <option value="STORED_IN_US">Armazenado nos EUA (Prontos p/ Postagem)</option>
-            <option value="IN_TRANSIT_TO_BR">Em Trânsito para BR (Expedidos)</option>
+            <option value="PAYMENT_RECEIVED">
+              Pagamento Confirmado (Pronto para Iniciar)
+            </option>
+            <option value="PURCHASED_IN_STORE">
+              Comprado na Loja (Empacotando)
+            </option>
+            <option value="STORED_IN_US">
+              Armazenado nos EUA (Prontos p/ Postagem)
+            </option>
+            <option value="IN_TRANSIT_TO_BR">
+              Em Trânsito para BR (Expedidos)
+            </option>
             <option value="ARRIVED_IN_BR">Aguardando Entrega no BR</option>
             <option value="ALL">Visualizar Todas as Vendas</option>
           </select>
@@ -426,12 +527,14 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
             disabled={selectedOrderIds.length === 0}
             className={`font-bold text-xs px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-sm ${
               selectedOrderIds.length > 0
-                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-rose-100'
-                : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-100"
+                : "bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed"
             }`}
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Imprimir Selecionadas em Lote ({selectedOrderIds.length})</span>
+            <span>
+              Imprimir Selecionadas em Lote ({selectedOrderIds.length})
+            </span>
           </button>
         </div>
       </div>
@@ -440,8 +543,13 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
       {displayOrders.length === 0 ? (
         <div className="bg-stone-50 border border-stone-200 border-dashed rounded-2xl p-12 text-center text-stone-500">
           <AlertCircle className="w-8 h-8 text-stone-300 mx-auto mb-3" />
-          <p className="font-bold text-stone-800 text-sm">Nenhum pedido pendente de etiqueta de envio</p>
-          <p className="text-xs text-stone-400 mt-1">Todos os pedidos correspondentes ao filtro atual já foram postados ou o filtro está vazio.</p>
+          <p className="font-bold text-stone-800 text-sm">
+            Nenhum pedido pendente de etiqueta de envio
+          </p>
+          <p className="text-xs text-stone-400 mt-1">
+            Todos os pedidos correspondentes ao filtro atual já foram postados
+            ou o filtro está vazio.
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -457,22 +565,30 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
               )}
               <span>Selecionar Todos da Página ({displayOrders.length})</span>
             </button>
-            <span className="text-stone-400 text-xs">Exibindo itens prontos para triagem</span>
+            <span className="text-stone-400 text-xs">
+              Exibindo itens prontos para triagem
+            </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayOrders.map(order => {
+            {displayOrders.map((order) => {
               const isSelected = selectedOrderIds.includes(order.id);
               const addr = getCustomerAddress(order.userId, order);
-              const isAddressRegistered = addr.street !== 'Endereço não completado pelo cliente';
-              const itemsCountQty = order.items.reduce((acc, item) => acc + item.quantity, 0);
+              const isAddressRegistered =
+                addr.street !== "Endereço não completado pelo cliente";
+              const itemsCountQty = order.items.reduce(
+                (acc, item) => acc + item.quantity,
+                0,
+              );
 
               return (
                 <div
                   key={order.id}
                   onClick={() => toggleSelectOrder(order.id)}
                   className={`bg-white border-2 rounded-2xl p-5 hover:shadow-md transition cursor-pointer relative flex flex-col justify-between ${
-                    isSelected ? 'border-rose-500 shadow-sm shadow-rose-50' : 'border-stone-200'
+                    isSelected
+                      ? "border-rose-500 shadow-sm shadow-rose-50"
+                      : "border-stone-200"
                   }`}
                 >
                   {/* Select indicator */}
@@ -491,22 +607,29 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
                         {order.trackingId}
                       </span>
                       <span className="text-[10px] uppercase font-bold text-stone-400">
-                        {itemsCountQty} {itemsCountQty > 1 ? 'itens' : 'item'} | {formatCurrency(order.totalBRL)}
+                        {itemsCountQty} {itemsCountQty > 1 ? "itens" : "item"} |{" "}
+                        {formatCurrency(order.totalBRL)}
                       </span>
                     </div>
 
-                    <p className="font-bold text-stone-900 text-sm leading-snug">{order.customerName}</p>
-                    <p className="text-xs text-stone-400">{order.customerEmail}</p>
+                    <p className="font-bold text-stone-900 text-sm leading-snug">
+                      {order.customerName}
+                    </p>
+                    <p className="text-xs text-stone-400">
+                      {order.customerEmail}
+                    </p>
 
                     {/* Address snippet view */}
                     <div className="mt-3 p-3 bg-stone-50 rounded-xl space-y-1 border border-stone-100 text-xs">
                       {isAddressRegistered ? (
                         <>
                           <div className="font-medium text-stone-700">
-                            {addr.street}, nº {addr.number} {addr.complement && `(${addr.complement})`}
+                            {addr.street}, nº {addr.number}{" "}
+                            {addr.complement && `(${addr.complement})`}
                           </div>
                           <div className="text-stone-500 text-[11px]">
-                            {addr.neighborhood} - {addr.city} / {addr.state.toUpperCase()}
+                            {addr.neighborhood} - {addr.city} /{" "}
+                            {addr.state.toUpperCase()}
                           </div>
                           <div className="font-mono text-stone-400 text-[10px] font-bold">
                             CEP: {addr.zipCode}
@@ -516,8 +639,13 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
                         <div className="flex items-start gap-1.5 text-amber-700">
                           <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                           <div>
-                            <span className="font-bold">Endereço ausente no Perfil</span>
-                            <span className="block text-[11px] text-stone-500 mt-0.5">Gerando fallback padrão. Você pode digitar manualmente na etiqueta.</span>
+                            <span className="font-bold">
+                              Endereço ausente no Perfil
+                            </span>
+                            <span className="block text-[11px] text-stone-500 mt-0.5">
+                              Gerando fallback padrão. Você pode digitar
+                              manualmente na etiqueta.
+                            </span>
                           </div>
                         </div>
                       )}
@@ -527,13 +655,18 @@ export function AdminShippingLabelsTab({ orders: initialOrders }: { orders: Orde
                     <div className="mt-3 flex items-center gap-1 text-stone-500 text-xs">
                       <Package className="w-3.5 h-3.5" />
                       <span className="font-medium truncate max-w-xs">
-                        {order.items.map(it => `${it.quantity}x ${it.product.name}`).join(', ')}
+                        {order.items
+                          .map((it) => `${it.quantity}x ${it.product.name}`)
+                          .join(", ")}
                       </span>
                     </div>
                   </div>
 
                   {/* Actions buttons */}
-                  <div className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center" onClick={e => e.stopPropagation()}>
+                  <div
+                    className="mt-4 pt-3 border-t border-stone-100 flex justify-between items-center"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <span className="text-[10px] font-black tracking-wider text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 uppercase">
                       {order.status}
                     </span>

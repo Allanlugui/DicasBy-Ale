@@ -130,7 +130,7 @@ interface AppContextType {
   createDocument: (doc: Omit<FileDocument, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateDocument: (id: string, documentData: Partial<FileDocument>) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
-  calculateCartTotals: (coupon?: DiscountCoupon) => { subtotalBRL: number; serviceFeeBRL: number; storageFeeBRL: number; shippingFeeBRL: number; appFee: number; discountBRL: number; totalBRL: number; prepaymentFee: number; onDemandCount: number };
+  calculateCartTotals: (coupon?: DiscountCoupon) => { subtotalBRL: number; serviceFeeBRL: number; storageFeeBRL: number; shippingFeeBRL: number; appFee: number; discountBRL: number; totalBRL: number; prepaymentFee: number; onDemandCount: number; stockCount: number };
   autoSaveUserDocument: (userId: string, userName: string, category: string, documentName: string, url: string) => Promise<void>;
   notifications: SystemNotification[];
   resolveNotification: (id: string, action: 'DELETE' | 'KEEP') => Promise<void>;
@@ -453,6 +453,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     let subtotalBRL = 0;
     let onDemandCount = 0;
+    let stockCount = 0;
     
     cart.forEach(item => {
       const isPartnerStore = item.product.stockType === 'PARTNER_STORE' || (item.product.stockType === 'IN_STOCK' && (item.product.inventory || 0) <= 0);
@@ -460,13 +461,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         onDemandCount += item.quantity;
       } else {
         subtotalBRL += (item.product.priceBRL * item.quantity);
+        stockCount += item.quantity;
       }
     });
 
     const serviceFeeBRL = subtotalBRL * serviceRate; 
     const storageFeeBRL = 0; 
     const shippingFeeBRL = 0; 
-    const appFee = companySettings?.appFeeFixedBRL ?? (cart.length > 0 ? 20 : 0);
+    // Only charge standard app fee if there are stock items in the cart
+    const appFee = stockCount > 0 ? (companySettings?.appFeeFixedBRL ?? 20) : 0;
     
     const prepaymentFee = onDemandCount > 0 ? (companySettings?.personalShopperPrepaymentBRL ?? 150) : 0;
     
@@ -481,7 +484,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const totalBRL = Math.max(0, subtotalBRL + serviceFeeBRL + storageFeeBRL + shippingFeeBRL + appFee + prepaymentFee - discountBRL);
     
-    return { subtotalBRL, serviceFeeBRL, storageFeeBRL, shippingFeeBRL, appFee, discountBRL, totalBRL, prepaymentFee, onDemandCount };
+    return { subtotalBRL, serviceFeeBRL, storageFeeBRL, shippingFeeBRL, appFee, discountBRL, totalBRL, prepaymentFee, onDemandCount, stockCount };
   };
 
   const addToCart = (product: Product, quantity: number) => {
