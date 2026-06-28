@@ -1849,8 +1849,11 @@ async function sendNewSaleNotification(orderId: string) {
     const dateStr = order.createdAt ? new Date(order.createdAt).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
     
     // Support and Chat links
+    const settings = await getCompanySettings();
+    const fallbackDomain = settings?.appDomain || "https://dicas-by-ale-snowy.vercel.app";
+    const appUrl = process.env.APP_URL || fallbackDomain;
     const whatsappLink = "https://wa.me/5511933232319";
-    const chatLink = `https://ais-pre-3kvdti3ymob2izqnppaaoa-124196819483.us-east1.run.app/#support`;
+    const chatLink = `${appUrl}/#support`;
     const trackingId = order.trackingId || "N/A";
     const itemsList = Array.isArray(order.items) 
       ? order.items.map((item: any) => `${item.product?.name || "Produto"} (Qtd: ${item.quantity || 1})`).join(", ")
@@ -1959,7 +1962,7 @@ async function sendNewSaleNotification(orderId: string) {
           </div>
 
           <p><strong>Ação Recomendada:</strong> Acesse o módulo financeiro do painel para validar a entrada de valores, homologar o status do pedido e futuramente efetuar o upload e despacho da documentação legalizada para o cliente com um clique de botão!</p>
-          <p style="margin-top: 30px;"><a href="https://ais-pre-3kvdti3ymob2izqnppaaoa-124196819483.us-east1.run.app/admin" style="display: block; width: 220px; background-color: #ef4444; color: white; padding: 12px; text-decoration: none; text-align: center; font-weight: bold; border-radius: 6px; font-size: 13px;">Acessar Painel Financeiro</a></p>
+          <p style="margin-top: 30px;"><a href="${appUrl}/admin" style="display: block; width: 220px; background-color: #ef4444; color: white; padding: 12px; text-decoration: none; text-align: center; font-weight: bold; border-radius: 6px; font-size: 13px;">Acessar Painel Financeiro</a></p>
         </div>
       </div>
     `;
