@@ -21,7 +21,7 @@ export function Cart() {
 
 
   // Payment Options State
-  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'boleto'>('pix');
+  const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card' | 'debit_card' | 'boleto'>('pix');
   const [copiedKey, setCopiedKey] = useState(false);
   const [acceptedConsent, setAcceptedConsent] = useState(false);
   const [acceptedCustoms, setAcceptedCustoms] = useState(false);
@@ -86,8 +86,31 @@ export function Cart() {
   const discountBRL = totals.discountBRL;
   const totalBRL = totals.totalBRL;
   
-  // Custom shipping logic based on user request
-  const estimatedShippingBRL = selectedShipping?.basePriceBRL || 0;
+  // Dynamic shipping logic based on dimensions (length, width, height) and weight of each product in the cart
+  let calculatedShippingBRL = 0;
+  if (selectedShipping) {
+    cart.forEach(item => {
+      const p = item.product;
+      const length = p.boxLength || 20; // fallback if undefined
+      const width = p.boxWidth || 15;   // fallback if undefined
+      const height = p.boxHeight || 10; // fallback if undefined
+      const weight = p.boxWeight || 500; // fallback (grams) if undefined
+      
+      // Volumetric weight = (L * W * H) / 5000 (standard international courier volumetric weight in kg)
+      const volumetricWeight = (length * width * height) / 5000;
+      // Physical weight in kg
+      const physicalWeight = weight / 1000;
+      // Chargeable weight is the greater of the two
+      const chargeableWeight = Math.max(volumetricWeight, physicalWeight);
+      
+      // Weight multiplier: Base price covers up to 0.5kg (500g). Larger/heavier items scale up the shipping cost.
+      const weightMultiplier = Math.max(1, chargeableWeight / 0.5);
+      
+      calculatedShippingBRL += selectedShipping.basePriceBRL * weightMultiplier * item.quantity;
+    });
+  }
+
+  const estimatedShippingBRL = calculatedShippingBRL;
   const shippingMarginOfError = estimatedShippingBRL * 0.10;
   const shippingMin = estimatedShippingBRL - shippingMarginOfError;
   const shippingMax = estimatedShippingBRL + shippingMarginOfError;
@@ -177,16 +200,18 @@ export function Cart() {
         if (order) {
           navigate(`/rastreio?id=${order.trackingId}`);
         }
-      } else if (paymentMethod === 'credit_card') {
-        // Credit card via Asaas API
+      } else if (paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+        // Card via Asaas API
         if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
-          throw new Error("Por favor, preencha todos os campos do cartão de crédito.");
+          throw new Error("Por favor, preencha todos os campos do cartão.");
         }
 
         const [expiryMonth, expiryYear] = cardExpiry.split('/');
         if (!expiryMonth || !expiryYear) {
           throw new Error("Validade do cartão deve estar no formato MM/AA (ex: 12/29).");
         }
+
+        const billingType = paymentMethod === 'credit_card' ? "CREDIT_CARD" : "DEBIT_CARD";
 
         const res = await fetch("/api/asaas/create-payment", {
           method: "POST",
@@ -203,7 +228,8 @@ export function Cart() {
             customerState: profile?.state || "",
             value: finalTotalBRL,
             description: `Pedido de Importação - ${profile?.fullName || 'Cliente'}`,
-            billingType: "CREDIT_CARD",
+            billingType,
+            installmentCount: billingType === "CREDIT_CARD" ? cardInstallments : undefined,
             creditCard: {
               holderName: cardName,
               number: cardNumber.replace(/\s/g, ''),
@@ -242,7 +268,7 @@ export function Cart() {
             asaasPaymentId: data.paymentId,
             asaasInvoiceUrl: data.invoiceUrl,
             status: isPaid ? 'PAYMENT_RECEIVED' : 'PENDING_PAYMENT',
-            paymentMethod: 'credit_card'
+            paymentMethod: paymentMethod
           }
         );
 
@@ -570,7 +596,11 @@ export function Cart() {
                      <div className="flex items-center justify-between mt-4">
                        <span className="text-xs text-stone-500 font-semibold bg-stone-100 px-2 py-1 rounded">Quantidade: {item.quantity}</span>
                        <div className="flex items-center gap-4">
-                          <span className="font-bold text-sm text-stone-900">{formatCurrency(item.product.priceBRL * item.quantity)}</span>
+                          <span className="font-bold text-sm text-stone-900">
+                            {item.product.stockType === 'PARTNER_STORE' || (item.product.stockType === 'IN_STOCK' && (item.product.inventory || 0) <= 0)
+                              ? 'Sob Encomenda' 
+                              : formatCurrency(item.product.priceBRL * item.quantity)}
+                          </span>
                           <button onClick={() => removeFromCart(item.productId)} className="cursor-pointer text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition">
                             <Trash2 className="h-4.5 w-4.5" />
                           </button>
@@ -613,6 +643,12 @@ export function Cart() {
                   <span className="flex items-center gap-1">Taxa de Serviço</span>
                   <span className="font-semibold text-rose-600">{formatCurrency(serviceFeeBRL + appFee + storageFeeBRL)}</span>
                 </div>
+                {totals.prepaymentFee > 0 && (
+                  <div className="flex justify-between text-amber-600 font-bold bg-amber-50/50 p-2.5 rounded-xl border border-amber-100">
+                    <span>Taxa Deslocamento (Personal Shopper)</span>
+                    <span>{formatCurrency(totals.prepaymentFee)}</span>
+                  </div>
+                )}
                 
                 {/* Shipping selection UI */}
                 <div className="pt-4 border-t border-stone-100 space-y-3">
@@ -768,22 +804,22 @@ export function Cart() {
                 <div className="space-y-4 border-t border-stone-100 pt-6">
                   <div className="text-xs font-bold text-stone-600">Selecione o Meio de Pagamento:</div>
                   
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-4 gap-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         setPaymentMethod('pix');
                         setAsaasError(null);
                       }}
-                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                      className={`cursor-pointer p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
                         paymentMethod === 'pix' 
                           ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
                           : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
                       }`}
                       id="payment-method-pix"
                     >
-                      <Landmark className="w-4.5 h-4.5 text-rose-500" />
-                      <span className="text-[11px]">Chave Pix</span>
+                      <Landmark className="w-4 h-4 text-rose-500" />
+                      <span className="text-[10px]">Chave Pix</span>
                     </button>
 
                     <button
@@ -792,15 +828,32 @@ export function Cart() {
                         setPaymentMethod('credit_card');
                         setAsaasError(null);
                       }}
-                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                      className={`cursor-pointer p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
                         paymentMethod === 'credit_card' 
                           ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
                           : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
                       }`}
                       id="payment-method-card"
                     >
-                      <CreditCard className="w-4.5 h-4.5 text-rose-500" />
-                      <span className="text-[11px]">Cartão</span>
+                      <CreditCard className="w-4 h-4 text-rose-500" />
+                      <span className="text-[10px]">Crédito</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('debit_card');
+                        setAsaasError(null);
+                      }}
+                      className={`cursor-pointer p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                        paymentMethod === 'debit_card' 
+                          ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
+                          : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
+                      }`}
+                      id="payment-method-debit"
+                    >
+                      <CreditCard className="w-4 h-4 text-rose-500" />
+                      <span className="text-[10px]">Débito</span>
                     </button>
 
                     <button
@@ -809,15 +862,15 @@ export function Cart() {
                         setPaymentMethod('boleto');
                         setAsaasError(null);
                       }}
-                      className={`cursor-pointer p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                      className={`cursor-pointer p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
                         paymentMethod === 'boleto' 
                           ? 'border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs' 
                           : 'border-stone-200 bg-white hover:border-stone-300 text-stone-500'
                       }`}
                       id="payment-method-boleto"
                     >
-                      <FileText className="w-4.5 h-4.5 text-rose-500" />
-                      <span className="text-[11px]">Boleto</span>
+                      <FileText className="w-4 h-4 text-rose-500" />
+                      <span className="text-[10px]">Boleto</span>
                     </button>
                   </div>
 
@@ -861,79 +914,102 @@ export function Cart() {
                     </div>
                   )}
 
-                  {/* PAYMENT DISPLAY: CREDIT CARD FIELDS */}
-                  {paymentMethod === 'credit_card' && (
-                    <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
-                      <div className="bg-rose-50/50 border border-rose-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-rose-900">
-                        <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                        <p className="leading-relaxed">
-                          <strong>Gateway de Pagamento Integrado:</strong> Os pagamentos via Cartão de Crédito são processados de forma 100% segura e criptografada. Nosso sistema conta com análise técnica e antifraude ativa para processamento imediato de sua importação.
-                        </p>
-                      </div>
+                   {/* PAYMENT DISPLAY: CREDIT CARD OR DEBIT CARD FIELDS */}
+                   {(paymentMethod === 'credit_card' || paymentMethod === 'debit_card') && (
+                     <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
+                       <div className="bg-rose-50/50 border border-rose-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-rose-900">
+                         <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                         <p className="leading-relaxed">
+                           <strong>Gateway de Pagamento Integrado:</strong> Os pagamentos via Cartão ({paymentMethod === 'credit_card' ? 'Crédito' : 'Débito'}) são processados de forma 100% segura e criptografada. Nosso sistema conta com análise técnica e antifraude ativa para processamento imediato de sua importação.
+                         </p>
+                       </div>
+ 
+                       <div className="space-y-3">
+                         <div className="space-y-1">
+                           <label className="text-[10px] font-bold text-stone-500 block">Número do Cartão</label>
+                           <input 
+                             type="text" 
+                             value={cardNumber}
+                             onChange={e => setCardNumber(e.target.value)}
+                             placeholder="0000 0000 0000 0000"
+                             className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
+                           />
+                         </div>
+ 
+                         <div className="space-y-1">
+                           <label className="text-[10px] font-bold text-stone-500 block">Nome Escrito no Cartão</label>
+                           <input 
+                             type="text" 
+                             value={cardName}
+                             onChange={e => setCardName(e.target.value.toUpperCase())}
+                             placeholder="NOME COMPLETO TITULAR"
+                             className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none uppercase" 
+                           />
+                         </div>
+ 
+                         <div className="grid grid-cols-2 gap-3">
+                           <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-stone-500 block">Validade (MM/AA)</label>
+                             <input 
+                               type="text" 
+                               value={cardExpiry}
+                               onChange={e => setCardExpiry(e.target.value)}
+                               placeholder="12/29"
+                               className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
+                             />
+                           </div>
+                           <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-stone-500 block">Código CVV</label>
+                             <input 
+                               type="text" 
+                               value={cardCvv}
+                               onChange={e => setCardCvv(e.target.value)}
+                               placeholder="123"
+                               className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
+                             />
+                           </div>
+                         </div>
+ 
+                         {paymentMethod === 'credit_card' && (
+                           <div className="space-y-1">
+                             <label className="text-[10px] font-bold text-stone-500 block">Opção de Parcelamento</label>
+                             <select 
+                               value={cardInstallments}
+                               onChange={e => setCardInstallments(e.target.value)}
+                               className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none font-medium text-stone-800"
+                             >
+                               {Array.from({ length: 10 }, (_, i) => i + 1).map(n => {
+                                 const interestRate = n === 1 ? 0 : 0.015 + (n * 0.018); // 1.5% fixed + 1.8% per month approx
+                                 const totalWithInterest = finalTotalBRL * (1 + interestRate);
+                                 const installmentValue = totalWithInterest / n;
+                                 return (
+                                   <option key={n} value={n}>
+                                     {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(Sem Juros)' : `(Total: ${formatCurrency(totalWithInterest)})`}
+                                   </option>
+                                 );
+                                })}
+                             </select>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   )}
 
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-stone-500 block">Número do Cartão de Crédito</label>
-                          <input 
-                            type="text" 
-                            value={cardNumber}
-                            onChange={e => setCardNumber(e.target.value)}
-                            placeholder="0000 0000 0000 0000"
-                            className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-stone-500 block">Nome Escrito no Cartão</label>
-                          <input 
-                            type="text" 
-                            value={cardName}
-                            onChange={e => setCardName(e.target.value.toUpperCase())}
-                            placeholder="NOME COMPLETO TITULAR"
-                            className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none uppercase" 
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-stone-500 block">Validade (MM/AA)</label>
-                            <input 
-                              type="text" 
-                              value={cardExpiry}
-                              onChange={e => setCardExpiry(e.target.value)}
-                              placeholder="12/29"
-                              className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-stone-500 block">Código CVV</label>
-                            <input 
-                              type="text" 
-                              value={cardCvv}
-                              onChange={e => setCardCvv(e.target.value)}
-                              placeholder="123"
-                              className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none" 
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-stone-500 block">Opção de Parcelamento</label>
-                          <select 
-                            value={cardInstallments}
-                            onChange={e => setCardInstallments(e.target.value)}
-                            className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 focus:border-rose-500 outline-none"
-                          >
-                            <option value="1">1x de {formatCurrency(finalTotalBRL)} (Sem acréscimos)</option>
-                            <option value="2">2x de {formatCurrency(finalTotalBRL / 2)}</option>
-                            <option value="3">3x de {formatCurrency(finalTotalBRL / 3)}</option>
-                            <option value="6">6x de {formatCurrency((finalTotalBRL * 1.05) / 6)} (Com juros)</option>
-                            <option value="12">12x de {formatCurrency((finalTotalBRL * 1.1) / 12)} (Com juros)</option>
-                          </select>
-                        </div>
-                      </div>
+                  {/* CUSTOMS & IMPORTATION IMPORTANT NOTICE */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-6 space-y-2.5">
+                    <div className="flex gap-2 items-center text-amber-950 font-extrabold text-[11px] uppercase tracking-wider">
+                      <Info className="w-4.5 h-4.5 text-amber-600 shrink-0" />
+                      <span>Termos de Responsabilidade Aduaneira</span>
                     </div>
-                  )}
+                    <div className="text-[10px] text-amber-900 leading-relaxed space-y-2">
+                      <p>
+                        <strong>1. Custos de Alfândega e Impostos:</strong> Todas as taxas aduaneiras (incluindo Remessa Conforme, tributação avulsa, taxas de homologação ou quaisquer impostos cobrados pelas alfândegas dos Estados Unidos ou do Brasil) são de <strong>inteira e exclusiva responsabilidade do cliente (comprador)</strong>, independentemente da origem. <strong>Tudo fica 100% a cargo do cliente.</strong>
+                      </p>
+                      <p>
+                        <strong>2. Despacho e Entrega Final:</strong> A ImportaGringa não arca com nenhuma despesa após o despacho da encomenda. No entanto, após o recebimento e desembaraço das mercadorias no Brasil, nossa equipe especializada irá tratar de todo o processo para que a entrega seja realizada de forma segura até o seu endereço.
+                      </p>
+                    </div>
+                  </div>
 
                   {/* CONSENT CHECKBOXES */}
                   <div className="space-y-3 mt-4">
@@ -962,7 +1038,7 @@ export function Cart() {
                           required
                         />
                         <span className="text-[10px] font-black text-stone-900 leading-relaxed block uppercase">
-                          Estou ciente de que o frete internacional e eventuais impostos de importação são de minha inteira responsabilidade e serão cobrados à parte após o recebimento no depósito em Miami.
+                          Estou ciente e aceito que todo custo de alfândega, impostos (Remessa Conforme/tributos avulsos) e frete são 100% sob minha responsabilidade, isentando a ImportaGringa após o despacho.
                         </span>
                       </label>
                     </div>

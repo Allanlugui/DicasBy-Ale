@@ -23,7 +23,11 @@
         "description": { "type": "string" },
         "imageUrl": { "type": "string" },
         "priceUSD": { "type": "number" },
-        "priceBRL": { "type": "number" }
+        "priceBRL": { "type": "number" },
+        "boxWidth": { "type": "number" },
+        "boxLength": { "type": "number" },
+        "boxHeight": { "type": "number" },
+        "boxWeight": { "type": "number" }
       },
       "required": ["storeId", "name", "priceUSD", "priceBRL"]
     },

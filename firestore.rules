@@ -67,7 +67,11 @@ service cloud.firestore {
             && data.priceUSD is number
             && data.priceBRL is number
             && (data.get('description', '') is string)
-            && (data.get('imageUrl', '') is string);
+            && (data.get('imageUrl', '') is string)
+            && (data.get('boxWidth', 0) is number)
+            && (data.get('boxLength', 0) is number)
+            && (data.get('boxHeight', 0) is number)
+            && (data.get('boxWeight', 0) is number);
       }
       allow create: if hasPermission('products') && isValidId(productId) && isValidProduct(incoming());
       allow update: if hasPermission('products') && isValidProduct(incoming());

@@ -130,7 +130,7 @@ interface AppContextType {
   createDocument: (doc: Omit<FileDocument, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateDocument: (id: string, documentData: Partial<FileDocument>) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
-  calculateCartTotals: (coupon?: DiscountCoupon) => { subtotalBRL: number; serviceFeeBRL: number; storageFeeBRL: number; shippingFeeBRL: number; appFee: number; discountBRL: number; totalBRL: number };
+  calculateCartTotals: (coupon?: DiscountCoupon) => { subtotalBRL: number; serviceFeeBRL: number; storageFeeBRL: number; shippingFeeBRL: number; appFee: number; discountBRL: number; totalBRL: number; prepaymentFee: number; onDemandCount: number };
   autoSaveUserDocument: (userId: string, userName: string, category: string, documentName: string, url: string) => Promise<void>;
   notifications: SystemNotification[];
   resolveNotification: (id: string, action: 'DELETE' | 'KEEP') => Promise<void>;
@@ -435,11 +435,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const calculateCartTotals = (coupon?: DiscountCoupon) => {
     const serviceRate = companySettings?.serviceFeePercent ? (companySettings.serviceFeePercent / 100) : 0.3;
-    const subtotalBRL = cart.reduce((acc, item) => acc + (item.product.priceBRL * item.quantity), 0);
+    
+    let subtotalBRL = 0;
+    let onDemandCount = 0;
+    
+    cart.forEach(item => {
+      const isPartnerStore = item.product.stockType === 'PARTNER_STORE' || (item.product.stockType === 'IN_STOCK' && (item.product.inventory || 0) <= 0);
+      if (isPartnerStore) {
+        onDemandCount += item.quantity;
+      } else {
+        subtotalBRL += (item.product.priceBRL * item.quantity);
+      }
+    });
+
     const serviceFeeBRL = subtotalBRL * serviceRate; 
     const storageFeeBRL = 0; 
     const shippingFeeBRL = 0; 
     const appFee = companySettings?.appFeeFixedBRL ?? (cart.length > 0 ? 20 : 0);
+    
+    const prepaymentFee = onDemandCount > 0 ? (companySettings?.personalShopperPrepaymentBRL ?? 150) : 0;
     
     let discountBRL = 0;
     if (coupon && coupon.active) {
@@ -450,9 +464,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const totalBRL = Math.max(0, subtotalBRL + serviceFeeBRL + storageFeeBRL + shippingFeeBRL + appFee - discountBRL);
+    const totalBRL = Math.max(0, subtotalBRL + serviceFeeBRL + storageFeeBRL + shippingFeeBRL + appFee + prepaymentFee - discountBRL);
     
-    return { subtotalBRL, serviceFeeBRL, storageFeeBRL, shippingFeeBRL, appFee, discountBRL, totalBRL };
+    return { subtotalBRL, serviceFeeBRL, storageFeeBRL, shippingFeeBRL, appFee, discountBRL, totalBRL, prepaymentFee, onDemandCount };
   };
 
   const addToCart = (product: Product, quantity: number) => {

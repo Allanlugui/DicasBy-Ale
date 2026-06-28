@@ -1075,7 +1075,12 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
   if (!product) return null;
   const store = stores ? stores.find(s => s.id === product.storeId) : null;
   const hasVariants = product.variants && product.variants.length > 0;
-  const isAvailable = product.inventory > 0 || product.isAvailable === true;
+  const isAvailable = product.isAvailable !== false &&
+    (product.boxWidth || 0) > 0 &&
+    (product.boxLength || 0) > 0 &&
+    (product.boxHeight || 0) > 0 &&
+    (product.boxWeight || 0) > 0;
+  const isPartnerStore = product.stockType === 'PARTNER_STORE' || (product.stockType === 'IN_STOCK' && (product.inventory || 0) <= 0);
 
   const priceBRL = product.priceBRL || 0;
   const priceUSD = product.priceUSD || 0;
@@ -1108,7 +1113,7 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
             </div>
           </div>
         )}
-        {product.stockType === 'PARTNER_STORE' && isAvailable && (
+        {isPartnerStore && isAvailable && (
           <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white font-black text-[7px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
             Encomenda
           </div>
@@ -1130,12 +1135,25 @@ function CompactProductCard({ product, onSelect }: { product: Product; onSelect:
         {/* Essential price info only */}
         <div className="mt-auto pt-1 flex items-end justify-between">
           <div className="space-y-0.5">
-            <div className="font-extrabold text-sm sm:text-base text-stone-900 tracking-tight leading-none">
-              {formatCurrency(priceBRL)}
-            </div>
-            <div className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded inline-block leading-none">
-              US$ {priceUSD.toFixed(2)}
-            </div>
+            {isPartnerStore ? (
+              <>
+                <div className="font-extrabold text-[11px] sm:text-xs text-amber-600 tracking-tight leading-none uppercase">
+                  Sob Consulta
+                </div>
+                <div className="text-[7px] font-bold text-stone-400 bg-stone-100 px-1 py-0.5 rounded inline-block leading-none uppercase">
+                  EUA Sob Demanda
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-extrabold text-sm sm:text-base text-stone-900 tracking-tight leading-none">
+                  {formatCurrency(priceBRL)}
+                </div>
+                <div className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded inline-block leading-none">
+                  US$ {priceUSD.toFixed(2)}
+                </div>
+              </>
+            )}
           </div>
 
           <button
@@ -1170,7 +1188,12 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
   const store = stores ? stores.find(s => s.id === product.storeId) : null;
 
   const hasVariants = product.variants && product.variants.length > 0;
-  const isAvailable = product.inventory > 0 || product.isAvailable === true;
+  const isAvailable = product.isAvailable !== false &&
+    (product.boxWidth || 0) > 0 &&
+    (product.boxLength || 0) > 0 &&
+    (product.boxHeight || 0) > 0 &&
+    (product.boxWeight || 0) > 0;
+  const isPartnerStore = product.stockType === 'PARTNER_STORE' || (product.stockType === 'IN_STOCK' && (product.inventory || 0) <= 0);
 
   return (
     <div 
@@ -1200,7 +1223,7 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
             </div>
           </div>
         )}
-        {product.stockType === 'PARTNER_STORE' && isAvailable && (
+        {isPartnerStore && isAvailable && (
           <div className="absolute top-4 right-4 bg-amber-500 text-white font-black text-[8px] uppercase tracking-widest px-2 py-0.5 rounded shadow-lg">
             Sob Encomenda
           </div>
@@ -1216,9 +1239,19 @@ function ProductCard({ product, onSelect }: { key?: React.Key; product: Product,
         
         <div className="mt-auto flex items-center justify-between">
           <div className="space-y-0.5">
-            <div className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Valor estimado</div>
-            <div className="font-black text-2xl text-stone-900 tracking-tight">{formatCurrency(product.priceBRL)}</div>
-            <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded inline-block">US$ {product.priceUSD.toFixed(2)}</div>
+            {isPartnerStore ? (
+              <>
+                <div className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Valor do Produto</div>
+                <div className="font-black text-lg text-amber-600 tracking-tight leading-none mb-1">Sob Consulta</div>
+                <div className="text-[9px] font-bold text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded inline-block uppercase">Cotação do Personal Shopper</div>
+              </>
+            ) : (
+              <>
+                <div className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Valor estimado</div>
+                <div className="font-black text-2xl text-stone-900 tracking-tight">{formatCurrency(product.priceBRL)}</div>
+                <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded inline-block">US$ {product.priceUSD.toFixed(2)}</div>
+              </>
+            )}
           </div>
           <button
             onClick={(e) => {
@@ -1256,7 +1289,12 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
   
   const currentPriceBRL = product.priceBRL + (selectedVariant?.priceAdjustBRL || 0);
   const currentPriceUSD = product.priceUSD + (selectedVariant?.priceAdjustUSD || 0);
-  const isAvailable = product.inventory > 0 || product.isAvailable === true;
+  const isAvailable = product.isAvailable !== false &&
+    (product.boxWidth || 0) > 0 &&
+    (product.boxLength || 0) > 0 &&
+    (product.boxHeight || 0) > 0 &&
+    (product.boxWeight || 0) > 0;
+  const isPartnerStore = product.stockType === 'PARTNER_STORE' || (product.stockType === 'IN_STOCK' && (product.inventory || 0) <= 0);
 
   const handleAddToCart = () => {
     // We add the product with the variant info in the name or description for now
@@ -1291,9 +1329,13 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
              <div className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-2xl shadow-lg border border-stone-100 text-stone-900 font-bold text-xs uppercase tracking-widest">
                 {store?.name}
              </div>
-             {product.stockType === 'PARTNER_STORE' && (
+             {isPartnerStore ? (
                 <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
-                   Parceria Oficial
+                   Compra na Loja
+                </div>
+             ) : (
+                <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
+                   Pronta Entrega
                 </div>
              )}
           </div>
@@ -1304,11 +1346,22 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
            <div className="space-y-2">
               {product.brand && <span className="text-xs font-black text-rose-500 uppercase tracking-[0.2em]">{product.brand}</span>}
               <h2 className="text-3xl font-display font-black text-stone-900 leading-tight">{product.name}</h2>
-              <div className="flex items-center gap-4 text-xs font-bold text-emerald-600">
-                 <span className="bg-emerald-50 px-2 py-1 rounded-lg">US$ {currentPriceUSD.toFixed(2)}</span>
-                 <span className="text-stone-300">|</span>
-                 <span className="text-stone-400">Conversão estimada incl. tributos</span>
-              </div>
+              {isPartnerStore ? (
+                 <div className="flex flex-col gap-1 text-xs font-bold text-amber-600">
+                    <span className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 inline-block self-start font-black text-xs">
+                       SOB ENCOMENDA - VALOR SOB CONSULTA
+                    </span>
+                    <span className="text-stone-400 font-normal leading-relaxed mt-1">
+                       Este produto não possui preço de vitrine fixo por ser comprado sob demanda física ou online nos EUA. O valor exato será adicionado após a visita do Personal Shopper à loja.
+                    </span>
+                 </div>
+              ) : (
+                 <div className="flex items-center gap-4 text-xs font-bold text-emerald-600">
+                    <span className="bg-emerald-50 px-2 py-1 rounded-lg">US$ {currentPriceUSD.toFixed(2)}</span>
+                    <span className="text-stone-300">|</span>
+                    <span className="text-stone-400">Conversão estimada incl. tributos</span>
+                 </div>
+              )}
            </div>
 
            <p className="text-sm text-stone-500 leading-relaxed">{product.description}</p>
@@ -1321,13 +1374,12 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
                    {product.variants.map(v => (
                      <button
                        key={v.id}
-                       disabled={v.stock <= 0}
                        onClick={() => setSelectedVariantId(v.id)}
                        className={`flex flex-col p-3 rounded-2xl border text-left transition-all ${
                          selectedVariantId === v.id 
                            ? 'border-rose-500 bg-rose-50/50 shadow-md ring-1 ring-rose-500' 
                            : 'border-stone-100 bg-stone-50 hover:border-stone-200'
-                       } ${v.stock <= 0 ? 'opacity-50 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                       } cursor-pointer`}
                      >
                         <span className="text-xs font-bold text-stone-900">{v.name}</span>
                         {v.priceAdjustBRL !== 0 && (
@@ -1335,8 +1387,11 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
                             { (v.priceAdjustBRL || 0) > 0 ? '+' : '' }{formatCurrency(v.priceAdjustBRL || 0)}
                           </span>
                         )}
-                        {v.stock <= 0 && <span className="text-[9px] text-red-500 font-bold mt-1">Esgotado</span>}
-                        {v.stock > 0 && v.stock < 5 && <span className="text-[9px] text-orange-500 font-bold mt-1">Poucas unidades!</span>}
+                        {v.stock <= 0 ? (
+                          <span className="text-[9px] text-amber-600 font-bold mt-1 bg-amber-50 px-1.5 py-0.5 rounded self-start">Compra na Loja</span>
+                        ) : (
+                          v.stock < 5 && <span className="text-[9px] text-orange-500 font-bold mt-1">Poucas unidades!</span>
+                        )}
                      </button>
                    ))}
                 </div>
@@ -1362,8 +1417,12 @@ function ProductModal({ product, onClose }: { product: Product, onClose: () => v
            <div className="space-y-6 pt-4">
               <div className="flex items-center justify-between">
                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">Total na Vitrine</span>
-                    <span className="text-3xl font-display font-black text-stone-900 tracking-tighter">{formatCurrency(currentPriceBRL)}</span>
+                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">
+                       {isPartnerStore ? "Preço de Vitrine" : "Total na Vitrine"}
+                    </span>
+                    <span className="text-3xl font-display font-black text-stone-900 tracking-tighter">
+                       {isPartnerStore ? "Sob Consulta" : formatCurrency(currentPriceBRL)}
+                    </span>
                  </div>
                  
                  <div className="flex items-center bg-stone-50 p-2 rounded-2xl border border-stone-100">

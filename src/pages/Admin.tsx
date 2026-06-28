@@ -2022,6 +2022,11 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
   const [isFeatured, setIsFeatured] = useState(false);
   const [specifications, setSpecifications] = useState<{key: string, value: string}[]>([]);
   const [variants, setVariants] = useState<{name: string, sku: string, stock: number, priceUSD: number, priceBRL: number}[]>([]);
+  
+  const [boxWidth, setBoxWidth] = useState(0);
+  const [boxLength, setBoxLength] = useState(0);
+  const [boxHeight, setBoxHeight] = useState(0);
+  const [boxWeight, setBoxWeight] = useState(0);
 
   const categories = [
     'Eletrônicos', 'Informática', 'Eletrodomésticos', 'Vestuário', 'Calçados', 
@@ -2541,17 +2546,27 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setSpecifications([]);
     setVariants([]);
     setProductUrl('');
+    setBoxWidth(0);
+    setBoxLength(0);
+    setBoxHeight(0);
+    setBoxWeight(0);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isAvailable && (!boxWidth || boxWidth <= 0 || !boxLength || boxLength <= 0 || !boxHeight || boxHeight <= 0 || !boxWeight || boxWeight <= 0)) {
+      alert("Para ativar o produto (Disponível para venda), você precisa preencher as dimensões (largura, comprimento, altura) e o peso da caixa com valores maiores que zero.");
+      return;
+    }
+
     const specsMap: Record<string, string> = {};
     specifications.forEach(s => { if(s.key) specsMap[s.key] = s.value; });
 
     const productData = { 
       storeId, name, description, priceUSD, priceBRL, imageUrl, 
       sku, category, brand, stockType, inventory, isFeatured, isAvailable,
+      boxWidth, boxLength, boxHeight, boxWeight,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
       specifications: specsMap,
       variants: variants.map((v, idx) => ({
@@ -2588,6 +2603,10 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
     setInventory(p.inventory || 0);
     setIsAvailable(p.isAvailable || false);
     setIsFeatured(p.isFeatured || false);
+    setBoxWidth(p.boxWidth || 0);
+    setBoxLength(p.boxLength || 0);
+    setBoxHeight(p.boxHeight || 0);
+    setBoxWeight(p.boxWeight || 0);
     setTags(p.tags?.join(', ') || '');
     setSpecifications(Object.entries(p.specifications || {}).map(([key, value]) => ({ key, value })));
     setVariants((p.variants || []).map(v => ({
@@ -2938,6 +2957,63 @@ function ProductsTab({ products, stores, addProduct, updateProduct, deleteProduc
                     className="w-4 h-4 text-rose-500 border-stone-300 rounded focus:ring-rose-500"
                   />
                   <label htmlFor="isAvailable" className="text-sm font-bold text-stone-700">Disponível para venda</label>
+                </div>
+
+                <div className="border-t border-stone-100 pt-4 mt-2 space-y-3">
+                  <h6 className="text-[11px] font-extrabold text-stone-500 uppercase tracking-widest">Dimensões da Caixa (para Frete)</h6>
+                  <p className="text-[10px] text-stone-400 leading-tight">
+                    Preencha as medidas exatas da caixa de envio e o peso físico em gramas para o cálculo do frete de importação.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Comprimento (cm)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.1"
+                        value={boxLength || ''} 
+                        onChange={e => setBoxLength(Number(e.target.value))} 
+                        placeholder="Ex: 20" 
+                        className="w-full rounded-lg border border-stone-200 px-3 py-1.5 text-xs bg-stone-50 outline-none focus:ring-1 focus:ring-rose-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Largura (cm)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.1"
+                        value={boxWidth || ''} 
+                        onChange={e => setBoxWidth(Number(e.target.value))} 
+                        placeholder="Ex: 15" 
+                        className="w-full rounded-lg border border-stone-200 px-3 py-1.5 text-xs bg-stone-50 outline-none focus:ring-1 focus:ring-rose-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Altura (cm)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="0.1"
+                        value={boxHeight || ''} 
+                        onChange={e => setBoxHeight(Number(e.target.value))} 
+                        placeholder="Ex: 10" 
+                        className="w-full rounded-lg border border-stone-200 px-3 py-1.5 text-xs bg-stone-50 outline-none focus:ring-1 focus:ring-rose-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Peso (gramas)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="1"
+                        value={boxWeight || ''} 
+                        onChange={e => setBoxWeight(Number(e.target.value))} 
+                        placeholder="Ex: 500" 
+                        className="w-full rounded-lg border border-stone-200 px-3 py-1.5 text-xs bg-stone-50 outline-none focus:ring-1 focus:ring-rose-500" 
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3559,8 +3635,10 @@ function InventoryTab({ products, updateProduct }: { products: Product[], update
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${p.stockType === 'PARTNER_STORE' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                            {p.stockType === 'PARTNER_STORE' ? 'Sob Encomenda' : 'Pronta Entrega'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                            (p.stockType === 'PARTNER_STORE' || isOut) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {p.stockType === 'PARTNER_STORE' ? 'Sob Encomenda' : (isOut ? 'Compra na Loja (Zerado)' : 'Pronta Entrega')}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">

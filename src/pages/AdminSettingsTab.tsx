@@ -66,6 +66,8 @@ export function AdminSettingsTab() {
   const [serviceFeePercent, setServiceFeePercent] = useState(30);
   const [storageRatePerM2, setStorageRatePerM2] = useState(150);
   const [appFeeFixedBRL, setAppFeeFixedBRL] = useState(20);
+  const [personalShopperPrepaymentBRL, setPersonalShopperPrepaymentBRL] = useState(150);
+  const [personalShopperMaxDepositBRL, setPersonalShopperMaxDepositBRL] = useState(1000);
   const [fixedCosts, setFixedCosts] = useState<{ id: string; label: string; value: number }[]>([]);
 
   // Load from context
@@ -87,6 +89,8 @@ export function AdminSettingsTab() {
       setServiceFeePercent(companySettings.serviceFeePercent ?? 30);
       setStorageRatePerM2(companySettings.storageRatePerM2 ?? 150);
       setAppFeeFixedBRL(companySettings.appFeeFixedBRL ?? 20);
+      setPersonalShopperPrepaymentBRL(companySettings.personalShopperPrepaymentBRL ?? 150);
+      setPersonalShopperMaxDepositBRL(companySettings.personalShopperMaxDepositBRL ?? 1000);
       setFixedCosts(companySettings.fixedCosts || []);
       setAdminHubBaseUrl(companySettings.adminHubBaseUrl || '');
       setAdminHubApiKey(companySettings.adminHubApiKey || '');
@@ -164,6 +168,8 @@ export function AdminSettingsTab() {
         serviceFeePercent,
         storageRatePerM2,
         appFeeFixedBRL,
+        personalShopperPrepaymentBRL,
+        personalShopperMaxDepositBRL,
         fixedCosts,
         adminHubBaseUrl,
         adminHubApiKey,
@@ -304,6 +310,34 @@ export function AdminSettingsTab() {
                 />
               </div>
               <p className="text-[10px] text-stone-400">Valor fixo cobrado por pedido para manutenção do sistema.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">Taxa Pré-pagamento Personal Shopper (Fixo R$)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-2.5 text-stone-400 text-sm">R$</span>
+                <input 
+                  type="number"
+                  value={personalShopperPrepaymentBRL}
+                  onChange={e => setPersonalShopperPrepaymentBRL(Number(e.target.value))}
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">Taxa inicial cobrada para cobrir deslocamento e busca do produto nos EUA.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">Teto Máximo do Pré-pagamento (R$)</label>
+              <div className="relative">
+                <span className="absolute left-4 top-2.5 text-stone-400 text-sm">R$</span>
+                <input 
+                  type="number"
+                  value={personalShopperMaxDepositBRL}
+                  onChange={e => setPersonalShopperMaxDepositBRL(Number(e.target.value))}
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">Teto máximo para pré-pagamentos em situações extraordinárias.</p>
             </div>
           </div>
         </div>

@@ -1469,8 +1469,8 @@ app.post("/api/notify-ticket", async (req, res) => {
     const recipientsToSend = Array.from(recipientEmails).join(', ');
 
     const settings = await getCompanySettings();
-    const fallbackDomain = settings?.appDomain || "https://dicas-by-ale-snowy.vercel.app";
-    const appUrl = process.env.APP_URL || fallbackDomain;
+    // Force the official domain explicitly requested by the user: https://dicas-by-ale-snowy.vercel.app
+    const appUrl = "https://dicas-by-ale-snowy.vercel.app";
     const adminUrl = `${appUrl}/admin`;
     const companyName = settings?.companyName || "Dicas by Alê";
 
@@ -1850,8 +1850,8 @@ async function sendNewSaleNotification(orderId: string) {
     
     // Support and Chat links
     const settings = await getCompanySettings();
-    const fallbackDomain = settings?.appDomain || "https://dicas-by-ale-snowy.vercel.app";
-    const appUrl = process.env.APP_URL || fallbackDomain;
+    // Force the official domain explicitly requested by the user: https://dicas-by-ale-snowy.vercel.app
+    const appUrl = "https://dicas-by-ale-snowy.vercel.app";
     const whatsappLink = "https://wa.me/5511933232319";
     const chatLink = `${appUrl}/#support`;
     const trackingId = order.trackingId || "N/A";
@@ -2278,11 +2278,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       }
     }
 
-    // 3. Criar a cobrança (Pix, Cartão ou Boleto)
+    // 3. Criar a cobrança (Pix, Cartão de Crédito, Débito ou Boleto)
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 1); // Vence em 1 dia
 
     const type = billingType || "PIX";
+    const { installmentCount } = req.body;
 
     const paymentBody: any = {
       customer: asaasCustomerId,
@@ -2293,7 +2294,11 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       postalService: false
     };
 
-    if (type === "CREDIT_CARD") {
+    if (type === "CREDIT_CARD" && installmentCount && parseInt(installmentCount) > 1) {
+      paymentBody.installmentCount = parseInt(installmentCount);
+    }
+
+    if (type === "CREDIT_CARD" || type === "DEBIT_CARD") {
       paymentBody.creditCard = creditCard;
       paymentBody.creditCardHolderInfo = {
         name: creditCardHolderInfo?.name || customerName,
@@ -2305,7 +2310,7 @@ app.post("/api/asaas/create-payment", async (req, res) => {
         phone: (creditCardHolderInfo?.phone || customerPhone || "").replace(/\D/g, ""),
         mobilePhone: (creditCardHolderInfo?.mobilePhone || creditCardHolderInfo?.phone || customerPhone || "").replace(/\D/g, ""),
       };
-      // Credit card transactions require setting remoteIp for anti-fraud
+      // Credit card / debit card transactions require setting remoteIp for anti-fraud
       paymentBody.remoteIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || "127.0.0.1";
       if (typeof paymentBody.remoteIp === 'string' && paymentBody.remoteIp.includes(',')) {
         paymentBody.remoteIp = paymentBody.remoteIp.split(',')[0].trim();

@@ -66,6 +66,10 @@ export type Product = {
   stockType: 'IN_STOCK' | 'PARTNER_STORE';
   inventory: number;
   isAvailable?: boolean;
+  boxWidth?: number;
+  boxLength?: number;
+  boxHeight?: number;
+  boxWeight?: number;
   tags?: string[];
   isFeatured?: boolean;
 };
@@ -207,6 +211,8 @@ export type CompanySettings = {
   nexusBaseUrl?: string;
   nexusApiKey?: string;
   updatedAt?: string;
+  personalShopperPrepaymentBRL?: number;
+  personalShopperMaxDepositBRL?: number;
 };
 
 export type Collaborator = {
