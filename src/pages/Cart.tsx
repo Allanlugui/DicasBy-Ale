@@ -225,8 +225,14 @@ export function Cart() {
     } catch (e) {
       console.error(e);
     }
+  };
 
-    removeFromCart(productId);
+  const handleCloseFeedbackModal = () => {
+    setShowFeedbackModal(false);
+    if (removedProduct) {
+      removeFromCart(removedProduct.id);
+      navigate("/");
+    }
   };
 
   const handleSendFeedback = async () => {
@@ -248,6 +254,10 @@ export function Cart() {
       setTimeout(() => {
         setShowFeedbackModal(false);
         setFeedbackSubmitted(false);
+        if (removedProduct) {
+          removeFromCart(removedProduct.id);
+          navigate("/");
+        }
       }, 2000);
     } catch (err) {
       console.error(err);
@@ -1559,7 +1569,7 @@ export function Cart() {
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl max-w-xl w-full border border-stone-200 overflow-hidden shadow-2xl relative">
             <button
-              onClick={() => setShowFeedbackModal(false)}
+              onClick={handleCloseFeedbackModal}
               className="absolute top-4 right-4 text-stone-400 hover:text-stone-600 cursor-pointer p-2 rounded-full hover:bg-stone-50 transition"
             >
               <svg
@@ -1737,7 +1747,7 @@ export function Cart() {
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowFeedbackModal(false)}
+                    onClick={handleCloseFeedbackModal}
                     className="cursor-pointer bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold text-xs px-5 py-3 rounded-xl transition"
                   >
                     Ignorar

@@ -2580,6 +2580,9 @@ function OrderAdminCard({
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [note, setNote] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [onDemandProductCostBRL, setOnDemandProductCostBRL] = useState(
+    order.onDemandProductCostBRL || 0,
+  );
   const [finalShippingFeeBRL, setFinalShippingFeeBRL] = useState(
     order.finalShippingFeeBRL || order.shippingFeeBRL || 0,
   );
@@ -2741,6 +2744,7 @@ function OrderAdminCard({
       extraFields.storageFeeBRL = storageFeeBRL;
     }
 
+    extraFields.onDemandProductCostBRL = onDemandProductCostBRL;
     extraFields.totalBRL = calculatedTotal;
 
     // Document persistence (only persist the filenames, never the heavy base64 strings in the database)
@@ -2794,7 +2798,9 @@ function OrderAdminCard({
     currentServiceFee +
     effectiveStorage +
     effectiveShipping +
-    currentAppFee;
+    currentAppFee +
+    (order.prepaymentFee || 0) +
+    onDemandProductCostBRL;
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -2962,6 +2968,32 @@ function OrderAdminCard({
           </div>
 
           <div className="pt-4 space-y-4">
+            <div className="bg-stone-50 border border-stone-200 rounded-lg p-4">
+              <h4 className="font-bold text-sm mb-2 text-stone-800">
+                Valor do Produto (Para compras sob encomenda)
+              </h4>
+              <p className="text-[11px] text-stone-500 mb-3 leading-relaxed">
+                Insira aqui o valor final da mercadoria adquirida nas lojas para
+                cobrança, caso o cliente tenha pago apenas a taxa de serviço
+                (Sinal inicial).
+              </p>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-stone-400 text-sm">
+                  R$
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={onDemandProductCostBRL}
+                  onChange={(e) =>
+                    setOnDemandProductCostBRL(Number(e.target.value))
+                  }
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-stone-200 focus:ring-indigo-500 text-sm font-bold bg-white"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Novo Status
@@ -3378,6 +3410,22 @@ function OrderAdminCard({
                     </td>
                   </tr>
                 )}
+                {order.prepaymentFee ? (
+                  <tr>
+                    <td className="py-1">Sinal Inicial (Sob Encomenda):</td>
+                    <td className="text-right font-medium">
+                      {formatCurrency(order.prepaymentFee)}
+                    </td>
+                  </tr>
+                ) : null}
+                {onDemandProductCostBRL > 0 ? (
+                  <tr>
+                    <td className="py-1">Produto (Sob Encomenda):</td>
+                    <td className="text-right font-medium">
+                      {formatCurrency(onDemandProductCostBRL)}
+                    </td>
+                  </tr>
+                ) : null}
                 <tr>
                   <td className="py-1">
                     Frete{" "}

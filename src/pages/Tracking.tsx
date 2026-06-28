@@ -420,7 +420,8 @@ export function Tracking() {
               // Use final shipping fee if it exists and we are in shipping payment status
               const amount =
                 order.status === "AWAITING_SHIPPING_PAYMENT"
-                  ? order.finalShippingFeeBRL || order.shippingFeeBRL || 0
+                  ? (order.finalShippingFeeBRL || order.shippingFeeBRL || 0) +
+                    (order.onDemandProductCostBRL || 0)
                   : order.totalBRL;
 
               const pixCode = generatePixCode(
@@ -482,7 +483,9 @@ export function Tracking() {
                           <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
                             <span className="text-stone-500 font-bold">
                               {isShipping
-                                ? "Frete a Pagar:"
+                                ? order.onDemandProductCostBRL
+                                  ? "Total a Pagar (Frete + Produto):"
+                                  : "Frete a Pagar:"
                                 : "Valor do Pedido:"}
                             </span>
                             <strong className="text-rose-600 text-sm font-semibold">
@@ -936,6 +939,28 @@ export function Tracking() {
                     )}
                   </span>
                 </div>
+
+                {order.prepaymentFee ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-stone-500">
+                      Sinal Inicial (Sob Encomenda):
+                    </span>
+                    <span className="font-medium text-stone-900">
+                      {formatCurrency(order.prepaymentFee)}
+                    </span>
+                  </div>
+                ) : null}
+
+                {order.onDemandProductCostBRL ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-stone-500">
+                      Valor Adicional do Produto (Sob Encomenda):
+                    </span>
+                    <span className="font-medium text-stone-900">
+                      {formatCurrency(order.onDemandProductCostBRL)}
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className="flex justify-between text-sm">
                   <span className="text-stone-500">

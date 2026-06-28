@@ -141,6 +141,8 @@ export type Order = {
   };
   packageWeight?: number;
   appFeeBRL?: number; // R$20
+  prepaymentFee?: number;
+  onDemandProductCostBRL?: number;
   totalBRL: number;
   status: OrderStatus;
   history: OrderEvent[];
