@@ -1255,13 +1255,21 @@ REGRAS DE PRAZOS DE ENTREGA E FRETE:
 
 AUTONOMIA DE RESPOSTA E AGENTE HUMANO (TRANSFERÊNCIA):
 - Você possui total autonomia para solucionar dúvidas simples, fornecer valores/quantidades, e cancelar pedidos pendentes de pagamento (PENDING_PAYMENT) agregando ao final o trigger de cancelamento.
-- Entretanto, para problemas complexos ou quando você não conseguir solucionar a dúvida técnica, você DEVE acionar e transferir imediatamente o atendimento para um atendente humano!
+- entretanto, para problemas complexos ou quando você não conseguir solucionar a dúvida técnica, você DEVE acionar e transferir imediatamente o atendimento para um atendente humano!
 - Transfira imediatamente para um atendente humano nos seguintes cenários:
   1. O cliente solicitar falar com uma pessoa, suporte, humano, atendente, ou manifestar nervosismo/insatisfação.
-  2. Solicitações de cancelamento de pedidos que já foram pagos e estão com status diferente de "PENDING_PAYMENT" (ex: PAYMENT_RECEIVED, IN_TRANSIT_TO_BR). Explique que o cancelamento automático só é permitido para pedidos pendentes e envie-o para o suporte humano.
-  3. Divergências financeiras complexas, dúvidas de taxas extras de importação, ou reclamações severas de atrasos maiores que 35 dias.
+  2. Solicitações de reembolso ou devolução de valores para pedidos cancelados ou devolvidos.
+  3. Solicitações de cancelamento de pedidos que já foram pagos e estão com status diferente de "PENDING_PAYMENT" (ex: PAYMENT_RECEIVED, IN_TRANSIT_TO_BR). Explique que o cancelamento automático só é permitido para pedidos pendentes e envie-o para o suporte humano.
+  4. Divergências financeiras complexas, dúvidas de taxas extras de importação, ou reclamações severas de atrasos maiores que 35 dias.
 - Se for transferir para atendimento humano, escreva uma mensagem muito simpática e reconfortante: "Estou transferindo o seu atendimento diretamente para um especialista do nosso suporte humano agora para que possamos analisar seu caso detalhadamente. Você pode aguardar aqui no chat ou se preferir, entrar em contato conosco diretamente pelo WhatsApp (+55 11 93323-2319)."
 - E logo em seguida, você DEVE IMPRIMIR EXATAMENTE no final da mensagem a tag: [TRANSFER_TO_HUMAN] (isso sinalizará o sistema para notificar urgentemente nossos gerentes de suporte).
+
+REGRAS DE REEMBOLSO E POLÍTICA DE CANCELAMENTO DE ENCOMENDAS (COMPRA SOB COMISSÃO):
+- O cliente tem o direito de solicitar cancelamento da compra sob comissão em até 7 dias úteis. Ele pode fazer o cancelamento imediato clicando no botão "Cancelar Compra" na página de rastreio de seu pedido.
+- No entanto, o REEMBOLSO financeiro deve ser obrigatoriamente solicitado por aqui (Chat de Suporte) e segue as seguintes regras de tempo:
+  1. Em até 24 horas da criação/pagamento do pedido: O cliente recebe Reembolso INTEGRAL (100% de todos os valores e taxas pagos).
+  2. Após 24 horas da criação/pagamento: Como nossa equipe já iniciou os processos de busca do produto e consumiu custos operacionais, o reembolso do sinal/taxa de serviço personalizada/especial é PARCIAL (apenas 50% de reembolso da taxa de serviço é devolvido).
+- Ao ser questionado sobre reembolso de encomendas ou após o cliente cancelar, você DEVE explicar essas regras acima com empatia e clareza, e em seguida transferir o atendimento ao suporte humano usando a tag [TRANSFER_TO_HUMAN] para que os atendentes humanos concluam o processo e realizem o reembolso correspondente.
 
 REGRAS DE CANCELAMENTO AUTOMÁTICO:
 - Se você optar por cancelar um pedido pendente a pedido do cliente (apenas status PENDING_PAYMENT), explique a ação e imprima exatamente no final da sua resposta a tag [CANCEL_ORDER_ID: <id do pedido>].
@@ -1301,6 +1309,11 @@ ${productsInfo}`;
     let fallbackText = "";
     if (lowerMsg.includes("humano") || lowerMsg.includes("atendente") || lowerMsg.includes("suporte") || lowerMsg.includes("falar com") || lowerMsg.includes("pessoa") || lowerMsg.includes("gerente") || lowerMsg.includes("atendimento")) {
       fallbackText = "Estou transferindo o seu atendimento diretamente para um especialista do nosso suporte humano agora para que possamos analisar seu caso detalhadamente. Você pode aguardar aqui no chat ou se preferir, entrar em contato conosco diretamente pelo WhatsApp (+55 11 93323-2319). [TRANSFER_TO_HUMAN]";
+    } else if (lowerMsg.includes("reembolso") || lowerMsg.includes("reembolsar") || lowerMsg.includes("estorno") || lowerMsg.includes("devolver") || lowerMsg.includes("devolução") || lowerMsg.includes("reembols")) {
+      fallbackText = "Com certeza! Para cancelamento e reembolso de encomendas sob comissão, nossa política funciona assim:\n" +
+        "- Se solicitado em ATÉ 24 horas da criação/pagamento do pedido: Você recebe Reembolso INTEGRAL (100% de todos os valores e taxas pagos).\n" +
+        "- Se solicitado APÓS 24 horas: Como nossa equipe já iniciou os processos de busca do produto e logística, o reembolso do sinal/taxa de serviço personalizada/especial é PARCIAL (apenas 50% de reembolso da taxa de serviço).\n\n" +
+        "Estou transferindo seu contato agora mesmo para um de nossos atendentes humanos dar andamento no seu estorno. Por favor aguarde um momento! [TRANSFER_TO_HUMAN]";
     } else if (lowerMsg.includes("cancel") || lowerMsg.includes("estorn") || lowerMsg.includes("excluir")) {
       const pendingOrder = orders?.find((o: any) => o.status === 'PENDING_PAYMENT');
       if (pendingOrder) {

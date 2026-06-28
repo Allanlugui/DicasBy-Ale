@@ -572,11 +572,16 @@ export function Cart() {
 
         <div className="space-y-8">
           {pendingQuoteOrders.map((order, index) => {
+            const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
+            const amountToPayNow = hasPaidPrepayment
+              ? order.onDemandProductCostBRL
+              : (order.prepaymentFee || order.totalBRL);
+
             const specificPixCode = generatePixCode(
               activePixKey,
               activePixName,
               activePixCity,
-              order.totalBRL,
+              amountToPayNow,
             );
 
             const handleCopySpecificPix = async () => {
@@ -657,36 +662,77 @@ export function Cart() {
                           Consolidado em BRL
                         </span>
                       </h4>
-                      <div className="flex justify-between">
-                        <span>Preço de Cotação do Produto:</span>
-                        <span className="font-mono">
-                          {formatCurrency(order.subtotalBRL)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Taxa de Serviço:</span>
-                        <span className="font-mono">
-                          {formatCurrency(
-                            (order.serviceFeeBRL || 0) +
-                              (order.storageFeeBRL || 0) +
-                              (order.appFeeBRL || 0),
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Frete Aduaneiro & Correios Brasil:</span>
-                        <span className="font-xs italic text-stone-500">
-                          Calculado no Envio
-                        </span>
-                      </div>
-                      <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
-                        <span className="text-sm font-bold text-stone-900">
-                          Total do Pedido:
-                        </span>
-                        <strong className="text-lg font-bold font-mono text-rose-600">
-                          {formatCurrency(order.totalBRL)}
-                        </strong>
-                      </div>
+                      {hasPaidPrepayment ? (
+                        <>
+                          <div className="flex justify-between items-center bg-emerald-50/60 border border-emerald-100 p-2 rounded-xl">
+                            <span className="text-stone-600 font-medium">Sinal / Taxa de Serviço Especial:</span>
+                            <span className="font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-lg text-[11px]">
+                              {formatCurrency(order.prepaymentFee)} (PAGO)
+                            </span>
+                          </div>
+                          <div className="flex justify-between pt-1 font-semibold">
+                            <span>Preço de Cotação do Produto:</span>
+                            <span className="font-mono text-stone-900">
+                              {formatCurrency(order.onDemandProductCostBRL)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Frete Aduaneiro & Correios Brasil:</span>
+                            <span className="font-xs italic text-stone-500">
+                              Calculado no Envio
+                            </span>
+                          </div>
+                          <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
+                            <span className="text-sm font-bold text-stone-900">
+                              Total a Pagar Agora:
+                            </span>
+                            <strong className="text-lg font-bold font-mono text-rose-600">
+                              {formatCurrency(order.onDemandProductCostBRL)}
+                            </strong>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span>Preço de Cotação do Produto:</span>
+                            <span className="font-mono">
+                              {formatCurrency(order.subtotalBRL)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Taxa de Serviço:</span>
+                            <span className="font-mono">
+                              {formatCurrency(
+                                (order.serviceFeeBRL || 0) +
+                                  (order.storageFeeBRL || 0) +
+                                  (order.appFeeBRL || 0),
+                              )}
+                            </span>
+                          </div>
+                          {order.prepaymentFee ? (
+                            <div className="flex justify-between">
+                              <span>Sinal / Taxa de Serviço Especial:</span>
+                              <span className="font-mono">
+                                {formatCurrency(order.prepaymentFee)}
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="flex justify-between">
+                            <span>Frete Aduaneiro & Correios Brasil:</span>
+                            <span className="font-xs italic text-stone-500">
+                              Calculado no Envio
+                            </span>
+                          </div>
+                          <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
+                            <span className="text-sm font-bold text-stone-900">
+                              Total do Pedido:
+                            </span>
+                            <strong className="text-lg font-bold font-mono text-rose-600">
+                              {formatCurrency(order.totalBRL)}
+                            </strong>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* LINK TO RECIBO */}

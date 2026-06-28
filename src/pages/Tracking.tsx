@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
   Search,
   Package,
@@ -20,6 +20,7 @@ import {
   FileDown,
   ExternalLink,
   Box,
+  CreditCard,
 } from "lucide-react";
 import { useAppContext } from "../context";
 import { ImageInput } from "../components/ImageInput";
@@ -54,12 +55,15 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export function Tracking() {
+  const navigate = useNavigate();
   const {
     orders,
     submitReview,
     companySettings,
     autoSaveUserDocument,
     updateOrderStatus,
+    profile,
+    user,
   } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id") || "";
@@ -73,6 +77,214 @@ export function Tracking() {
   // Payments and local receipt upload states
   const [copiedKey, setCopiedKey] = useState(false);
   const [uploadedReceipt, setUploadedReceipt] = useState<string | null>(null);
+
+  // Payment states for Tracking (Credit Card & Boleto)
+  const [selectedMethod, setSelectedMethod] = useState<"pix" | "credit_card" | "boleto">("pix");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardInstallments, setCardInstallments] = useState("1");
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Billing fields in case user needs to confirm/update them
+  const [billingCpf, setBillingCpf] = useState("");
+  const [billingPhone, setBillingPhone] = useState("");
+  const [billingZip, setBillingZip] = useState("");
+  const [billingStreet, setBillingStreet] = useState("");
+  const [billingNumber, setBillingNumber] = useState("");
+  const [billingCity, setBillingCity] = useState("");
+  const [billingState, setBillingState] = useState("");
+
+  // Cancellation states
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState(false);
+
+  // Sync billing details when order or profile changes
+  useEffect(() => {
+    if (order) {
+      setBillingCpf(profile?.document || order.customerDocument || billingCpf || "");
+      setBillingPhone(profile?.phone || billingPhone || "");
+      setBillingZip(profile?.zipCode || billingZip || "");
+      setBillingStreet(profile?.street || billingStreet || "");
+      setBillingNumber(profile?.number || billingNumber || "");
+      setBillingCity(profile?.city || billingCity || "");
+      setBillingState(profile?.state || billingState || "");
+      
+      // If payment has already been generated via Asaas, use it!
+      if (order.paymentMethod === "credit_card" || order.paymentMethod === "boleto") {
+        setSelectedMethod(order.paymentMethod);
+      } else {
+        setSelectedMethod("pix");
+      }
+    }
+  }, [order, profile]);
+
+  const handleAsaasPaymentTracking = async (currentOrder: Order, amount: number) => {
+    setIsProcessingPayment(true);
+    setPaymentError(null);
+
+    try {
+      if (!billingCpf || !billingPhone || !billingZip || !billingStreet || !billingNumber || !billingCity || !billingState) {
+        throw new Error("Por favor, preencha todos os dados de cobrança / endereço.");
+      }
+
+      if (selectedMethod === "credit_card") {
+        if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
+          throw new Error("Por favor, preencha todos os dados do cartão de crédito.");
+        }
+        const [expiryMonth, expiryYear] = cardExpiry.split("/");
+        if (!expiryMonth || !expiryYear) {
+          throw new Error("Validade do cartão deve estar no formato MM/AA (ex: 12/29).");
+        }
+
+        const res = await fetch("/api/asaas/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: currentOrder.customerName,
+            customerEmail: currentOrder.customerEmail,
+            customerCpf: billingCpf,
+            customerPhone: billingPhone,
+            customerZipCode: billingZip,
+            customerStreet: billingStreet,
+            customerNumber: billingNumber,
+            customerCity: billingCity,
+            customerState: billingState,
+            value: amount,
+            description: `Pagamento Pedido ${currentOrder.trackingId} - Dicas by Alê`,
+            billingType: "CREDIT_CARD",
+            installmentCount: parseInt(cardInstallments) || 1,
+            creditCard: {
+              holderName: cardName,
+              number: cardNumber.replace(/\s/g, ""),
+              expiryMonth: expiryMonth.trim(),
+              expiryYear: "20" + expiryYear.trim(),
+              ccv: cardCvv,
+            }
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Erro ao processar pagamento com cartão.");
+        }
+
+        const isPaid = data.status === "CONFIRMED" || data.status === "RECEIVED";
+        
+        await updateOrderStatus(
+          currentOrder.id,
+          isPaid ? "PAYMENT_RECEIVED" : currentOrder.status,
+          `Pagamento via Cartão de Crédito iniciado. Status: ${data.status}. ID Asaas: ${data.paymentId}`,
+          undefined,
+          undefined,
+          {
+            paymentMethod: "credit_card",
+            asaasPaymentId: data.paymentId,
+            asaasInvoiceUrl: data.invoiceUrl,
+          }
+        );
+
+        // Update local order state to show changes immediately
+        setOrder({
+          ...currentOrder,
+          status: isPaid ? "PAYMENT_RECEIVED" : currentOrder.status,
+          paymentMethod: "credit_card",
+          asaasPaymentId: data.paymentId,
+          asaasInvoiceUrl: data.invoiceUrl,
+        });
+
+      } else if (selectedMethod === "boleto") {
+        const res = await fetch("/api/asaas/create-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: currentOrder.customerName,
+            customerEmail: currentOrder.customerEmail,
+            customerCpf: billingCpf,
+            customerPhone: billingPhone,
+            customerZipCode: billingZip,
+            customerStreet: billingStreet,
+            customerNumber: billingNumber,
+            customerCity: billingCity,
+            customerState: billingState,
+            value: amount,
+            description: `Boleto de Compra Pedido ${currentOrder.trackingId} - Dicas by Alê`,
+            billingType: "BOLETO",
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Erro ao gerar boleto.");
+        }
+
+        await updateOrderStatus(
+          currentOrder.id,
+          currentOrder.status,
+          `Boleto bancário gerado com sucesso. ID Asaas: ${data.paymentId}`,
+          undefined,
+          undefined,
+          {
+            paymentMethod: "boleto",
+            asaasPaymentId: data.paymentId,
+            asaasInvoiceUrl: data.invoiceUrl,
+            bankSlipUrl: data.bankSlipUrl || undefined,
+            barCode: data.barCode || undefined,
+          }
+        );
+
+        // Update local order state to show changes immediately
+        setOrder({
+          ...currentOrder,
+          paymentMethod: "boleto",
+          asaasPaymentId: data.paymentId,
+          asaasInvoiceUrl: data.invoiceUrl,
+          bankSlipUrl: data.bankSlipUrl || undefined,
+          barCode: data.barCode || undefined,
+        });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setPaymentError(err.message || "Ocorreu um erro ao processar o pagamento.");
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!order) return;
+    setIsCancellingOrder(true);
+    try {
+      const createdDate = new Date(order.createdAt);
+      const diffMs = new Date().getTime() - createdDate.getTime();
+      const isUnder24h = diffMs <= 24 * 60 * 60 * 1000;
+      
+      const refundPolicyText = isUnder24h 
+        ? "Reembolso integral (100% de devolução de todas as taxas, incluindo taxa especial de serviço) elegível."
+        : "Reembolso parcial (apenas 50% de devolução da taxa de serviço) elegível, pois o pedido tem mais de 24 horas.";
+
+      const note = `Pedido cancelado pelo cliente via portal. ${refundPolicyText}`;
+      
+      await updateOrderStatus(order.id, "CANCELLED", note, undefined, undefined, {
+        cancellationReason: "Solicitado pelo cliente via portal",
+        cancellationDate: new Date().toISOString(),
+        refundEligibility: isUnder24h ? "FULL" : "PARTIAL"
+      });
+      
+      setOrder({
+        ...order,
+        status: "CANCELLED",
+      });
+      setCancelSuccess(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  };
 
   const handleUploadReceipt = async (url: string, currentOrder: Order) => {
     setUploadedReceipt(url);
@@ -310,6 +522,55 @@ export function Tracking() {
             </div>
           </div>
 
+          {/* Cancellation Info / Action Banner */}
+          {(() => {
+            const createdDate = new Date(order.createdAt);
+            const diffMs = new Date().getTime() - createdDate.getTime();
+            const diffDays = diffMs / (1000 * 60 * 60 * 24);
+            const diffHours = diffMs / (1000 * 60 * 60);
+            
+            // Limit to 7 business days (represented as up to 10 calendar days)
+            const isEligibleToCancel = diffDays <= 10 && order.status !== "CANCELLED" && order.status !== "DELIVERED";
+            
+            if (!isEligibleToCancel) return null;
+            
+            const isUnder24h = diffHours <= 24;
+            
+            return (
+              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 animate-scale-in">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-stone-700">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span>Cancelamento de Compra sob Encomenda</span>
+                  </div>
+                  <p className="text-xs text-stone-500 leading-relaxed max-w-xl">
+                    Este pedido foi efetuado em <strong>{new Date(order.createdAt).toLocaleDateString("pt-BR")}</strong> ({Math.floor(diffDays)} dias atrás). 
+                    Você pode cancelar este pedido no sistema imediatamente. 
+                    {isUnder24h ? (
+                      <span className="text-emerald-600 font-semibold block mt-1">
+                        ⏰ Menos de 24 horas transcorridas: elegível a REEMBOLSO INTEGRAL (100%) das taxas.
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 font-semibold block mt-1">
+                        ⏳ Mais de 24 horas transcorridas: elegível a REEMBOLSO PARCIAL (50% da taxa de serviço) devido aos custos logísticos já consumidos.
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCancelModal(true);
+                    setCancelSuccess(false);
+                  }}
+                  className="cursor-pointer px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs rounded-xl shadow-xs transition shrink-0"
+                >
+                  Cancelar Compra
+                </button>
+              </div>
+            );
+          })()}
+
           {/* Carrier Tracking Info */}
           {(order.carrierName || order.carrierTrackingCode) &&
             (() => {
@@ -407,8 +668,7 @@ export function Tracking() {
                 </div>
               );
             })()}
-
-          {/* Payment Details for PENDING_PAYMENT or AWAITING_SHIPPING_PAYMENT */}
+                       {/* Payment Details for PENDING_PAYMENT or AWAITING_SHIPPING_PAYMENT */}
           {(order.status === "PENDING_PAYMENT" ||
             order.status === "AWAITING_SHIPPING_PAYMENT") &&
             (() => {
@@ -418,11 +678,13 @@ export function Tracking() {
               const activePixCity = companySettings?.pixCity || "SAO PAULO";
 
               // Use final shipping fee if it exists and we are in shipping payment status
+              const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
               const amount =
                 order.status === "AWAITING_SHIPPING_PAYMENT"
-                  ? (order.finalShippingFeeBRL || order.shippingFeeBRL || 0) +
-                    (order.onDemandProductCostBRL || 0)
-                  : order.totalBRL;
+                  ? (order.finalShippingFeeBRL || order.shippingFeeBRL || 0)
+                  : (hasPaidPrepayment
+                      ? order.onDemandProductCostBRL
+                      : order.totalBRL);
 
               const pixCode = generatePixCode(
                 activePixKey,
@@ -455,8 +717,73 @@ export function Tracking() {
                     </h3>
                   </div>
 
-                  {/* Se for frete, ou se o método de pagamento principal do pedido for PIX, exibe o fluxo de Pix */}
-                  {isShipping || method === "pix" ? (
+                  {/* Payment Methods Selector Tabs (Only if payment was not generated or is Pix) */}
+                  {(!order.asaasPaymentId || order.paymentMethod === "pix") && (
+                    <div className="grid grid-cols-3 gap-2 bg-stone-50 p-1.5 rounded-xl border border-stone-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMethod("pix");
+                          setPaymentError(null);
+                        }}
+                        className={`cursor-pointer py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          selectedMethod === "pix"
+                            ? "bg-white text-rose-600 shadow-sm"
+                            : "text-stone-500 hover:text-stone-800"
+                        }`}
+                        id="tab-method-pix"
+                      >
+                        <Landmark className="w-3.5 h-3.5" />
+                        <span>Pix</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMethod("credit_card");
+                          setPaymentError(null);
+                        }}
+                        className={`cursor-pointer py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          selectedMethod === "credit_card"
+                            ? "bg-white text-rose-600 shadow-sm"
+                            : "text-stone-500 hover:text-stone-800"
+                        }`}
+                        id="tab-method-card"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Crédito</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMethod("boleto");
+                          setPaymentError(null);
+                        }}
+                        className={`cursor-pointer py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                          selectedMethod === "boleto"
+                            ? "bg-white text-rose-600 shadow-sm"
+                            : "text-stone-500 hover:text-stone-800"
+                        }`}
+                        id="tab-method-boleto"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Boleto</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ERROR DISPLAY */}
+                  {paymentError && (
+                    <div className="bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold px-4 py-3 rounded-xl flex items-center gap-2">
+                      <Info className="w-4 h-4 shrink-0" />
+                      <span>{paymentError}</span>
+                    </div>
+                  )}
+
+                  {/* PAYMENT DISPLAY FLOW */}
+                  {/* Option 1: PIX */}
+                  {((!order.asaasPaymentId && selectedMethod === "pix") || (order.asaasPaymentId && method === "pix")) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                       <div className="space-y-4">
                         <p className="text-xs text-stone-600 leading-relaxed">
@@ -480,13 +807,17 @@ export function Tracking() {
                               {activePixKey}
                             </strong>
                           </div>
+                          {hasPaidPrepayment && !isShipping && (
+                            <div className="flex justify-between text-[11px] text-emerald-700 bg-emerald-50/60 border border-emerald-100 p-1.5 rounded-lg mt-1">
+                              <span>Sinal / Taxa de Serviço:</span>
+                              <span className="font-bold">Pago ({formatCurrency(order.prepaymentFee)})</span>
+                            </div>
+                          )}
                           <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
                             <span className="text-stone-500 font-bold">
                               {isShipping
-                                ? order.onDemandProductCostBRL
-                                  ? "Total a Pagar (Frete + Produto):"
-                                  : "Frete a Pagar:"
-                                : "Valor do Pedido:"}
+                                ? "Frete a Pagar:"
+                                : (hasPaidPrepayment ? "Valor do Produto (A Pagar):" : "Sinal / Taxa de Serviço:")}
                             </span>
                             <strong className="text-rose-600 text-sm font-semibold">
                               {formatCurrency(amount)}
@@ -522,6 +853,7 @@ export function Tracking() {
                             src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(pixCode)}`}
                             alt="QR Code Pix"
                             className="w-40 h-40 object-contain mx-auto"
+                            referrerPolicy="no-referrer"
                           />
                         </div>
 
@@ -555,208 +887,504 @@ export function Tracking() {
                         </div>
                       </div>
                     </div>
-                  ) : method === "boleto" ? (
-                    // Se for BOLETO
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                      <div className="space-y-4">
-                        <p className="text-xs text-stone-600 leading-relaxed">
-                          Seu pedido foi registrado e o boleto bancário já está
-                          disponível para pagamento! Pague pelo seu internet
-                          banking copiando o código de barras abaixo ou
-                          visualize o boleto completo em PDF.
-                        </p>
+                  )}
 
-                        <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-stone-500 font-bold">
-                              Valor do Boleto:
-                            </span>
-                            <strong className="text-rose-600 text-sm font-semibold">
-                              {formatCurrency(amount)}
-                            </strong>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-stone-400">Vencimento:</span>
-                            <strong className="text-stone-800">
-                              1 dia útil
-                            </strong>
-                          </div>
-                        </div>
+                  {/* Option 2: BOLETO */}
+                  {((!order.asaasPaymentId && selectedMethod === "boleto") || (order.asaasPaymentId && method === "boleto")) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-scale-in">
+                      {order.asaasPaymentId && method === "boleto" ? (
+                        /* Generated Boleto Display */
+                        <>
+                          <div className="space-y-4">
+                            <p className="text-xs text-stone-600 leading-relaxed">
+                              Seu pedido foi registrado e o boleto bancário já está
+                              disponível para pagamento! Pague pelo seu internet
+                              banking copiando o código de barras abaixo ou
+                              visualize o boleto completo em PDF.
+                            </p>
 
-                        <div className="flex flex-col gap-3.5 pt-2">
-                          {order.bankSlipUrl && (
-                            <a
-                              href={order.bankSlipUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
-                            >
-                              <FileDown className="w-4 h-4" /> Visualizar Boleto
-                              em PDF
-                            </a>
-                          )}
-
-                          {order.asaasInvoiceUrl && (
-                            <a
-                              href={order.asaasInvoiceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="cursor-pointer py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-300 text-center"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" /> Fatura
-                              Completa no Asaas
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-5">
-                        {order.barCode ? (
-                          <div className="space-y-2">
-                            <label className="text-[10px] text-stone-400 uppercase font-black tracking-widest block">
-                              Linha Digitável (Copiar e Colar)
-                            </label>
-                            <div className="p-3 bg-stone-50 rounded-xl border border-stone-150 font-mono text-xs text-stone-700 select-all break-all leading-relaxed">
-                              {order.barCode}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                await safeCopyText(order.barCode || "");
-                                setCopiedKey(true);
-                                setTimeout(() => setCopiedKey(false), 2500);
-                              }}
-                              className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                                copiedKey
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                  : "bg-rose-600 hover:bg-rose-700 text-white border-transparent"
-                              }`}
-                            >
-                              {copiedKey ? (
-                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                              {copiedKey
-                                ? "Código de Barras Copiado!"
-                                : "Copiar Código de Barras"}
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="bg-stone-50 rounded-xl p-4 text-center border border-dashed border-stone-200 text-xs text-stone-400">
-                            Código de barras sendo gerado pelo banco. Caso
-                            demore, visualize a fatura completa no link ao lado.
-                          </div>
-                        )}
-
-                        <div className="w-full space-y-2 text-left pt-1">
-                          <label className="text-[11px] font-bold text-stone-600 block">
-                            Já pagou o boleto? Envie o comprovante:
-                          </label>
-                          {uploadedReceipt ? (
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
-                              <div className="flex items-center gap-1">
-                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Comprovante registrado com sucesso!</span>
+                            <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-stone-500 font-bold">
+                                  Valor do Boleto:
+                                </span>
+                                <strong className="text-rose-600 text-sm font-semibold">
+                                  {formatCurrency(amount)}
+                                </strong>
                               </div>
-                              <span className="text-[10px] text-emerald-600 font-normal block leading-snug">
-                                Seu comprovante foi anexado e enviado ao nosso
-                                setor administrativo. A liberação de logística
-                                ocorrerá em instantes.
+                              <div className="flex justify-between">
+                                <span className="text-stone-400">Vencimento:</span>
+                                <strong className="text-stone-800">
+                                  1 dia útil
+                                </strong>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3.5 pt-2">
+                              {order.bankSlipUrl && (
+                                <a
+                                  href={order.bankSlipUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
+                                >
+                                  <FileDown className="w-4 h-4" /> Visualizar Boleto
+                                  em PDF
+                                </a>
+                              )}
+
+                              {order.asaasInvoiceUrl && (
+                                <a
+                                  href={order.asaasInvoiceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="cursor-pointer py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-300 text-center"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" /> Fatura
+                                  Completa no Asaas
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-5">
+                            {order.barCode ? (
+                              <div className="space-y-2">
+                                <label className="text-[10px] text-stone-400 uppercase font-black tracking-widest block">
+                                  Linha Digitável (Copiar e Colar)
+                                </label>
+                                <div className="p-3 bg-stone-50 rounded-xl border border-stone-150 font-mono text-xs text-stone-700 select-all break-all leading-relaxed">
+                                  {order.barCode}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await safeCopyText(order.barCode || "");
+                                    setCopiedKey(true);
+                                    setTimeout(() => setCopiedKey(false), 2500);
+                                  }}
+                                  className={`cursor-pointer w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
+                                    copiedKey
+                                      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                      : "bg-rose-600 hover:bg-rose-700 text-white border-transparent"
+                                  }`}
+                                >
+                                  {copiedKey ? (
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                  {copiedKey
+                                    ? "Código de Barras Copiado!"
+                                    : "Copiar Código de Barras"}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="bg-stone-50 rounded-xl p-4 text-center border border-dashed border-stone-200 text-xs text-stone-400">
+                                Código de barras sendo gerado pelo banco. Caso
+                                demore, visualize a fatura completa no link ao lado.
+                              </div>
+                            )}
+
+                            <div className="w-full space-y-2 text-left pt-1">
+                              <label className="text-[11px] font-bold text-stone-600 block">
+                                Já pagou o boleto? Envie o comprovante:
+                              </label>
+                              {uploadedReceipt ? (
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Comprovante registrado com sucesso!</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <ImageInput
+                                  value=""
+                                  placeholder="Anexar comprovante de boleto..."
+                                  onChange={(url) => {
+                                    if (url) handleUploadReceipt(url, order);
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Generate Boleto Form */
+                        <div className="col-span-2 space-y-4">
+                          <p className="text-xs text-stone-600">
+                            Preencha os dados abaixo para gerar um boleto registrado no banco Asaas. O vencimento será para o próximo dia útil.
+                          </p>
+
+                          {/* Billing Form */}
+                          <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4 text-stone-700 text-left">
+                            <h4 className="text-xs font-bold">Dados Cadastrais do Pagador</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">CPF / CNPJ</label>
+                                <input
+                                  type="text"
+                                  value={billingCpf}
+                                  onChange={(e) => setBillingCpf(e.target.value)}
+                                  placeholder="000.000.000-00"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">Telefone</label>
+                                <input
+                                  type="text"
+                                  value={billingPhone}
+                                  onChange={(e) => setBillingPhone(e.target.value)}
+                                  placeholder="(11) 99999-9999"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1 col-span-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">CEP</label>
+                                <input
+                                  type="text"
+                                  value={billingZip}
+                                  onChange={(e) => setBillingZip(e.target.value)}
+                                  placeholder="00000-000"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                              <div className="space-y-1 col-span-2">
+                                <label className="text-[10px] font-bold text-stone-500 block">Rua / Logradouro</label>
+                                <input
+                                  type="text"
+                                  value={billingStreet}
+                                  onChange={(e) => setBillingStreet(e.target.value)}
+                                  placeholder="Av. Paulista"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">Número</label>
+                                <input
+                                  type="text"
+                                  value={billingNumber}
+                                  onChange={(e) => setBillingNumber(e.target.value)}
+                                  placeholder="123"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">Cidade</label>
+                                <input
+                                  type="text"
+                                  value={billingCity}
+                                  onChange={(e) => setBillingCity(e.target.value)}
+                                  placeholder="São Paulo"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-stone-500 block">Estado (UF)</label>
+                                <input
+                                  type="text"
+                                  value={billingState}
+                                  onChange={(e) => setBillingState(e.target.value)}
+                                  placeholder="SP"
+                                  className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={isProcessingPayment}
+                            onClick={() => handleAsaasPaymentTracking(order, amount)}
+                            className="cursor-pointer w-full py-3.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"
+                          >
+                            {isProcessingPayment ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                Gerando Boleto no Asaas...
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="w-4 h-4" />
+                                Confirmar e Gerar Boleto ({formatCurrency(amount)})
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Option 3: CREDIT CARD */}
+                  {((!order.asaasPaymentId && selectedMethod === "credit_card") || (order.asaasPaymentId && method === "credit_card")) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center animate-scale-in">
+                      {order.asaasPaymentId && method === "credit_card" ? (
+                        /* Generated Credit Card Info (Pending Analysis) */
+                        <>
+                          <div className="space-y-4">
+                            <p className="text-xs text-stone-600 leading-relaxed">
+                              Seu pagamento por cartão de crédito está sob análise
+                              de risco e verificação de segurança antifraude
+                              aduaneira no Asaas. Esse processo geralmente leva
+                              alguns minutos.
+                            </p>
+
+                            <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-stone-500 font-bold">
+                                  Valor Autorizado:
+                                </span>
+                                <strong className="text-rose-600 text-sm font-semibold">
+                                  {formatCurrency(amount)}
+                                </strong>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-stone-400">
+                                  Status da Transação:
+                                </span>
+                                <strong className="text-amber-600 font-bold uppercase tracking-wide text-[10px] bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                  Em Análise
+                                </strong>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2 pt-2">
+                              {order.asaasInvoiceUrl && (
+                                <a
+                                  href={order.asaasInvoiceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
+                                >
+                                  <ExternalLink className="w-4 h-4" /> Acessar Minha
+                                  Fatura no Asaas
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="bg-stone-50 rounded-xl p-5 border border-stone-200 text-xs space-y-2 text-stone-600 leading-relaxed">
+                              <strong className="text-stone-950 block text-xs">
+                                🔒 Transações com Cartão Protegidas
+                              </strong>
+                              <span>
+                                O banco Asaas exige a validação aduaneira do
+                                portador do cartão. Se houver qualquer divergência
+                                cadastral, a transação poderá ser estornada
+                                automaticamente para sua segurança.
                               </span>
                             </div>
-                          ) : (
-                            <ImageInput
-                              value=""
-                              placeholder="Anexar comprovante de boleto..."
-                              onChange={(url) => {
-                                if (url) handleUploadReceipt(url, order);
-                              }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Se for CARTÃO DE CRÉDITO
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                      <div className="space-y-4">
-                        <p className="text-xs text-stone-600 leading-relaxed">
-                          Seu pagamento por cartão de crédito está sob análise
-                          de risco e verificação de segurança antifraude
-                          aduaneira no Asaas. Esse processo geralmente leva
-                          alguns minutos.
-                        </p>
 
-                        <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-stone-500 font-bold">
-                              Valor Autorizado:
-                            </span>
-                            <strong className="text-rose-600 text-sm font-semibold">
-                              {formatCurrency(amount)}
-                            </strong>
+                            <div className="w-full space-y-2 text-left">
+                              <label className="text-[11px] font-bold text-stone-600 block">
+                                Deseja anexar a fatura ou comprovante?
+                              </label>
+                              {uploadedReceipt ? (
+                                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
+                                  <div className="flex items-center gap-1">
+                                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Comprovante anexado!</span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <ImageInput
+                                  value=""
+                                  placeholder="Anexar comprovante de transação..."
+                                  onChange={(url) => {
+                                    if (url) handleUploadReceipt(url, order);
+                                  }}
+                                />
+                              )}
+                            </div>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-stone-400">
-                              Status da Transação:
-                            </span>
-                            <strong className="text-amber-600 font-bold uppercase tracking-wide text-[10px] bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
-                              Em Análise
-                            </strong>
-                          </div>
-                        </div>
+                        </>
+                      ) : (
+                        /* Credit Card Checkout Form */
+                        <div className="col-span-2 space-y-6">
+                          <p className="text-xs text-stone-600">
+                            Preencha os dados do pagador e os dados do cartão de crédito para efetuar o pagamento seguro via Asaas.
+                          </p>
 
-                        <div className="flex flex-col gap-2 pt-2">
-                          {order.asaasInvoiceUrl && (
-                            <a
-                              href={order.asaasInvoiceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="cursor-pointer py-3 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition bg-stone-900 hover:bg-stone-800 text-white border-transparent text-center"
-                            >
-                              <ExternalLink className="w-4 h-4" /> Acessar Minha
-                              Fatura no Asaas
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="bg-stone-50 rounded-xl p-5 border border-stone-200 text-xs space-y-2 text-stone-600 leading-relaxed">
-                          <strong className="text-stone-950 block text-xs">
-                            🔒 Transações com Cartão Protegidas
-                          </strong>
-                          <span>
-                            O banco Asaas exige a validação aduaneira do
-                            portador do cartão. Se houver qualquer divergência
-                            cadastral, a transação poderá ser estornada
-                            automaticamente para sua segurança.
-                          </span>
-                        </div>
-
-                        <div className="w-full space-y-2 text-left">
-                          <label className="text-[11px] font-bold text-stone-600 block">
-                            Deseja anexar a fatura ou comprovante?
-                          </label>
-                          {uploadedReceipt ? (
-                            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-800 font-semibold space-y-1">
-                              <div className="flex items-center gap-1">
-                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                                <span>Comprovante anexado!</span>
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-left">
+                            {/* Billing Form */}
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4 text-stone-700">
+                              <h4 className="text-xs font-bold">Dados Cadastrais do Pagador</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">CPF / CNPJ</label>
+                                  <input
+                                    type="text"
+                                    value={billingCpf}
+                                    onChange={(e) => setBillingCpf(e.target.value)}
+                                    placeholder="000.000.000-00"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Telefone</label>
+                                  <input
+                                    type="text"
+                                    value={billingPhone}
+                                    onChange={(e) => setBillingPhone(e.target.value)}
+                                    placeholder="(11) 99999-9999"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1 col-span-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">CEP</label>
+                                  <input
+                                    type="text"
+                                    value={billingZip}
+                                    onChange={(e) => setBillingZip(e.target.value)}
+                                    placeholder="00000-000"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                                <div className="space-y-1 col-span-2">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Rua / Logradouro</label>
+                                  <input
+                                    type="text"
+                                    value={billingStreet}
+                                    onChange={(e) => setBillingStreet(e.target.value)}
+                                    placeholder="Av. Paulista"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Número</label>
+                                  <input
+                                    type="text"
+                                    value={billingNumber}
+                                    onChange={(e) => setBillingNumber(e.target.value)}
+                                    placeholder="123"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Cidade</label>
+                                  <input
+                                    type="text"
+                                    value={billingCity}
+                                    onChange={(e) => setBillingCity(e.target.value)}
+                                    placeholder="São Paulo"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Estado (UF)</label>
+                                  <input
+                                    type="text"
+                                    value={billingState}
+                                    onChange={(e) => setBillingState(e.target.value)}
+                                    placeholder="SP"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            <ImageInput
-                              value=""
-                              placeholder="Anexar comprovante de transação..."
-                              onChange={(url) => {
-                                if (url) handleUploadReceipt(url, order);
-                              }}
-                            />
-                          )}
+
+                            {/* Credit Card Fields */}
+                            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4 text-stone-700">
+                              <h4 className="text-xs font-bold">Dados do Cartão de Crédito</h4>
+                              <div className="space-y-3">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Número do Cartão</label>
+                                  <input
+                                    type="text"
+                                    value={cardNumber}
+                                    onChange={(e) => setCardNumber(e.target.value)}
+                                    placeholder="0000 0000 0000 0000"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Nome do Titular</label>
+                                  <input
+                                    type="text"
+                                    value={cardName}
+                                    onChange={(e) => setCardName(e.target.value.toUpperCase())}
+                                    placeholder="NOME IGUAL NO CARTÃO"
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none uppercase focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-stone-500 block">Validade (MM/AA)</label>
+                                    <input
+                                      type="text"
+                                      value={cardExpiry}
+                                      onChange={(e) => setCardExpiry(e.target.value)}
+                                      placeholder="12/29"
+                                      className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-bold text-stone-500 block">CVV</label>
+                                    <input
+                                      type="text"
+                                      value={cardCvv}
+                                      onChange={(e) => setCardCvv(e.target.value)}
+                                      placeholder="123"
+                                      className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center outline-none focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-stone-500 block">Parcelamento</label>
+                                  <select
+                                    value={cardInstallments}
+                                    onChange={(e) => setCardInstallments(e.target.value)}
+                                    className="w-full bg-white border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs outline-none font-medium text-stone-800 focus:ring-1 focus:ring-rose-500 focus:border-rose-500"
+                                  >
+                                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+                                      const interestRate = n === 1 ? 0 : 0.015 + n * 0.018;
+                                      const totalWithInterest = amount * (1 + interestRate);
+                                      const installmentValue = totalWithInterest / n;
+                                      return (
+                                        <option key={n} value={n.toString()}>
+                                          {n}x de {formatCurrency(installmentValue)} {n === 1 ? "sem juros" : ""}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                        <button
+                            type="button"
+                            disabled={isProcessingPayment}
+                            onClick={() => handleAsaasPaymentTracking(order, amount)}
+                            className="cursor-pointer w-full py-4 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md"
+                          >
+                            {isProcessingPayment ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                Processando Cartão de Crédito...
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard className="w-4 h-4" />
+                                Pagar com Cartão de Crédito ({formatCurrency(amount)})
+                              </>
+                            )}
+                          </button>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>

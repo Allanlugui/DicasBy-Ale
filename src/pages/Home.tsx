@@ -347,39 +347,69 @@ export function Home() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
-      {/* Global Search - Simplified Marketplace Style */}
-      <div className="max-w-2xl mx-auto w-full">
-        <div className="flex items-center gap-2">
-          <div className="flex-grow min-w-0">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  searchQuery.trim() &&
-                  !searchingInternet
-                ) {
-                  handleInternetSearch();
-                }
-              }}
-              placeholder="O que você quer comprar hoje? (Ex: Nike, iPhone...)"
-              className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-6 py-4 text-sm font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-sm focus:shadow-md"
-            />
+      {/* Top Search & Dollar Rate row */}
+      <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+        <div className="md:col-span-2 w-full">
+          <div className="flex items-center gap-2">
+            <div className="flex-grow min-w-0">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    searchQuery.trim() &&
+                    !searchingInternet
+                  ) {
+                    handleInternetSearch();
+                  }
+                }}
+                placeholder="O que você quer comprar hoje? (Ex: Nike, iPhone...)"
+                className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-6 py-4 text-sm font-medium text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-sm focus:shadow-md"
+              />
+            </div>
+            <button
+              onClick={handleInternetSearch}
+              disabled={searchingInternet || !searchQuery.trim()}
+              className="bg-stone-900 hover:bg-black disabled:bg-stone-100 disabled:text-stone-400 text-white font-black px-6 py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-sm shrink-0 shadow-lg shadow-stone-100"
+            >
+              {searchingInternet ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4 text-rose-500" />
+              )}
+              <span className="hidden sm:inline">Buscar</span>
+            </button>
           </div>
-          <button
-            onClick={handleInternetSearch}
-            disabled={searchingInternet || !searchQuery.trim()}
-            className="bg-stone-900 hover:bg-black disabled:bg-stone-100 disabled:text-stone-400 text-white font-black px-6 py-4 rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 text-sm shrink-0 shadow-lg shadow-stone-100"
-          >
-            {searchingInternet ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4 text-rose-500" />
-            )}
-            <span className="hidden sm:inline">Buscar</span>
-          </button>
+        </div>
+
+        <div className="md:col-span-1 w-full">
+          {/* Daily Dollar Exchange Rate Display */}
+          <div className="bg-white border border-stone-200 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all h-[54px] md:h-[58px]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-stone-900 text-rose-500 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+                $
+              </div>
+              <div className="leading-tight">
+                <h4 className="text-[11px] font-black text-stone-900 flex items-center gap-1">
+                  Dólar do Dia
+                  <span className="bg-rose-50 text-rose-600 text-[8px] font-black uppercase px-1 py-0.5 rounded">
+                    Hoje
+                  </span>
+                </h4>
+                <p className="text-[9px] text-stone-400 font-semibold uppercase tracking-wider">
+                  Cotação Comercial
+                </p>
+              </div>
+            </div>
+            <div className="bg-stone-50 border border-stone-100 text-stone-900 font-mono font-black text-xs px-2.5 py-1 rounded-xl flex flex-col items-end shrink-0">
+              <span className="text-[8px] text-stone-400 font-sans tracking-wider font-semibold uppercase leading-none mb-0.5">Valor:</span>
+              <span className="text-rose-600 font-black text-xs sm:text-sm">
+                R$ {companySettings?.dollarRate ? companySettings.dollarRate.toFixed(2) : "5.50"}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 

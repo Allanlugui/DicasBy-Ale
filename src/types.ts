@@ -72,6 +72,7 @@ export type Product = {
   boxWeight?: number;
   tags?: string[];
   isFeatured?: boolean;
+  location?: 'BR' | 'US';
 };
 
 export type ShippingMethod = {
@@ -170,6 +171,9 @@ export type Order = {
   paymentMethod?: string;
   carrierName?: string;
   carrierTrackingCode?: string;
+  cancellationReason?: string;
+  cancellationDate?: string;
+  refundEligibility?: 'FULL' | 'PARTIAL';
   createdAt: string;
 };
 
@@ -215,6 +219,7 @@ export type CompanySettings = {
   updatedAt?: string;
   personalShopperPrepaymentBRL?: number;
   personalShopperMaxDepositBRL?: number;
+  dollarRate?: number;
 };
 
 export type Collaborator = {

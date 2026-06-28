@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge, CartFeedback, AbandonedEmailLog } from './types';
 import { generateTrackingId, cleanUndefined, safeStorage } from './lib/utils';
 import { auth, db } from './lib/firebase';
@@ -162,13 +162,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [collaborator, setCollaborator] = useState<Collaborator | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [rawProducts, setRawProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [rawCart, setRawCart] = useState<CartItem[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+
+  const products = useMemo(() => {
+    const rate = companySettings?.dollarRate || 5.50;
+    return rawProducts.map(p => {
+      const loc = p.location || 'US';
+      if (loc === 'BR') {
+        const priceBRL = p.priceBRL || 0;
+        const priceUSD = priceBRL / rate;
+        return { ...p, priceUSD, priceBRL };
+      } else {
+        const priceUSD = p.priceUSD || 0;
+        const priceBRL = priceUSD * rate;
+        return { ...p, priceUSD, priceBRL };
+      }
+    });
+  }, [rawProducts, companySettings?.dollarRate]);
+
+  const cart = useMemo(() => {
+    return rawCart.map(item => {
+      const latestProd = products.find(p => p.id === item.productId);
+      if (latestProd) {
+        return { ...item, product: latestProd };
+      }
+      return item;
+    });
+  }, [rawCart, products]);
   const [quoteRequests, setQuoteRequests] = useState<QuoteRequest[]>([]);
   const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [documents, setDocuments] = useState<FileDocument[]>([]);
@@ -327,7 +353,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, (err) => handleFirestoreError(err, OperationType.GET, 'stores')));
 
     unsubs.push(onSnapshot(collection(db, 'products'), (snap) => {
-      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+      setRawProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'products')));
 
     unsubs.push(onSnapshot(query(collection(db, 'reviews'), orderBy('createdAt', 'desc')), (snap) => {
@@ -488,7 +514,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, quantity: number) => {
-    setCart((prev) => {
+    setRawCart((prev) => {
       const existing = prev.find(item => item.productId === product.id);
       if (existing) {
         return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity } : item);
@@ -497,8 +523,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const removeFromCart = (productId: string) => setCart(prev => prev.filter(item => item.productId !== productId));
-  const clearCart = () => setCart([]);
+  const removeFromCart = (productId: string) => setRawCart(prev => prev.filter(item => item.productId !== productId));
+  const clearCart = () => setRawCart([]);
 
   const createOrder = async (customerName: string, customerEmail: string, couponCode?: string, discountBRL?: number, extraOrderFields?: Partial<Order>) => {
     if (!user) throw new Error("Need to be logged in to order");

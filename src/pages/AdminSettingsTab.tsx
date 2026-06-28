@@ -78,6 +78,7 @@ export function AdminSettingsTab() {
     useState(150);
   const [personalShopperMaxDepositBRL, setPersonalShopperMaxDepositBRL] =
     useState(1000);
+  const [dollarRate, setDollarRate] = useState(5.50);
   const [fixedCosts, setFixedCosts] = useState<
     { id: string; label: string; value: number }[]
   >([]);
@@ -107,6 +108,7 @@ export function AdminSettingsTab() {
       setPersonalShopperMaxDepositBRL(
         companySettings.personalShopperMaxDepositBRL ?? 1000,
       );
+      setDollarRate(companySettings.dollarRate ?? 5.50);
       setFixedCosts(companySettings.fixedCosts || []);
       setAdminHubBaseUrl(companySettings.adminHubBaseUrl || "");
       setAdminHubApiKey(companySettings.adminHubApiKey || "");
@@ -194,6 +196,7 @@ export function AdminSettingsTab() {
         appFeeFixedBRL,
         personalShopperPrepaymentBRL,
         personalShopperMaxDepositBRL,
+        dollarRate,
         fixedCosts,
         adminHubBaseUrl,
         adminHubApiKey,
@@ -423,6 +426,27 @@ export function AdminSettingsTab() {
               </div>
               <p className="text-[10px] text-stone-400">
                 Teto máximo para pré-pagamentos em situações extraordinárias.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">
+                Cotação do Dólar do Dia (R$)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-2.5 text-stone-400 text-sm">
+                  R$
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={dollarRate}
+                  onChange={(e) => setDollarRate(Number(e.target.value))}
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition font-semibold text-rose-600"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">
+                Cotação do dólar atualizada diariamente. Atualiza automaticamente os preços dos produtos da vitrine em tempo real.
               </p>
             </div>
           </div>

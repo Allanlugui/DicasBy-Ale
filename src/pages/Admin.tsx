@@ -2821,6 +2821,11 @@ function OrderAdminCard({
           <div className="font-bold text-gray-900 text-lg">
             {formatCurrency(calculatedTotal)}
           </div>
+          {order.prepaymentFee > 0 && onDemandProductCostBRL > 0 && (
+            <div className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 font-semibold mt-1 inline-block">
+              Sinal Já Pago: {formatCurrency(order.prepaymentFee)} | A Pagar: {formatCurrency(onDemandProductCostBRL)}
+            </div>
+          )}
         </div>
       </div>
 
@@ -3610,6 +3615,9 @@ function ProductsTab({
   });
 
   // Form fields
+  const { companySettings } = useAppContext();
+  const dollarRate = companySettings?.dollarRate || 5.50;
+  const [location, setLocation] = useState<"BR" | "US">("US");
   const [editingId, setEditingId] = useState("");
   const [storeId, setStoreId] = useState("");
   const [name, setName] = useState("");
@@ -4196,6 +4204,7 @@ function ProductsTab({
     setDescription("");
     setPriceUSD(0);
     setPriceBRL(0);
+    setLocation("US");
     setImageUrl("");
     setSku("");
     setCategory("");
@@ -4212,6 +4221,29 @@ function ProductsTab({
     setBoxLength(0);
     setBoxHeight(0);
     setBoxWeight(0);
+  };
+
+  const handlePriceUSDChange = (val: number) => {
+    setPriceUSD(val);
+    if (location === "US") {
+      setPriceBRL(Number((val * dollarRate).toFixed(2)));
+    }
+  };
+
+  const handlePriceBRLChange = (val: number) => {
+    setPriceBRL(val);
+    if (location === "BR") {
+      setPriceUSD(Number((val / dollarRate).toFixed(2)));
+    }
+  };
+
+  const handleLocationChange = (newLoc: "BR" | "US") => {
+    setLocation(newLoc);
+    if (newLoc === "US") {
+      setPriceBRL(Number((priceUSD * dollarRate).toFixed(2)));
+    } else {
+      setPriceUSD(Number((priceBRL / dollarRate).toFixed(2)));
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -4245,6 +4277,7 @@ function ProductsTab({
       description,
       priceUSD,
       priceBRL,
+      location,
       imageUrl,
       sku,
       category,
@@ -4288,6 +4321,7 @@ function ProductsTab({
     setDescription(p.description);
     setPriceUSD(p.priceUSD);
     setPriceBRL(p.priceBRL);
+    setLocation(p.location || "US");
     setImageUrl(p.imageUrl);
     setSku(p.sku || "");
     setCategory(p.category || "");
@@ -4733,31 +4767,79 @@ function ProductsTab({
                 <h5 className="text-sm font-bold text-stone-800 border-b pb-1">
                   Preços e Imagem
                 </h5>
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1.5">
+                    Origem / Localização do Produto
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLocationChange("US")}
+                      className={`px-4 py-2 text-xs font-bold rounded-lg border transition flex items-center justify-center gap-1.5 ${
+                        location === "US"
+                          ? "bg-stone-900 border-stone-900 text-amber-400"
+                          : "bg-white border-stone-200 text-stone-600 hover:bg-stone-50"
+                      }`}
+                    >
+                      🇺🇸 EUA (Base em Dólar)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLocationChange("BR")}
+                      className={`px-4 py-2 text-xs font-bold rounded-lg border transition flex items-center justify-center gap-1.5 ${
+                        location === "BR"
+                          ? "bg-stone-900 border-stone-900 text-amber-400"
+                          : "bg-white border-stone-200 text-stone-600 hover:bg-stone-50"
+                      }`}
+                    >
+                      🇧🇷 Brasil (Base em Real)
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-stone-400 mt-1">
+                    Produtos nos EUA têm preço base em Dólar. Produtos no Brasil têm preço base em Real. A conversão é em tempo real usando a taxa diária (1 USD = {dollarRate} BRL).
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-                      Preço USD ($)
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center justify-between">
+                      <span>Preço USD ($)</span>
+                      {location === "US" ? (
+                        <span className="text-[9px] text-rose-500 font-extrabold bg-rose-50 px-1 py-0.5 rounded">BASE</span>
+                      ) : (
+                        <span className="text-[9px] text-stone-400 bg-stone-100 px-1 py-0.5 rounded">CONVERTIDO</span>
+                      )}
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={priceUSD}
-                      onChange={(e) => setPriceUSD(Number(e.target.value))}
+                      value={priceUSD || ""}
+                      onChange={(e) => handlePriceUSDChange(Number(e.target.value))}
                       required
-                      className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
+                      className={`w-full rounded-lg border px-4 py-2 text-sm bg-stone-50 transition ${
+                        location === "BR" ? "opacity-60 cursor-not-allowed border-stone-200" : "border-stone-300 ring-1 ring-rose-500/10 focus:ring-rose-500"
+                      }`}
+                      readOnly={location === "BR"}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-                      Preço BRL (R$)
+                    <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center justify-between">
+                      <span>Preço BRL (R$)</span>
+                      {location === "BR" ? (
+                        <span className="text-[9px] text-rose-500 font-extrabold bg-rose-50 px-1 py-0.5 rounded">BASE</span>
+                      ) : (
+                        <span className="text-[9px] text-stone-400 bg-stone-100 px-1 py-0.5 rounded">CONVERTIDO</span>
+                      )}
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={priceBRL}
-                      onChange={(e) => setPriceBRL(Number(e.target.value))}
+                      value={priceBRL || ""}
+                      onChange={(e) => handlePriceBRLChange(Number(e.target.value))}
                       required
-                      className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
+                      className={`w-full rounded-lg border px-4 py-2 text-sm bg-stone-50 transition ${
+                        location === "US" ? "opacity-60 cursor-not-allowed border-stone-200" : "border-stone-300 ring-1 ring-rose-500/10 focus:ring-rose-500"
+                      }`}
+                      readOnly={location === "US"}
                     />
                   </div>
                 </div>
