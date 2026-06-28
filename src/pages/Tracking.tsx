@@ -1729,6 +1729,81 @@ export function Tracking() {
           )}
         </div>
       )}
+
+      {showCancelModal && (
+        <div id="cancel-modal" className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl border border-stone-100 max-w-lg w-full overflow-hidden animate-scale-in">
+            <div className="p-6 md:p-8 text-center">
+              {!cancelSuccess ? (
+                <>
+                  <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <XCircle className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-bold font-display text-stone-900 mb-2">
+                    Confirmar Cancelamento
+                  </h3>
+                  <p className="text-sm text-stone-500 leading-relaxed mb-6 text-left md:text-center">
+                    Você tem certeza que deseja cancelar sua compra sob encomenda? Essa ação não poderá ser desfeita após a confirmação.
+                    {(() => {
+                      if (!order) return null;
+                      const createdDate = new Date(order.createdAt);
+                      const diffMs = new Date().getTime() - createdDate.getTime();
+                      const diffHours = diffMs / (1000 * 60 * 60);
+                      const isUnder24h = diffHours <= 24;
+                      return isUnder24h ? (
+                        <span className="block mt-4 font-semibold text-emerald-600 bg-emerald-50/50 py-2.5 px-3.5 rounded-xl border border-emerald-100 text-xs text-center">
+                          ⏰ Menos de 24h transcorridas: Elegível a reembolso integral (100%) das taxas.
+                        </span>
+                      ) : (
+                        <span className="block mt-4 font-semibold text-amber-600 bg-amber-50/50 py-2.5 px-3.5 rounded-xl border border-amber-100 text-xs text-center">
+                          ⏳ Mais de 24h transcorridas: Elegível a reembolso parcial (50% da taxa de serviço) devido aos custos logísticos já iniciados.
+                        </span>
+                      );
+                    })()}
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      type="button"
+                      disabled={isCancellingOrder}
+                      onClick={() => setShowCancelModal(false)}
+                      className="cursor-pointer px-5 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs rounded-xl transition"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCancellingOrder}
+                      onClick={handleConfirmCancel}
+                      className="cursor-pointer px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {isCancellingOrder ? "Cancelando..." : "Sim, Cancelar Compra"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <CheckCircle className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-bold font-display text-stone-900 mb-2">
+                    Compra Cancelada!
+                  </h3>
+                  <p className="text-sm text-stone-500 leading-relaxed mb-6">
+                    Sua solicitação de cancelamento foi processada com sucesso no sistema. O status do pedido foi atualizado para Cancelado.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelModal(false)}
+                    className="cursor-pointer px-6 py-3 bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs rounded-xl transition shadow-xs"
+                  >
+                    Fechar
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
