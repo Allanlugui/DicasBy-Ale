@@ -903,6 +903,11 @@ export function Cart() {
                       <h3 className="font-bold text-sm text-stone-900">
                         {item.product.name}
                       </h3>
+                      {item.product.sku && (
+                        <p className="text-[10px] text-stone-500 font-mono mt-0.5">
+                          SKU: {item.product.sku}
+                        </p>
+                      )}
                       <p className="text-xs text-stone-400 line-clamp-1 mt-1">
                         {item.product.description}
                       </p>

@@ -188,9 +188,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const cart = useMemo(() => {
     return rawCart.map(item => {
-      const latestProd = products.find(p => p.id === item.productId);
+      const baseId = item.productId.split('-')[0];
+      const latestProd = products.find(p => p.id === baseId);
       if (latestProd) {
-        return { ...item, product: latestProd };
+        return {
+          ...item,
+          product: {
+            ...latestProd,
+            name: item.product.name,
+            sku: item.product.sku,
+            priceBRL: item.product.priceBRL,
+            priceUSD: item.product.priceUSD,
+            stockType: item.product.stockType
+          }
+        };
       }
       return item;
     });
@@ -514,12 +525,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, quantity: number) => {
+    const compoundId = `${product.id}-${product.sku || 'default'}`;
     setRawCart((prev) => {
-      const existing = prev.find(item => item.productId === product.id);
+      const existing = prev.find(item => item.productId === compoundId);
       if (existing) {
-        return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + quantity } : item);
+        return prev.map(item => item.productId === compoundId ? { ...item, quantity: item.quantity + quantity } : item);
       }
-      return [...prev, { productId: product.id, quantity, product }];
+      return [...prev, { productId: compoundId, quantity, product }];
     });
   };
 

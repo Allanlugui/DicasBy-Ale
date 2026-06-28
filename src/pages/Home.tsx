@@ -1725,13 +1725,48 @@ function ProductModal({
   }, [product]);
 
   // Find the variant that exactly matches the selected options
-  const selectedVariant = React.useMemo(() => {
+  const exactSelectedVariant = React.useMemo(() => {
     if (!product.variants || product.variants.length === 0) return null;
     return product.variants.find((v) => {
       const parsed = parseVariantName(v.name);
-      return Object.entries(selectedOptions).every(([key, val]) => parsed[key] === val);
-    }) || product.variants[0]; // fallback to first if no exact match
+      return Object.entries(selectedOptions).every(([key, val]) => {
+        const v1 = parsed[key];
+        const v2 = val;
+        return v1 && v2 && v1.toLowerCase().trim() === v2.toLowerCase().trim();
+      });
+    }) || null;
   }, [product.variants, selectedOptions]);
+
+  // Keep selectedVariant around for compatibility with other sections of code if any, or fall back to exact
+  const selectedVariant = exactSelectedVariant || (product.variants && product.variants.length > 0 ? product.variants[0] : null);
+
+  // Dynamic price estimator for completely custom/unconfigured variant combinations
+  const estimatedPrices = React.useMemo(() => {
+    let customPriceAdjustUSD = 0;
+    let customPriceAdjustBRL = 0;
+    
+    if (product.variants && product.variants.length > 0) {
+      Object.entries(selectedOptions).forEach(([category, val]) => {
+        // Find all variants that have this option
+        const matchingVariants = product.variants!.filter(v => {
+          const parsed = parseVariantName(v.name);
+          const v1 = parsed[category];
+          return v1 && val && v1.toLowerCase().trim() === val.toLowerCase().trim();
+        });
+        if (matchingVariants.length > 0) {
+          // Average adjust
+          const avgAdjustUSD = matchingVariants.reduce((sum, v) => sum + (v.priceAdjustUSD || 0), 0) / matchingVariants.length;
+          const avgAdjustBRL = matchingVariants.reduce((sum, v) => sum + (v.priceAdjustBRL || 0), 0) / matchingVariants.length;
+          customPriceAdjustUSD += avgAdjustUSD;
+          customPriceAdjustBRL += avgAdjustBRL;
+        }
+      });
+    }
+
+    const priceBRL = product.priceBRL + customPriceAdjustBRL;
+    const priceUSD = product.priceUSD + customPriceAdjustUSD;
+    return { priceBRL, priceUSD };
+  }, [product, selectedOptions]);
 
   // Group all possible attribute categories and unique options
   const attributesGroups = React.useMemo(() => {
@@ -1748,53 +1783,98 @@ function ProductModal({
   }, [product.variants]);
 
   const handleSelectOption = (category: string, value: string) => {
-    setSelectedOptions((prev) => {
-      const next = { ...prev, [category]: value };
-      
-      // Try to find exact match
-      const exactMatch = product.variants?.find((v) => {
-        const parsed = parseVariantName(v.name);
-        return Object.entries(next).every(([k, val]) => parsed[k] === val);
-      });
-      if (exactMatch) return next;
-
-      // Fallback: find any variant matching this clicked value, and use its full options set
-      const fallbackMatch = product.variants?.find((v) => {
-        const parsed = parseVariantName(v.name);
-        return parsed[category] === value;
-      });
-      if (fallbackMatch) return parseVariantName(fallbackMatch.name);
-
-      return next;
-    });
+    setSelectedOptions((prev) => ({ ...prev, [category]: value }));
   };
 
-  const currentPriceBRL =
-    product.priceBRL + (selectedVariant?.priceAdjustBRL || 0);
-  const currentPriceUSD =
-    product.priceUSD + (selectedVariant?.priceAdjustUSD || 0);
+  const getOptionStatus = React.useCallback((category: string, value: string) => {
+    if (!product.variants || product.variants.length === 0) return "IN_STOCK";
+
+    // Create hypothetical selection with this option
+    const hypothetical = { ...selectedOptions, [category]: value };
+
+    // See if there is any variant that matches this selection
+    const matchingVariants = product.variants.filter((v) => {
+      const parsed = parseVariantName(v.name);
+      return Object.entries(hypothetical).every(([k, val]) => {
+        const v1 = parsed[k];
+        return v1 && val && v1.toLowerCase().trim() === val.toLowerCase().trim();
+      });
+    });
+
+    if (matchingVariants.length === 0) {
+      return "NOT_CONFIGURED";
+    }
+
+    const hasInStock = matchingVariants.some(v => v.stock > 0);
+    return hasInStock ? "IN_STOCK" : "OUT_OF_STOCK";
+  }, [product.variants, selectedOptions]);
+
+  const closestInStockVariant = React.useMemo(() => {
+    if (!product.variants || product.variants.length === 0) return null;
+    
+    // Suggest a closest variant only if current combination is out of stock or unconfigured
+    const needsSuggestion = !exactSelectedVariant || exactSelectedVariant.stock <= 0;
+    if (!needsSuggestion) return null;
+
+    let bestVariant: any = null;
+    let highestScore = -1;
+
+    product.variants.forEach((v) => {
+      if (v.stock <= 0) return; // Must be in stock
+      
+      const parsed = parseVariantName(v.name);
+      let score = 0;
+      Object.entries(selectedOptions).forEach(([k, val]) => {
+        const v1 = parsed[k];
+        if (v1 && val && v1.toLowerCase().trim() === val.toLowerCase().trim()) {
+          score += 1;
+        }
+      });
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestVariant = v;
+      }
+    });
+
+    return bestVariant;
+  }, [product.variants, selectedOptions, exactSelectedVariant]);
+
+  const currentPriceBRL = exactSelectedVariant
+    ? (product.priceBRL + (exactSelectedVariant.priceAdjustBRL || 0))
+    : estimatedPrices.priceBRL;
+
+  const currentPriceUSD = exactSelectedVariant
+    ? (product.priceUSD + (exactSelectedVariant.priceAdjustUSD || 0))
+    : estimatedPrices.priceUSD;
+
   const isAvailable =
     product.isAvailable !== false &&
     (product.boxWidth || 0) > 0 &&
     (product.boxLength || 0) > 0 &&
     (product.boxHeight || 0) > 0 &&
     (product.boxWeight || 0) > 0;
+
   const isPartnerStore =
     product.stockType === "PARTNER_STORE" ||
     (product.stockType === "IN_STOCK" && (product.inventory || 0) <= 0);
 
   const handleAddToCart = () => {
-    // We add the product with the variant info in the name or description for now
-    // Actually our Product type should handle variants better, but let's just snapshot it
-    const productWithVariant = {
+    const isCustomRequest = !exactSelectedVariant;
+    const isOutOfStockRequest = exactSelectedVariant && exactSelectedVariant.stock <= 0;
+    
+    const productWithVariant: Product = {
       ...product,
-      name: selectedVariant
-        ? `${product.name} (${selectedVariant.name})`
-        : product.name,
+      name: exactSelectedVariant
+        ? `${product.name} (${exactSelectedVariant.name})`
+        : `${product.name} (${Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" | ")})`,
       priceBRL: currentPriceBRL,
       priceUSD: currentPriceUSD,
-      sku: selectedVariant?.sku || product.sku,
+      sku: exactSelectedVariant?.sku || `${product.sku || "CUSTOM"}-${Object.values(selectedOptions).map(v => v.replace(/\s+/g, "").toUpperCase()).join("-")}`,
+      stockType: (isCustomRequest || isOutOfStockRequest || product.stockType === "PARTNER_STORE") ? "PARTNER_STORE" : "IN_STOCK",
+      inventory: exactSelectedVariant ? exactSelectedVariant.stock : 0,
     };
+
     addToCart(productWithVariant, quantity);
     onClose();
   };
@@ -1889,6 +1969,8 @@ function ProductModal({
                   <div className="flex flex-wrap gap-2">
                     {options.map((val) => {
                       const isSelected = selectedOptions[category] === val;
+                      const optionStatus = getOptionStatus(category, val);
+
                       const getColorDotClass = (colorName: string) => {
                         const name = colorName.toLowerCase();
                         if (name.includes("azul") || name.includes("blue")) return "bg-blue-500";
@@ -1901,27 +1983,53 @@ function ProductModal({
                         if (name.includes("rosa") || name.includes("pink")) return "bg-pink-400";
                         if (name.includes("dourado") || name.includes("gold")) return "bg-amber-400";
                         if (name.includes("prata") || name.includes("silver")) return "bg-stone-300";
+                        if (name.includes("laranja") || name.includes("orange")) return "bg-orange-500";
                         return null;
                       };
                       const colorClass = category.toLowerCase() === "cor" || category.toLowerCase() === "cores"
                         ? getColorDotClass(val)
                         : null;
 
+                      // Style dynamically based on selection and stock status
+                      let buttonStyle = "border-stone-200 bg-white hover:border-stone-300 text-stone-600";
+                      if (isSelected) {
+                        buttonStyle = "border-rose-500 bg-rose-50/50 text-rose-700 ring-1 ring-rose-500 shadow-sm";
+                      } else if (optionStatus === "IN_STOCK") {
+                        buttonStyle = "border-stone-200 bg-emerald-50/10 hover:border-emerald-300 hover:bg-emerald-50/20 text-stone-700";
+                      } else if (optionStatus === "OUT_OF_STOCK") {
+                        buttonStyle = "border-amber-200 border-dashed bg-amber-50/10 hover:border-amber-300 hover:bg-amber-50/20 text-stone-600";
+                      } else {
+                        buttonStyle = "border-stone-100 bg-stone-50/50 hover:border-stone-250 text-stone-400";
+                      }
+
                       return (
                         <button
                           key={val}
                           type="button"
                           onClick={() => handleSelectOption(category, val)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-rose-500 bg-rose-50/50 text-rose-700 ring-1 ring-rose-500 shadow-sm"
-                              : "border-stone-200 bg-white hover:border-stone-300 text-stone-600"
-                          }`}
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${buttonStyle}`}
                         >
                           {colorClass && (
                             <span className={`w-3.5 h-3.5 rounded-full ${colorClass} shrink-0`} />
                           )}
                           <span>{val}</span>
+
+                          {/* Interactive Availability Badges */}
+                          {optionStatus === "IN_STOCK" && !isSelected && (
+                            <span className="text-[9px] font-black text-emerald-600 bg-emerald-100/60 px-1 py-0.5 rounded ml-0.5 shrink-0 uppercase tracking-widest scale-90">
+                              Pronta
+                            </span>
+                          )}
+                          {optionStatus === "OUT_OF_STOCK" && !isSelected && (
+                            <span className="text-[9px] font-black text-amber-600 bg-amber-100/60 px-1 py-0.5 rounded ml-0.5 shrink-0 uppercase tracking-widest scale-90">
+                              Pedido
+                            </span>
+                          )}
+                          {optionStatus === "NOT_CONFIGURED" && !isSelected && (
+                            <span className="text-[9px] font-black text-stone-400 bg-stone-100 px-1 py-0.5 rounded ml-0.5 shrink-0 uppercase tracking-widest scale-90">
+                              Especial
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -1929,38 +2037,124 @@ function ProductModal({
                 </div>
               ))}
 
-              {/* Selected Variant Status Banner */}
-              {selectedVariant && (
-                <div className="bg-stone-50 rounded-2xl border border-stone-100 p-4 space-y-2 animate-fade-in">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-stone-500">Configuração selecionada:</span>
-                    <span className="font-mono bg-stone-200/50 text-stone-700 px-2 py-0.5 rounded text-[10px]">
-                      {selectedVariant.sku || product.sku || "Sem SKU"}
-                    </span>
+              {/* Dynamic Closest Matching Suggestion (Smart Stock Finder) */}
+              {closestInStockVariant && (
+                <div className="bg-emerald-50/60 rounded-2xl border border-emerald-100 p-4 space-y-3 animate-fade-in">
+                  <div className="flex items-start gap-2">
+                    <span className="text-base mt-0.5">✨</span>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-black text-emerald-800 uppercase tracking-wider">
+                        Disponível em Pronta Entrega
+                      </h4>
+                      <p className="text-[11px] text-emerald-600 font-medium">
+                        Essa exata combinação não está em estoque, mas temos essa configuração semelhante pronta para envio imediato:
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-xs text-stone-600 font-medium">
-                    {selectedVariant.name}
+                  
+                  <div className="bg-white/90 rounded-xl p-3 border border-emerald-100/50 flex justify-between items-center">
+                    <div>
+                      <div className="text-xs font-black text-stone-800">
+                        {closestInStockVariant.name}
+                      </div>
+                      <div className="text-[9px] text-stone-400 font-mono mt-0.5">
+                        {closestInStockVariant.sku || "Sem SKU"}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-black text-emerald-700">
+                        {formatCurrency(product.priceBRL + (closestInStockVariant.priceAdjustBRL || 0))}
+                      </div>
+                      <div className="text-[9px] text-stone-400 font-bold">
+                        {closestInStockVariant.stock} un. restantes
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between pt-1">
-                    {selectedVariant.stock <= 0 ? (
-                      <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg font-bold">
-                        ⏰ Compra sob encomenda física na loja dos EUA
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg font-bold">
-                        ✓ Pronta entrega ({selectedVariant.stock} unidades)
-                      </span>
-                    )}
 
-                    {selectedVariant.priceAdjustBRL !== 0 && (
-                      <span className={`text-[10px] font-bold ${selectedVariant.priceAdjustBRL > 0 ? "text-rose-500" : "text-emerald-600"}`}>
-                        {selectedVariant.priceAdjustBRL > 0 ? "+" : ""}
-                        {formatCurrency(selectedVariant.priceAdjustBRL)} nesta variação
-                      </span>
-                    )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOptions(parseVariantName(closestInStockVariant.name));
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black py-2.5 rounded-xl shadow-md shadow-emerald-100 transition-all active:scale-[0.98] cursor-pointer"
+                  >
+                    🚀 Usar esta variação (Envio Imediato)
+                  </button>
+                </div>
+              )}
+
+              {/* Special Info Card: Out of stock Predefined Variant */}
+              {exactSelectedVariant && exactSelectedVariant.stock <= 0 && (
+                <div className="bg-amber-50/40 rounded-2xl border border-amber-100 p-4 space-y-1.5 animate-fade-in">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs mt-0.5">⏰</span>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-black text-amber-800 uppercase tracking-wider">
+                        Configuração sob Encomenda Física nos EUA
+                      </h4>
+                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                        Essa configuração exata está temporariamente esgotada em nossa pronta entrega, mas está disponível para compra física e envio sob encomenda por nosso Personal Shopper nos EUA!
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Special Info Card: Completely custom combination */}
+              {!exactSelectedVariant && (
+                <div className="bg-amber-50/40 rounded-2xl border border-amber-100 p-4 space-y-1.5 animate-fade-in">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs mt-0.5">🔍</span>
+                    <div className="flex-1">
+                      <h4 className="text-xs font-black text-amber-800 uppercase tracking-wider">
+                        Solicitação de Encomenda Especial
+                      </h4>
+                      <p className="text-[11px] text-amber-700 font-medium leading-relaxed">
+                        Você selecionou uma configuração de dispositivo personalizada e exclusiva! Nós iremos buscar e adquirir essa exata especificação sob demanda nas lojas dos EUA para você.
+                      </p>
+                      <div className="text-[9px] text-stone-400 font-bold mt-1">
+                        * O preço apresentado é uma estimativa calculada dinamicamente com base nas opções selecionadas.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Variant Status Banner */}
+              <div className="bg-stone-50 rounded-2xl border border-stone-100 p-4 space-y-2 animate-fade-in">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-stone-500">Configuração selecionada:</span>
+                  <span className="font-mono bg-stone-200/50 text-stone-700 px-2 py-0.5 rounded text-[10px]">
+                    {exactSelectedVariant?.sku || `${product.sku || "CUSTOM"}-${Object.values(selectedOptions).map(v => v.replace(/\s+/g, "").toUpperCase()).join("-")}`}
+                  </span>
+                </div>
+                <div className="text-xs text-stone-600 font-medium">
+                  {exactSelectedVariant ? exactSelectedVariant.name : `Cor: ${selectedOptions["Cor"] || selectedOptions["Cores"] || "N/D"} | RAM: ${selectedOptions["RAM"] || "N/D"} | Armazenamento: ${selectedOptions["Armazenamento"] || "N/D"}`}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  {exactSelectedVariant && exactSelectedVariant.stock > 0 ? (
+                    <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg font-bold">
+                      ✓ Pronta entrega ({exactSelectedVariant.stock} unidades)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg font-bold">
+                      ⏰ Compra sob encomenda física na loja dos EUA
+                    </span>
+                  )}
+
+                  {exactSelectedVariant && exactSelectedVariant.priceAdjustBRL !== 0 ? (
+                    <span className={`text-[10px] font-bold ${exactSelectedVariant.priceAdjustBRL > 0 ? "text-rose-500" : "text-emerald-600"}`}>
+                      {exactSelectedVariant.priceAdjustBRL > 0 ? "+" : ""}
+                      {formatCurrency(exactSelectedVariant.priceAdjustBRL)} nesta variação
+                    </span>
+                  ) : !exactSelectedVariant && (currentPriceBRL - product.priceBRL !== 0) ? (
+                    <span className={`text-[10px] font-bold ${currentPriceBRL - product.priceBRL > 0 ? "text-rose-500" : "text-emerald-600"}`}>
+                      {currentPriceBRL - product.priceBRL > 0 ? "+" : ""}
+                      {formatCurrency(currentPriceBRL - product.priceBRL)} ajuste estimado
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1994,11 +2188,11 @@ function ProductModal({
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">
-                  {isPartnerStore ? "Preço de Vitrine" : "Total na Vitrine"}
+                  {isPartnerStore ? "Preço de Vitrine (Estimado)" : "Total na Vitrine"}
                 </span>
                 <span className="text-3xl font-display font-black text-stone-900 tracking-tighter">
                   {isPartnerStore
-                    ? "Sob Consulta"
+                    ? `Est. ${formatCurrency(currentPriceBRL)}`
                     : formatCurrency(currentPriceBRL)}
                 </span>
               </div>
@@ -2032,7 +2226,11 @@ function ProductModal({
               ) : (
                 <X className="w-6 h-6" />
               )}
-              {isAvailable ? "Adicionar à Sacola" : "Produto Indisponível"}
+              {isAvailable 
+                ? (exactSelectedVariant && exactSelectedVariant.stock > 0 && product.stockType === "IN_STOCK"
+                  ? "Adicionar (Pronta Entrega)"
+                  : "Solicitar Encomenda Especial (EUA)")
+                : "Produto Indisponível"}
             </button>
 
             <p className="text-[10px] text-center text-stone-400 uppercase font-black tracking-widest">
