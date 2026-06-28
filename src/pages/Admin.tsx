@@ -1723,6 +1723,7 @@ function OrdersTab({
   updateOrderStatus: any;
 }) {
   const { createOrder } = useAppContext();
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>(
     "ACTIVE_NOT_CANCELLED",
   );
@@ -1838,6 +1839,39 @@ function OrdersTab({
       list = list.filter((o) => o.status !== "CANCELLED");
     } else if (selectedStatus !== "ALL") {
       list = list.filter((o) => o.status === selectedStatus);
+    }
+
+    // Real-time search filter matching: User, Tracking code, Value, Product
+    if (searchTerm.trim() !== "") {
+      const term = searchTerm.toLowerCase().trim();
+      list = list.filter((o) => {
+        // 1. User/Customer (Name, Email, Document/CPF, User ID)
+        const matchesUser = 
+          (o.customerName && o.customerName.toLowerCase().includes(term)) ||
+          (o.customerEmail && o.customerEmail.toLowerCase().includes(term)) ||
+          (o.customerDocument && o.customerDocument.toLowerCase().includes(term)) ||
+          (o.userId && o.userId.toLowerCase().includes(term));
+
+        // 2. Tracking Codes & IDs
+        const matchesTracking = 
+          (o.trackingId && o.trackingId.toLowerCase().includes(term)) ||
+          (o.carrierTrackingCode && o.carrierTrackingCode.toLowerCase().includes(term)) ||
+          (o.asaasPaymentId && o.asaasPaymentId.toLowerCase().includes(term));
+
+        // 3. Value/Price (exact, decimal, formatted or localized)
+        const matchesValue = 
+          String(o.totalBRL).includes(term) ||
+          (typeof o.totalBRL === "number" && o.totalBRL.toFixed(2).includes(term)) ||
+          (typeof o.totalBRL === "number" && o.totalBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 }).toLowerCase().includes(term));
+
+        // 4. Products in the order items
+        const matchesProduct = o.items?.some((item: any) => 
+          (item.product?.name && item.product.name.toLowerCase().includes(term)) ||
+          (item.product?.description && item.product.description.toLowerCase().includes(term))
+        );
+
+        return matchesUser || matchesTracking || matchesValue || matchesProduct;
+      });
     }
 
     // Sort list
@@ -2327,6 +2361,35 @@ function OrdersTab({
               </select>
             </div>
           </div>
+        </div>
+
+        {/* Barra de Pesquisa de Pedidos */}
+        <div className="mb-5">
+          <div className="relative flex items-center bg-white border border-stone-200 rounded-2xl shadow-xs transition-all focus-within:border-rose-500 focus-within:ring-2 focus-within:ring-rose-100 p-1 pl-4 pr-2 w-full max-w-2xl">
+            <Search className="w-4 h-4 text-stone-400 shrink-0 mr-3" />
+            <input
+              type="text"
+              placeholder="Pesquisar por usuário, rastreio, valor ou produto..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-transparent text-sm text-stone-800 outline-none placeholder-stone-400 font-medium py-2"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="p-1.5 hover:bg-stone-100 rounded-xl text-stone-400 hover:text-stone-600 transition"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          {searchTerm && (
+            <div className="mt-2 flex items-center gap-2 text-xs font-bold text-stone-500 pl-1 animate-fade-in">
+              <span className="inline-block w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+              <span>{filteredOrdersList.length} itens correspondentes para "{searchTerm}"</span>
+            </div>
+          )}
         </div>
 
         <div className="flex border-b border-stone-200 pb-px overflow-x-auto gap-3 scrollbar-hide py-1">
@@ -3648,6 +3711,17 @@ function ProductsTab({
     }[]
   >([]);
 
+  // Structured Variant Generator states
+  const [genColors, setGenColors] = useState("");
+  const [genRAMs, setGenRAMs] = useState("");
+  const [genStorages, setGenStorages] = useState("");
+  const [genSizes, setGenSizes] = useState("");
+  const [genDefaultStock, setGenDefaultStock] = useState(10);
+  const [genBasePriceUSD, setGenBasePriceUSD] = useState(0);
+  const [genBasePriceBRL, setGenBasePriceBRL] = useState(0);
+  const [genAutoConvert, setGenAutoConvert] = useState(true);
+  const [showGenerator, setShowGenerator] = useState(false);
+
   const [boxWidth, setBoxWidth] = useState(0);
   const [boxLength, setBoxLength] = useState(0);
   const [boxHeight, setBoxHeight] = useState(0);
@@ -4246,6 +4320,72 @@ function ProductsTab({
     }
   };
 
+  const handleGenerateVariants = () => {
+    const colors = genColors.split(",").map(c => c.trim()).filter(Boolean);
+    const rams = genRAMs.split(",").map(r => r.trim()).filter(Boolean);
+    const storages = genStorages.split(",").map(s => s.trim()).filter(Boolean);
+    const sizes = genSizes.split(",").map(s => s.trim()).filter(Boolean);
+
+    if (colors.length === 0 && rams.length === 0 && storages.length === 0 && sizes.length === 0) {
+      alert("Por favor, preencha pelo menos um campo de variação (Cores, RAM, Armazenamento ou Tamanhos).");
+      return;
+    }
+
+    const dimensionColors = colors.length > 0 ? colors : [null];
+    const dimensionRams = rams.length > 0 ? rams : [null];
+    const dimensionStorages = storages.length > 0 ? storages : [null];
+    const dimensionSizes = sizes.length > 0 ? sizes : [null];
+
+    const generated: typeof variants = [];
+
+    dimensionColors.forEach(color => {
+      dimensionRams.forEach(ram => {
+        dimensionStorages.forEach(storage => {
+          dimensionSizes.forEach(size => {
+            const parts: string[] = [];
+            if (color) parts.push(`Cor: ${color}`);
+            if (ram) parts.push(`RAM: ${ram}`);
+            if (storage) parts.push(`Armazenamento: ${storage}`);
+            if (size) parts.push(`Tamanho: ${size}`);
+
+            if (parts.length === 0) return;
+
+            const variantName = parts.join(" | ");
+            
+            const baseSku = sku || "SKU";
+            const cleanColor = color ? color.replace(/\s+/g, "").toUpperCase() : "";
+            const cleanRam = ram ? ram.replace(/\s+/g, "").toUpperCase() : "";
+            const cleanStorage = storage ? storage.replace(/\s+/g, "").toUpperCase() : "";
+            const cleanSize = size ? size.replace(/\s+/g, "").toUpperCase() : "";
+            const suffix = [cleanColor, cleanRam, cleanStorage, cleanSize].filter(Boolean).join("-");
+            const variantSku = suffix ? `${baseSku}-${suffix}` : `${baseSku}-${Math.floor(Math.random() * 89999 + 10000)}`;
+
+            const usdVal = genBasePriceUSD > 0 ? genBasePriceUSD : priceUSD;
+            const brlVal = genBasePriceBRL > 0 ? genBasePriceBRL : (genBasePriceUSD > 0 && genAutoConvert ? Number((genBasePriceUSD * dollarRate).toFixed(2)) : priceBRL);
+
+            generated.push({
+              name: variantName,
+              sku: variantSku,
+              stock: genDefaultStock,
+              priceUSD: usdVal,
+              priceBRL: brlVal,
+            });
+          });
+        });
+      });
+    });
+
+    if (generated.length > 0) {
+      setVariants([...variants, ...generated]);
+      // Clear colors and sizes but keep price/stock configs
+      setGenColors("");
+      setGenRAMs("");
+      setGenStorages("");
+      setGenSizes("");
+      setShowGenerator(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -4300,8 +4440,8 @@ function ProductsTab({
         name: v.name,
         sku: v.sku,
         stock: v.stock,
-        priceAdjustUSD: v.priceUSD,
-        priceAdjustBRL: v.priceBRL,
+        priceAdjustUSD: Number((v.priceUSD - priceUSD).toFixed(2)),
+        priceAdjustBRL: Number((v.priceBRL - priceBRL).toFixed(2)),
       })),
     };
 
@@ -4346,8 +4486,8 @@ function ProductsTab({
         name: v.name,
         sku: v.sku || "",
         stock: v.stock,
-        priceUSD: v.priceAdjustUSD || 0,
-        priceBRL: v.priceAdjustBRL || 0,
+        priceUSD: Number((p.priceUSD + (v.priceAdjustUSD || 0)).toFixed(2)),
+        priceBRL: Number((p.priceBRL + (v.priceAdjustBRL || 0)).toFixed(2)),
       })),
     );
     setShowForm(true);
@@ -5072,25 +5212,187 @@ function ProductsTab({
                   <h5 className="text-sm font-bold text-stone-800">
                     Variantes (Tamanhos, Cores, etc)
                   </h5>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setVariants([
-                        ...variants,
-                        {
-                          name: "",
-                          sku: "",
-                          stock: 0,
-                          priceUSD: 0,
-                          priceBRL: 0,
-                        },
-                      ])
-                    }
-                    className="text-rose-500 text-xs font-bold flex items-center gap-1"
-                  >
-                    <Plus className="w-3 h-3" /> Adicionar
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGenerator(!showGenerator)}
+                      className="text-amber-600 hover:text-amber-700 text-xs font-bold flex items-center gap-1 bg-amber-50 px-2 py-1 rounded"
+                    >
+                      ⚡ Gerador Automático
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVariants([
+                          ...variants,
+                          {
+                            name: "",
+                            sku: "",
+                            stock: 10,
+                            priceUSD: priceUSD,
+                            priceBRL: priceBRL,
+                          },
+                        ])
+                      }
+                      className="text-rose-500 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Adicionar Manual
+                    </button>
+                  </div>
                 </div>
+
+                {showGenerator && (
+                  <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+                        Gerador de Variações Combinadas (Produto Cartesiano)
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGenColors("Azul, Vermelho, Preto, Dourado, Prata");
+                            setGenRAMs("8 GB, 12 GB, 16 GB");
+                            setGenStorages("128 GB, 256 GB, 512 GB, 1 TB");
+                            setGenSizes("");
+                          }}
+                          className="bg-white hover:bg-stone-50 text-[10px] text-stone-600 font-bold px-2 py-0.5 rounded border border-stone-200 cursor-pointer"
+                        >
+                          📱 Celular
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGenColors("Preto, Branco, Azul, Vermelho");
+                            setGenRAMs("");
+                            setGenStorages("");
+                            setGenSizes("P, M, G, GG");
+                          }}
+                          className="bg-white hover:bg-stone-50 text-[10px] text-stone-600 font-bold px-2 py-0.5 rounded border border-stone-200 cursor-pointer"
+                        >
+                          👕 Vestuário
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setGenColors("");
+                            setGenRAMs("");
+                            setGenStorages("");
+                            setGenSizes("");
+                          }}
+                          className="bg-white hover:bg-stone-50 text-[10px] text-stone-600 font-bold px-2 py-0.5 rounded border border-stone-200 cursor-pointer"
+                        >
+                          🧹 Limpar
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Cores (separadas por vírgula)
+                        </label>
+                        <input
+                          placeholder="Ex: Azul, Preto, Prata"
+                          value={genColors}
+                          onChange={(e) => setGenColors(e.target.value)}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Tamanhos (separados por vírgula)
+                        </label>
+                        <input
+                          placeholder="Ex: P, M, G, GG"
+                          value={genSizes}
+                          onChange={(e) => setGenSizes(e.target.value)}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Memória RAM (separadas por vírgula)
+                        </label>
+                        <input
+                          placeholder="Ex: 8 GB, 12 GB, 16 GB"
+                          value={genRAMs}
+                          onChange={(e) => setGenRAMs(e.target.value)}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Armazenamento Interno (separados por vírgula)
+                        </label>
+                        <input
+                          placeholder="Ex: 128 GB, 256 GB, 512 GB"
+                          value={genStorages}
+                          onChange={(e) => setGenStorages(e.target.value)}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 border-t pt-2 border-amber-100">
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Estoque Inicial Padrão
+                        </label>
+                        <input
+                          type="number"
+                          value={genDefaultStock}
+                          onChange={(e) => setGenDefaultStock(Number(e.target.value))}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Preço Base (USD)
+                        </label>
+                        <input
+                          type="number"
+                          value={genBasePriceUSD}
+                          onChange={(e) => setGenBasePriceUSD(Number(e.target.value))}
+                          placeholder={priceUSD.toString()}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-stone-500 uppercase">
+                          Preço Base (BRL)
+                        </label>
+                        <input
+                          type="number"
+                          value={genBasePriceBRL}
+                          onChange={(e) => setGenBasePriceBRL(Number(e.target.value))}
+                          placeholder={priceBRL.toString()}
+                          className="w-full rounded border border-stone-200 px-2 py-1 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1">
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-stone-600">
+                        <input
+                          type="checkbox"
+                          checked={genAutoConvert}
+                          onChange={(e) => setGenAutoConvert(e.target.checked)}
+                          className="rounded text-rose-500 focus:ring-rose-500"
+                        />
+                        Sincronizar USD para BRL usando a cotação (R$ {dollarRate.toFixed(2)})
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateVariants}
+                        className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1 rounded shadow cursor-pointer"
+                      >
+                        ⚡ Gerar e Adicionar Combinações
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {variants.map((v, idx) => (
                     <div
@@ -5099,7 +5401,7 @@ function ProductsTab({
                     >
                       <div className="flex gap-2">
                         <input
-                          placeholder="Ex: Azul / XL / 128GB"
+                          placeholder="Ex: Cor: Azul | RAM: 8 GB | Armazenamento: 256 GB"
                           value={v.name}
                           onChange={(e) => {
                             const newV = [...variants];
@@ -5140,11 +5442,15 @@ function ProductsTab({
                             step="0.01"
                             value={v.priceUSD}
                             onChange={(e) => {
+                              const val = Number(e.target.value);
                               const newV = [...variants];
-                              newV[idx].priceUSD = Number(e.target.value);
+                              newV[idx].priceUSD = val;
+                              if (genAutoConvert) {
+                                newV[idx].priceBRL = Number((val * dollarRate).toFixed(2));
+                              }
                               setVariants(newV);
                             }}
-                            className="w-16 rounded border border-stone-200 px-2 py-1 text-xs"
+                            className="w-20 rounded border border-stone-200 px-2 py-1 text-xs"
                           />
                         </div>
                         <div className="flex-1 flex gap-1 items-center">
@@ -5156,11 +5462,15 @@ function ProductsTab({
                             step="0.01"
                             value={v.priceBRL}
                             onChange={(e) => {
+                              const val = Number(e.target.value);
                               const newV = [...variants];
-                              newV[idx].priceBRL = Number(e.target.value);
+                              newV[idx].priceBRL = val;
+                              if (genAutoConvert) {
+                                newV[idx].priceUSD = Number((val / dollarRate).toFixed(2));
+                              }
                               setVariants(newV);
                             }}
-                            className="w-20 rounded border border-stone-200 px-2 py-1 text-xs"
+                            className="w-24 rounded border border-stone-200 px-2 py-1 text-xs"
                           />
                         </div>
                         <button
@@ -5168,11 +5478,21 @@ function ProductsTab({
                           onClick={() =>
                             setVariants(variants.filter((_, i) => i !== idx))
                           }
-                          className="text-rose-400 p-1"
+                          className="text-rose-400 p-1 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+
+                      {v.priceUSD !== priceUSD && (
+                        <div className="text-[9px] text-stone-400 font-bold pl-2 pb-0.5">
+                          Calculado: {v.priceUSD > priceUSD ? "Aumento" : "Desconto"} de{" "}
+                          {v.priceUSD > priceUSD ? "+" : ""}
+                          US$ {(v.priceUSD - priceUSD).toFixed(2)} /{" "}
+                          {v.priceBRL > priceBRL ? "+" : ""}
+                          R$ {(v.priceBRL - priceBRL).toFixed(2)} em relação ao valor base
+                        </div>
+                      )}
                     </div>
                   ))}
                   {variants.length === 0 && (

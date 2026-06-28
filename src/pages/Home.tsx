@@ -1672,6 +1672,37 @@ function ProductCard({
   );
 }
 
+function parseVariantName(name: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const parts = name.split(/[|/]/);
+  parts.forEach((part) => {
+    const trimmed = part.trim();
+    if (!trimmed) return;
+    const colonIndex = trimmed.indexOf(":");
+    if (colonIndex !== -1) {
+      const key = trimmed.substring(0, colonIndex).trim();
+      const val = trimmed.substring(colonIndex + 1).trim();
+      attrs[key] = val;
+    } else {
+      const val = trimmed;
+      // Guess attribute type
+      const lower = val.toLowerCase();
+      if (/^\d+\s*(?:gb|tb)$/i.test(val) || lower.includes("ram") || /^(?:8|12|16|24|32|64)\s*gb$/i.test(val)) {
+        if (lower.includes("ram") || /^(?:8|12|16)\s*gb$/i.test(val)) {
+          attrs["RAM"] = val.replace(/ram:?/i, "").trim();
+        } else {
+          attrs["Armazenamento"] = val;
+        }
+      } else if (/^(?:p|m|g|gg|xg|s|l|xl|xxl|g1|g2|g3|\d{2})$/i.test(val)) {
+        attrs["Tamanho"] = val.toUpperCase();
+      } else {
+        attrs["Cor"] = val;
+      }
+    }
+  });
+  return attrs;
+}
+
 function ProductModal({
   product,
   onClose,
@@ -1680,15 +1711,63 @@ function ProductModal({
   onClose: () => void;
 }) {
   const { addToCart, stores } = useAppContext();
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    product.variants?.[0]?.id || null,
-  );
+  
+  // Track selected options for each attribute category
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const store = stores ? stores.find((s) => s.id === product.storeId) : null;
 
-  const selectedVariant = product.variants?.find(
-    (v) => v.id === selectedVariantId,
-  );
+  // Initialize with the first variant's attributes
+  useEffect(() => {
+    if (product.variants && product.variants.length > 0) {
+      setSelectedOptions(parseVariantName(product.variants[0].name));
+    }
+  }, [product]);
+
+  // Find the variant that exactly matches the selected options
+  const selectedVariant = React.useMemo(() => {
+    if (!product.variants || product.variants.length === 0) return null;
+    return product.variants.find((v) => {
+      const parsed = parseVariantName(v.name);
+      return Object.entries(selectedOptions).every(([key, val]) => parsed[key] === val);
+    }) || product.variants[0]; // fallback to first if no exact match
+  }, [product.variants, selectedOptions]);
+
+  // Group all possible attribute categories and unique options
+  const attributesGroups = React.useMemo(() => {
+    if (!product.variants || product.variants.length === 0) return null;
+    const groups: Record<string, string[]> = {};
+    product.variants.forEach((v) => {
+      const parsed = parseVariantName(v.name);
+      Object.entries(parsed).forEach(([key, val]) => {
+        if (!groups[key]) groups[key] = [];
+        if (!groups[key].includes(val)) groups[key].push(val);
+      });
+    });
+    return groups;
+  }, [product.variants]);
+
+  const handleSelectOption = (category: string, value: string) => {
+    setSelectedOptions((prev) => {
+      const next = { ...prev, [category]: value };
+      
+      // Try to find exact match
+      const exactMatch = product.variants?.find((v) => {
+        const parsed = parseVariantName(v.name);
+        return Object.entries(next).every(([k, val]) => parsed[k] === val);
+      });
+      if (exactMatch) return next;
+
+      // Fallback: find any variant matching this clicked value, and use its full options set
+      const fallbackMatch = product.variants?.find((v) => {
+        const parsed = parseVariantName(v.name);
+        return parsed[category] === value;
+      });
+      if (fallbackMatch) return parseVariantName(fallbackMatch.name);
+
+      return next;
+    });
+  };
 
   const currentPriceBRL =
     product.priceBRL + (selectedVariant?.priceAdjustBRL || 0);
@@ -1794,47 +1873,94 @@ function ProductModal({
           </p>
 
           {/* Variants Selector */}
-          {product.variants && product.variants.length > 0 && (
-            <div className="space-y-4">
-              <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">
-                Seleção de Variante (Cor / Tamanho / Modelo)
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {product.variants.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => setSelectedVariantId(v.id)}
-                    className={`flex flex-col p-3 rounded-2xl border text-left transition-all ${
-                      selectedVariantId === v.id
-                        ? "border-rose-500 bg-rose-50/50 shadow-md ring-1 ring-rose-500"
-                        : "border-stone-100 bg-stone-50 hover:border-stone-200"
-                    } cursor-pointer`}
-                  >
-                    <span className="text-xs font-bold text-stone-900">
-                      {v.name}
+          {attributesGroups && Object.keys(attributesGroups).length > 0 && (
+            <div className="space-y-6">
+              <div className="border-t border-stone-100 pt-4" />
+              {Object.entries(attributesGroups).map(([category, options]) => (
+                <div key={category} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
+                      {category}
                     </span>
-                    {v.priceAdjustBRL !== 0 && (
-                      <span
-                        className={`${(v.priceAdjustBRL || 0) > 0 ? "text-rose-500" : "text-emerald-500"} text-[9px] font-bold mt-1`}
-                      >
-                        {(v.priceAdjustBRL || 0) > 0 ? "+" : ""}
-                        {formatCurrency(v.priceAdjustBRL || 0)}
-                      </span>
-                    )}
-                    {v.stock <= 0 ? (
-                      <span className="text-[9px] text-amber-600 font-bold mt-1 bg-amber-50 px-1.5 py-0.5 rounded self-start">
-                        Compra na Loja
+                    <span className="text-xs font-bold text-stone-700">
+                      {selectedOptions[category] || "Não selecionado"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((val) => {
+                      const isSelected = selectedOptions[category] === val;
+                      const getColorDotClass = (colorName: string) => {
+                        const name = colorName.toLowerCase();
+                        if (name.includes("azul") || name.includes("blue")) return "bg-blue-500";
+                        if (name.includes("vermelho") || name.includes("red")) return "bg-red-500";
+                        if (name.includes("preto") || name.includes("black")) return "bg-stone-950";
+                        if (name.includes("branco") || name.includes("white")) return "bg-white border border-stone-200";
+                        if (name.includes("cinza") || name.includes("gray") || name.includes("grey")) return "bg-stone-400";
+                        if (name.includes("amarelo") || name.includes("yellow")) return "bg-yellow-400";
+                        if (name.includes("verde") || name.includes("green")) return "bg-emerald-500";
+                        if (name.includes("rosa") || name.includes("pink")) return "bg-pink-400";
+                        if (name.includes("dourado") || name.includes("gold")) return "bg-amber-400";
+                        if (name.includes("prata") || name.includes("silver")) return "bg-stone-300";
+                        return null;
+                      };
+                      const colorClass = category.toLowerCase() === "cor" || category.toLowerCase() === "cores"
+                        ? getColorDotClass(val)
+                        : null;
+
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => handleSelectOption(category, val)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-rose-500 bg-rose-50/50 text-rose-700 ring-1 ring-rose-500 shadow-sm"
+                              : "border-stone-200 bg-white hover:border-stone-300 text-stone-600"
+                          }`}
+                        >
+                          {colorClass && (
+                            <span className={`w-3.5 h-3.5 rounded-full ${colorClass} shrink-0`} />
+                          )}
+                          <span>{val}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {/* Selected Variant Status Banner */}
+              {selectedVariant && (
+                <div className="bg-stone-50 rounded-2xl border border-stone-100 p-4 space-y-2 animate-fade-in">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-stone-500">Configuração selecionada:</span>
+                    <span className="font-mono bg-stone-200/50 text-stone-700 px-2 py-0.5 rounded text-[10px]">
+                      {selectedVariant.sku || product.sku || "Sem SKU"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-stone-600 font-medium">
+                    {selectedVariant.name}
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    {selectedVariant.stock <= 0 ? (
+                      <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg font-bold">
+                        ⏰ Compra sob encomenda física na loja dos EUA
                       </span>
                     ) : (
-                      v.stock < 5 && (
-                        <span className="text-[9px] text-orange-500 font-bold mt-1">
-                          Poucas unidades!
-                        </span>
-                      )
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg font-bold">
+                        ✓ Pronta entrega ({selectedVariant.stock} unidades)
+                      </span>
                     )}
-                  </button>
-                ))}
-              </div>
+
+                    {selectedVariant.priceAdjustBRL !== 0 && (
+                      <span className={`text-[10px] font-bold ${selectedVariant.priceAdjustBRL > 0 ? "text-rose-500" : "text-emerald-600"}`}>
+                        {selectedVariant.priceAdjustBRL > 0 ? "+" : ""}
+                        {formatCurrency(selectedVariant.priceAdjustBRL)} nesta variação
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
