@@ -2204,6 +2204,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       headers: { "access_token": apiKey }
     });
     
+    if (searchRes.status === 401) {
+      return res.status(401).json({ 
+        error: "A sua chave de API do Asaas (ASAAS_API_KEY) está inválida ou expirada. Se você estiver usando o ambiente de testes (Sandbox), verifique se o ASAAS_API_URL correto (https://sandbox.asaas.com/api/v3) foi configurado no painel de configurações ou nas variáveis de ambiente. Caso contrário, verifique se copiou a chave de produção corretamente sem espaços." 
+      });
+    }
+    
     if (searchRes.ok) {
       const contentType = searchRes.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
@@ -2234,6 +2240,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
           notificationDisabled: true
         })
       });
+
+      if (createCustomerRes.status === 401) {
+        return res.status(401).json({ 
+          error: "A sua chave de API do Asaas (ASAAS_API_KEY) está inválida ou expirada. Se você estiver usando o ambiente de testes (Sandbox), verifique se o ASAAS_API_URL correto (https://sandbox.asaas.com/api/v3) foi configurado no painel de configurações ou nas variáveis de ambiente. Caso contrário, verifique se copiou a chave de produção corretamente sem espaços." 
+        });
+      }
 
       if (!createCustomerRes.ok) {
         const errText = await createCustomerRes.text();
@@ -2327,6 +2339,12 @@ app.post("/api/asaas/create-payment", async (req, res) => {
       },
       body: JSON.stringify(paymentBody)
     });
+
+    if (paymentRes.status === 401) {
+      return res.status(401).json({ 
+        error: "A sua chave de API do Asaas (ASAAS_API_KEY) está inválida ou expirada. Se você estiver usando o ambiente de testes (Sandbox), verifique se o ASAAS_API_URL correto (https://sandbox.asaas.com/api/v3) foi configurado no painel de configurações ou nas variáveis de ambiente. Caso contrário, verifique se copiou a chave de produção corretamente sem espaços." 
+      });
+    }
 
     if (!paymentRes.ok) {
       const errText = await paymentRes.text();
