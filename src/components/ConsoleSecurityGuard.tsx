@@ -75,22 +75,9 @@ export function ConsoleSecurityGuard() {
     };
     document.addEventListener("keydown", handleKeyDown);
 
-    // 4. Add a lightweight anti-debugging check to disrupt execution when DevTools is active
-    const debugInterval = setInterval(() => {
-      const start = performance.now();
-      debugger;
-      const end = performance.now();
-      if (end - start > 100) {
-        try {
-          console.clear();
-        } catch (e) {}
-      }
-    }, 1000);
-
     // Cleanup on unmount
     return () => {
       clearInterval(consoleInterval);
-      clearInterval(debugInterval);
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
     };
