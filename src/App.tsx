@@ -11,6 +11,8 @@ import { Login } from './pages/Login';
 import { Support } from './pages/Support';
 import { Receipt } from './pages/Receipt';
 import { Profile } from './pages/Profile';
+import { Security } from './pages/Security';
+import { ConsoleSecurityGuard } from './components/ConsoleSecurityGuard';
 import { Footer } from './components/Footer';
 
 import { AlertTriangle } from 'lucide-react';
@@ -45,6 +47,7 @@ export default function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-rose-50/30 font-sans text-stone-900 selection:bg-rose-100 selection:text-rose-900">
           <Navigation />
+          <ConsoleSecurityGuard />
           <DatabaseQuotaWarning />
           <InstallPrompt />
           <main>
@@ -56,6 +59,7 @@ export default function App() {
               <Route path="/recibo/:id" element={<Receipt />} />
               <Route path="/suporte" element={<Support />} />
               <Route path="/perfil" element={<Profile />} />
+              <Route path="/seguranca" element={<Security />} />
               <Route path="/admin" element={<ProtectedAdmin><Admin /></ProtectedAdmin>} />
             </Routes>
           </main>

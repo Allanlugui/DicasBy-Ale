@@ -54,6 +54,7 @@ export function Footer() {
               <li><Link to="/suporte" className="hover:text-white transition-colors">Fale Conosco (WhatsApp)</Link></li>
               <li><Link to="/suporte" className="hover:text-white transition-colors">Central de Ajuda</Link></li>
               <li><Link to="/suporte" className="hover:text-white transition-colors">Termos e Condições</Link></li>
+              <li><Link to="/seguranca" className="hover:text-amber-400 text-amber-500 font-bold flex items-center justify-center sm:justify-start gap-1 transition-colors">🛡️ Central de Segurança</Link></li>
             </ul>
           </div>
 
