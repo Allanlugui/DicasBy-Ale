@@ -5,7 +5,7 @@
   "description": "Logística Internacional, Personal Shopper e Compra Assistenciada nos Estados Unidos.",
   "lang": "pt-BR",
   "dir": "ltr",
-  "start_url": "/?source=pwa",
+  "start_url": "/",
   "background_color": "#fffafb",
   "theme_color": "#f43f5e",
   "display": "standalone",

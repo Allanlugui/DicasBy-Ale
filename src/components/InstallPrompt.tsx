@@ -40,11 +40,8 @@ export function InstallPrompt() {
       setDeferredPrompt(e);
       setIsReadyToInstall(true);
 
-      // Only show banner after first access if not dismissed recently
-      const dismissedTime = safeStorage.getItem('pwa_banner_dismissed_at');
-      const installSucceeded = safeStorage.getItem('pwa_installed_successfully');
-      
-      const shouldShow = !installSucceeded && (!dismissedTime || Date.now() - parseInt(dismissedTime) > 24 * 60 * 60 * 1000 * 3); // 3 days cooling off
+      // Always show banner for testing and ensuring the user can install it
+      const shouldShow = !safeStorage.getItem('pwa_installed_successfully');
       if (shouldShow) {
         // Subtle delay for premium UX
         const timer = setTimeout(() => {
@@ -59,9 +56,7 @@ export function InstallPrompt() {
     // 4. For iOS devices: Since there is no prompt event, show banner to users directly as iOS fully supports PWAs
     if (isIosDevice) {
       setIsReadyToInstall(true);
-      const dismissedTime = safeStorage.getItem('pwa_banner_dismissed_at');
-      const installSucceeded = safeStorage.getItem('pwa_installed_successfully');
-      const shouldShow = !installSucceeded && (!dismissedTime || Date.now() - parseInt(dismissedTime) > 24 * 60 * 60 * 1000 * 3);
+      const shouldShow = !safeStorage.getItem('pwa_installed_successfully');
 
       if (shouldShow) {
         const timer = setTimeout(() => {
