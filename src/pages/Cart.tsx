@@ -74,7 +74,7 @@ export function Cart() {
 
   // Payment Options State
   const [paymentMethod, setPaymentMethod] = useState<
-    "pix" | "credit_card" | "debit_card" | "boleto"
+    "pix" | "credit_card" | "boleto"
   >("pix");
   const [copiedKey, setCopiedKey] = useState(false);
   const [acceptedConsent, setAcceptedConsent] = useState(false);
@@ -363,10 +363,7 @@ export function Cart() {
         if (order) {
           navigate(`/rastreio?id=${order.trackingId}`);
         }
-      } else if (
-        paymentMethod === "credit_card" ||
-        paymentMethod === "debit_card"
-      ) {
+      } else if (paymentMethod === "credit_card") {
         // Card via Asaas API
         if (!cardNumber || !cardName || !cardExpiry || !cardCvv) {
           throw new Error("Por favor, preencha todos os campos do cartão.");
@@ -1253,23 +1250,6 @@ export function Cart() {
                     <button
                       type="button"
                       onClick={() => {
-                        setPaymentMethod("debit_card");
-                        setAsaasError(null);
-                      }}
-                      className={`cursor-pointer p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                        paymentMethod === "debit_card"
-                          ? "border-rose-500 bg-rose-50/20 text-stone-900 font-bold shadow-xs"
-                          : "border-stone-200 bg-white hover:border-stone-300 text-stone-500"
-                      }`}
-                      id="payment-method-debit"
-                    >
-                      <CreditCard className="w-4 h-4 text-rose-500" />
-                      <span className="text-[10px]">Débito</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
                         setPaymentMethod("boleto");
                         setAsaasError(null);
                       }}
@@ -1302,7 +1282,14 @@ export function Cart() {
 
                       <div className="bg-white p-3 inline-block rounded-2xl border border-stone-200 shadow-xs mx-auto my-1">
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(generatePixCode(companySettings?.pixKey || "admin@pix.com", companySettings?.pixName || "Importação Admin", companySettings?.pixCity || "Sao Paulo", finalTotalBRL))}`}
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                            generatePixCode(
+                              companySettings?.pixKey || "admin@pix.com",
+                              companySettings?.pixName || "Importação Admin",
+                              companySettings?.pixCity || "Sao Paulo",
+                              finalTotalBRL,
+                            ),
+                          )}`}
                           alt="QR Code Pix"
                           className="w-40 h-40 object-contain mx-auto"
                         />
@@ -1339,22 +1326,17 @@ export function Cart() {
                     </div>
                   )}
 
-                  {/* PAYMENT DISPLAY: CREDIT CARD OR DEBIT CARD FIELDS */}
-                  {(paymentMethod === "credit_card" ||
-                    paymentMethod === "debit_card") && (
+                  {/* PAYMENT DISPLAY: CREDIT CARD FIELDS */}
+                  {paymentMethod === "credit_card" && (
                     <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
                       <div className="bg-rose-50/50 border border-rose-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-rose-900">
                         <Info className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                         <p className="leading-relaxed">
                           <strong>Gateway de Pagamento Integrado:</strong> Os
-                          pagamentos via Cartão (
-                          {paymentMethod === "credit_card"
-                            ? "Crédito"
-                            : "Débito"}
-                          ) são processados de forma 100% segura e
-                          criptografada. Nosso sistema conta com análise técnica
-                          e antifraude ativa para processamento imediato de sua
-                          importação.
+                          pagamentos via Cartão de Crédito são processados de
+                          forma 100% segura e criptografada. Nosso sistema conta
+                          com análise técnica e antifraude ativa para
+                          processamento imediato de sua importação.
                         </p>
                       </div>
 
