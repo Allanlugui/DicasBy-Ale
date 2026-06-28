@@ -2320,7 +2320,14 @@ app.post("/api/asaas/create-payment", async (req, res) => {
     };
 
     if (type === "CREDIT_CARD" && installmentCount && parseInt(installmentCount) > 1) {
-      paymentBody.installmentCount = parseInt(installmentCount);
+      const count = parseInt(installmentCount);
+      const interestRate = 0.015 + count * 0.018;
+      const totalWithInterest = parseFloat(value) * (1 + interestRate);
+      const installmentValue = Number((totalWithInterest / count).toFixed(2));
+      
+      paymentBody.installmentCount = count;
+      paymentBody.installmentValue = installmentValue;
+      paymentBody.value = Number((installmentValue * count).toFixed(2));
     }
 
     if (type === "CREDIT_CARD" || type === "DEBIT_CARD") {
