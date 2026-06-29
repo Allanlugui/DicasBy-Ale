@@ -5,6 +5,7 @@ import { safeStorage } from '../lib/utils';
 export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showBanner, setShowBanner] = useState(false);
+  const [showTopBar, setShowTopBar] = useState(false);
   const [showIosModal, setShowIosModal] = useState(false);
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
   const [deviceType, setDeviceType] = useState<'android' | 'ios' | 'desktop'>('desktop');
@@ -30,7 +31,29 @@ export function InstallPrompt() {
 
     if (isInStandaloneMode) {
       setShowBanner(false);
+      setShowTopBar(false);
       return;
+    }
+
+    // Determine if it is the first access / hasn't installed yet
+    const hasInstalled = safeStorage.getItem('pwa_installed_successfully') === 'true';
+    const topBarDismissed = safeStorage.getItem('pwa_topbar_dismissed_at');
+    const bannerDismissed = safeStorage.getItem('pwa_banner_dismissed_at');
+
+    if (!hasInstalled) {
+      // On the first client access to the app (no dismiss marker), show the top installation bar simplified
+      if (!topBarDismissed) {
+        const topBarTimer = setTimeout(() => {
+          setShowTopBar(true);
+        }, 800); // quick appearance for excellent first-access conversion
+        return () => clearTimeout(topBarTimer);
+      } else if (!bannerDismissed) {
+        // If they dismissed the top bar but haven't dismissed the bottom banner, show the bottom banner as fallback
+        const bannerTimer = setTimeout(() => {
+          setShowBanner(true);
+        }, 3000);
+        return () => clearTimeout(bannerTimer);
+      }
     }
 
     // 3. For Android/Chrome/Desktop: Listen to beforeinstallprompt
@@ -39,32 +62,9 @@ export function InstallPrompt() {
       console.log('[PWA] beforeinstallprompt event captured');
       setDeferredPrompt(e);
       setIsReadyToInstall(true);
-
-      // Always show banner for testing and ensuring the user can install it
-      const shouldShow = !safeStorage.getItem('pwa_installed_successfully');
-      if (shouldShow) {
-        // Subtle delay for premium UX
-        const timer = setTimeout(() => {
-          setShowBanner(true);
-        }, 3000);
-        return () => clearTimeout(timer);
-      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // 4. For iOS devices: Since there is no prompt event, show banner to users directly as iOS fully supports PWAs
-    if (isIosDevice) {
-      setIsReadyToInstall(true);
-      const shouldShow = !safeStorage.getItem('pwa_installed_successfully');
-
-      if (shouldShow) {
-        const timer = setTimeout(() => {
-          setShowBanner(true);
-        }, 4000); // slightly longer delay for iOS
-        return () => clearTimeout(timer);
-      }
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -77,20 +77,22 @@ export function InstallPrompt() {
       if (deviceType === 'ios') {
         setShowIosModal(true);
         setShowBanner(false);
+        setShowTopBar(false);
       } else if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then(({ outcome }: any) => {
           if (outcome === 'accepted') {
             safeStorage.setItem('pwa_installed_successfully', 'true');
             setShowBanner(false);
+            setShowTopBar(false);
           }
         });
       } else {
         // If on Android/Desktop but there is no deferred prompt active,
-        // it means PWA has already been installed or standard beforeinstallprompt was cancelled.
-        // We show them the step-by-step instructions.
+        // we show them the step-by-step instructions.
         setShowIosModal(true);
         setShowBanner(false);
+        setShowTopBar(false);
       }
     };
     return () => {
@@ -103,6 +105,7 @@ export function InstallPrompt() {
       // Show beautiful modal guide for iOS Safari installations
       setShowIosModal(true);
       setShowBanner(false);
+      setShowTopBar(false);
       return;
     }
 
@@ -110,6 +113,7 @@ export function InstallPrompt() {
       // Fallback if deferredPrompt isn't loaded/captured yet
       setShowIosModal(true);
       setShowBanner(false);
+      setShowTopBar(false);
       return;
     }
 
@@ -123,6 +127,7 @@ export function InstallPrompt() {
     if (outcome === 'accepted') {
       safeStorage.setItem('pwa_installed_successfully', 'true');
       setShowBanner(false);
+      setShowTopBar(false);
     }
     setDeferredPrompt(null);
   };
@@ -132,12 +137,48 @@ export function InstallPrompt() {
     setShowBanner(false);
   };
 
+  const dismissTopBar = () => {
+    safeStorage.setItem('pwa_topbar_dismissed_at', Date.now().toString());
+    setShowTopBar(false);
+  };
+
   // Always keep ready to install to listen to triggers
   const isWidgetSupported = true;
 
 
   return (
     <>
+      {/* 3. SIMPLIFIED TOP INSTALLATION BAR FOR FIRST ACCESS */}
+      {showTopBar && (
+        <div className="bg-gradient-to-r from-rose-500 via-pink-600 to-rose-600 text-white py-3 px-4 shadow-md relative z-40 animate-fade-in border-b border-rose-400/20">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 p-2 rounded-xl text-white shrink-0">
+                <Smartphone className="w-5 h-5 animate-bounce" />
+              </div>
+              <p className="text-xs sm:text-sm font-semibold leading-relaxed">
+                <span className="font-bold underline decoration-wavy decoration-rose-300">Dicas by Alê no seu Celular:</span> Instale nosso App para acessar mais rápido, acompanhar rastreios em tempo real e receber alertas instantâneos!
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleInstallClick}
+                className="cursor-pointer bg-white text-rose-700 hover:bg-rose-50 active:scale-95 px-4 py-1.5 text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" /> Instalar Grátis
+              </button>
+              <button
+                onClick={dismissTopBar}
+                className="text-white/70 hover:text-white p-1.5 rounded-full hover:bg-white/10 transition cursor-pointer"
+                title="Fechar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. FLOATING ACTION PWA INSTALLATION BANNER */}
       {showBanner && (
         <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:max-w-md z-50 animate-scale-in">
@@ -294,7 +335,6 @@ export function InstallPrompt() {
               <button 
                 onClick={() => {
                   setShowIosModal(false);
-                  safeStorage.setItem('pwa_installed_successfully', 'true');
                 }}
                 className="cursor-pointer w-full bg-stone-900 hover:bg-stone-800 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition"
               >
