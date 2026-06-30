@@ -2695,7 +2695,7 @@ app.post("/api/asaas/webhook", async (req, res) => {
           });
 
           console.log(`[Asaas Webhook] Order ${orderId} successfully updated to PRODUCT_PAYMENT_RECEIVED`);
-        } else if (orderData.status === 'AWAITING_SHIPPING_PAYMENT') {
+        } else if (orderData.status === 'AWAITING_SHIPPING_PAYMENT' || orderData.status === 'STORED_IN_US') {
           const updateFields: any = {
             status: 'SHIPPING_PAID',
             shippingPaidAt: new Date().toISOString(),

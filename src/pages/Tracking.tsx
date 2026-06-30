@@ -189,10 +189,23 @@ export function Tracking() {
         }
 
         const isPaid = data.status === "CONFIRMED" || data.status === "RECEIVED";
+        let targetStatus = currentOrder.status;
+        if (isPaid) {
+          if (currentOrder.status === 'PENDING_PAYMENT') {
+            const hasPrepayment = currentOrder.prepaymentFee && currentOrder.prepaymentFee > 0;
+            targetStatus = hasPrepayment ? 'PREPAYMENT_RECEIVED' : 'PAYMENT_RECEIVED';
+          } else if (currentOrder.status === 'AWAITING_PRODUCT_PAYMENT') {
+            targetStatus = 'PRODUCT_PAYMENT_RECEIVED';
+          } else if (currentOrder.status === 'STORED_IN_US') {
+            targetStatus = 'SHIPPING_PAID';
+          } else {
+            targetStatus = 'PAYMENT_RECEIVED';
+          }
+        }
         
         await updateOrderStatus(
           currentOrder.id,
-          isPaid ? "PAYMENT_RECEIVED" : currentOrder.status,
+          targetStatus,
           `Pagamento via Cartão de Crédito iniciado. Status: ${data.status}. ID Asaas: ${data.paymentId}`,
           undefined,
           undefined,
@@ -206,7 +219,7 @@ export function Tracking() {
         // Update local order state to show changes immediately
         setOrder({
           ...currentOrder,
-          status: isPaid ? "PAYMENT_RECEIVED" : currentOrder.status,
+          status: targetStatus,
           paymentMethod: "credit_card",
           asaasPaymentId: data.paymentId,
           asaasInvoiceUrl: data.invoiceUrl,

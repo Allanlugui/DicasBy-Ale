@@ -62,6 +62,21 @@ import { AdminDriveTab } from "./AdminDriveTab";
 import { AdminCustomersTab } from "./AdminCustomersTab";
 import { AdminIntegrationLogsTab } from "./AdminIntegrationLogsTab";
 
+export const ADMIN_STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING_PAYMENT: "Aguardando Pagamento",
+  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
+  AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
+  PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
+  PAYMENT_RECEIVED: "Pagamento Confirmado (Sinal 30% ou Total)",
+  PURCHASED_IN_STORE: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
+  STORED_IN_US: "Armazenado no CD dos EUA",
+  SHIPPING_PAID: "Frete Pago (Confirmado)",
+  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
+  ARRIVED_IN_BR: "Chegou no Brasil",
+  DELIVERED: "Entregue ao Cliente",
+  CANCELLED: "Cancelado",
+};
+
 export function TicketsTab({
   tickets,
   updateTicket,
@@ -2625,16 +2640,30 @@ function OrdersTab({
                       }
                       className="w-full bg-stone-50 border border-stone-200 text-sm rounded-xl px-4 py-2.5 focus:ring-rose-500 outline-none"
                     >
-                      <option value="PENDING_PAYMENT">
-                        Aguardando Pagamento
+                      <option value="PENDING_PAYMENT">Aguardando Pagamento</option>
+                      <option value="PREPAYMENT_RECEIVED">
+                        Pagamento de taxa de serviço personalizado confirmada
+                      </option>
+                      <option value="AWAITING_PRODUCT_PAYMENT">
+                        Aguardando pagamento do produto
+                      </option>
+                      <option value="PRODUCT_PAYMENT_RECEIVED">
+                        Pagamento do produto confirmado
                       </option>
                       <option value="PAYMENT_RECEIVED">
-                        Pago (Aguardando Compra)
+                        Pagamento Confirmado (Sinal 30% ou Total)
                       </option>
                       <option value="PURCHASED_IN_STORE">
-                        Comprado na Loja
+                        Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)
                       </option>
-                      <option value="STORED_IN_US">Armazenado em Miami</option>
+                      <option value="STORED_IN_US">Armazenado no CD dos EUA</option>
+                      <option value="SHIPPING_PAID">Frete Pago (Confirmado)</option>
+                      <option value="IN_TRANSIT_TO_BR">
+                        Em trâmite para o Brasil (Despachado)
+                      </option>
+                      <option value="ARRIVED_IN_BR">Chegou no Brasil</option>
+                      <option value="DELIVERED">Entregue ao Cliente</option>
+                      <option value="CANCELLED">Cancelado</option>
                     </select>
                   </div>
                 </div>
@@ -3049,7 +3078,7 @@ function OrderAdminCard({
             <span className="font-mono text-xs text-green-700">
               {new Date(currentEvent.date).toLocaleString()}
             </span>
-            <p className="mt-1 font-medium">{order.status}</p>
+            <p className="mt-1 font-medium">{ADMIN_STATUS_LABELS[order.status as OrderStatus] || order.status}</p>
           </div>
 
           {/* ERP Integrations Sync Status */}
