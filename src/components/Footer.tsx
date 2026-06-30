@@ -86,9 +86,7 @@ export function Footer() {
         {/* Logo and Language/Region Section */}
         <div className="mt-12 pt-12 border-t border-[#232f3e] flex flex-col items-center gap-6">
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="bg-rose-500 p-1.5 rounded-lg group-hover:scale-110 transition">
-              <ShoppingBag className="h-5 w-5 text-white" />
-            </div>
+            <img src="/icon.svg" alt="Dicas by Alê" className="h-10 w-10 object-contain group-hover:scale-110 transition shrink-0" referrerPolicy="no-referrer" />
             <span className="font-display font-black text-2xl tracking-tighter">Dicas by Alê</span>
           </Link>
 

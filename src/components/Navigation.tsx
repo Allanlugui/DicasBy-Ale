@@ -67,7 +67,7 @@ export function Navigation() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link to="/" className="flex items-center gap-2">
-              <ShoppingBag className="h-6 w-6 text-rose-500" />
+              <img src="/icon.svg" alt="Dicas by Alê" className="h-8 w-8 object-contain shrink-0" referrerPolicy="no-referrer" />
               <span className="font-display font-bold text-xl text-stone-900 tracking-tight whitespace-nowrap">Dicas by Alê</span>
             </Link>
             
