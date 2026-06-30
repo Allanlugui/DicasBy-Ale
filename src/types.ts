@@ -101,7 +101,6 @@ export type OrderStatus =
   | 'PAYMENT_RECEIVED' 
   | 'PURCHASED_IN_STORE' 
   | 'STORED_IN_US' 
-  | 'AWAITING_SHIPPING_PAYMENT'
   | 'SHIPPING_PAID'
   | 'IN_TRANSIT_TO_BR' 
   | 'ARRIVED_IN_BR' 

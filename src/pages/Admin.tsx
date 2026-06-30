@@ -2070,11 +2070,6 @@ function OrdersTab({
         label: "Armazenado no CD EUA",
         color: [79, 70, 229],
       },
-      {
-        key: "AWAITING_SHIPPING_PAYMENT",
-        label: "Aguardando Pagamento Frete",
-        color: [190, 24, 93],
-      },
       { key: "SHIPPING_PAID", label: "Frete Pago", color: [16, 185, 129] },
       {
         key: "IN_TRANSIT_TO_BR",
@@ -2249,13 +2244,6 @@ function OrdersTab({
       label: "Armazenado nos EUA",
       count: orders.filter((o) => o.status === "STORED_IN_US").length,
       icon: StoreIcon,
-    },
-    {
-      id: "AWAITING_SHIPPING_PAYMENT",
-      label: "Pagamento de Frete",
-      count: orders.filter((o) => o.status === "AWAITING_SHIPPING_PAYMENT")
-        .length,
-      icon: DollarSign,
     },
     {
       id: "IN_TRANSIT_TO_BR",
@@ -2879,9 +2867,6 @@ function OrderAdminCard({
     }
 
     const extraFields: any = {};
-    if (status === "AWAITING_SHIPPING_PAYMENT") {
-      extraFields.finalShippingFeeBRL = finalShippingFeeBRL;
-    }
     if (status === "SHIPPING_PAID") {
       extraFields.shippingPaid = true;
     }
@@ -3156,9 +3141,6 @@ function OrderAdminCard({
                   Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)
                 </option>
                 <option value="STORED_IN_US">Armazenado no CD dos EUA</option>
-                <option value="AWAITING_SHIPPING_PAYMENT">
-                  Aguardando Pagamento do Frete (Habilita campo de valor final)
-                </option>
                 <option value="SHIPPING_PAID">Frete Pago (Confirmado)</option>
                 <option value="IN_TRANSIT_TO_BR">
                   Em trâmite para o Brasil (Despachado)
@@ -3264,41 +3246,6 @@ function OrderAdminCard({
                     <div className="w-full px-3 py-2 rounded-lg border border-indigo-300 text-sm bg-indigo-100 font-bold text-indigo-900">
                       {formatCurrency(storageFeeBRL)}
                     </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {status === "AWAITING_SHIPPING_PAYMENT" && (
-              <div className="bg-rose-50 p-4 rounded-xl border border-rose-200 mt-4 space-y-4 animate-fade-in shadow-sm">
-                <div className="flex items-center gap-2 text-rose-900 mb-1">
-                  <Truck className="w-5 h-5" />
-                  <h4 className="font-bold text-sm leading-none">
-                    Definição do Frete Final Real
-                  </h4>
-                </div>
-                <p className="text-[11px] text-rose-700 leading-relaxed">
-                  Insira o valor real do frete calculado para este envio. O
-                  cliente verá este valor para realizar o pagamento via Pix.
-                </p>
-                <div>
-                  <label className="block text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-1">
-                    Valor do Frete (R$)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-stone-400 text-sm">
-                      R$
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={finalShippingFeeBRL}
-                      onChange={(e) =>
-                        setFinalShippingFeeBRL(Number(e.target.value))
-                      }
-                      className="w-full pl-9 pr-4 py-2 rounded-lg border border-rose-200 focus:ring-rose-500 text-sm font-bold bg-white"
-                      placeholder="0.00"
-                    />
                   </div>
                 </div>
               </div>

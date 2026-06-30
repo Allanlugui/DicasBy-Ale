@@ -33,7 +33,6 @@ const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
   PAYMENT_RECEIVED: Clock,
   PURCHASED_IN_STORE: Package,
   STORED_IN_US: MapPin,
-  AWAITING_SHIPPING_PAYMENT: DollarSign,
   SHIPPING_PAID: CheckCircle,
   IN_TRANSIT_TO_BR: Truck,
   ARRIVED_IN_BR: MapPin,
@@ -46,7 +45,6 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   PAYMENT_RECEIVED: "Pagamento Confirmado",
   PURCHASED_IN_STORE: "Comprado na Loja",
   STORED_IN_US: "Armazenado no CD EUA",
-  AWAITING_SHIPPING_PAYMENT: "Aguardando Pagamento do Frete",
   SHIPPING_PAID: "Frete Pago",
   IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
   ARRIVED_IN_BR: "Chegou no Brasil",
@@ -681,9 +679,8 @@ export function Tracking() {
                 </div>
               );
             })()}
-                       {/* Payment Details for PENDING_PAYMENT or AWAITING_SHIPPING_PAYMENT */}
-          {(order.status === "PENDING_PAYMENT" ||
-            order.status === "AWAITING_SHIPPING_PAYMENT") &&
+                       {/* Payment Details for PENDING_PAYMENT */}
+          {order.status === "PENDING_PAYMENT" &&
             (() => {
               const activePixKey =
                 companySettings?.pixKey || "jallanluiz@gmail.com";
@@ -692,12 +689,9 @@ export function Tracking() {
 
               // Use final shipping fee if it exists and we are in shipping payment status
               const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
-              const amount =
-                order.status === "AWAITING_SHIPPING_PAYMENT"
-                  ? (order.finalShippingFeeBRL || order.shippingFeeBRL || 0)
-                  : (hasPaidPrepayment
+              const amount = hasPaidPrepayment
                       ? order.onDemandProductCostBRL
-                      : order.totalBRL);
+                      : order.totalBRL;
 
               const pixCode = generatePixCode(
                 activePixKey,
@@ -712,21 +706,18 @@ export function Tracking() {
                 setTimeout(() => setCopiedKey(false), 2500);
               };
 
-              const isShipping = order.status === "AWAITING_SHIPPING_PAYMENT";
               const method = order.paymentMethod || "pix";
 
               return (
                 <div
-                  className={`bg-white rounded-2xl border ${isShipping ? "border-rose-200" : "border-rose-100"} p-6 md:p-8 space-y-6 shadow-sm animate-scale-in`}
+                  className={`bg-white rounded-2xl border border-rose-100 p-6 md:p-8 space-y-6 shadow-sm animate-scale-in`}
                 >
                   <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
                     <Landmark
-                      className={`w-5 h-5 ${isShipping ? "text-rose-600" : "text-rose-500"} hover:scale-110 transition`}
+                      className={`w-5 h-5 text-rose-500 hover:scale-110 transition`}
                     />
                     <h3 className="text-base font-bold text-stone-900 font-display">
-                      {isShipping
-                        ? "Efetuar o Pagamento do FRETE"
-                        : "Efetuar o Pagamento do Pedido"}
+                      Efetuar o Pagamento do Pedido
                     </h3>
                   </div>
 
