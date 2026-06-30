@@ -1485,6 +1485,27 @@ export function Cart() {
                     </div>
                   )}
 
+                  {/* PAYMENT DISPLAY: BOLETO DISCLAIMER */}
+                  {paymentMethod === "boleto" && (
+                    <div className="bg-stone-50 border border-stone-200 rounded-2xl p-5 space-y-4">
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-amber-900">
+                        <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="leading-relaxed space-y-1">
+                          <strong className="block text-amber-950 font-bold">Importante - Prazo de Compensação:</strong>
+                          <p>
+                            O processamento e compensação do boleto pela instituição financeira pode levar de <strong>1 a 3 dias úteis</strong>.
+                          </p>
+                          <p>
+                            O seu pedido só será efetivado e liberado para envio/armazenagem nos EUA <strong>após a confirmação de recebimento definitivo</strong> do valor em nossa conta.
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-stone-500 leading-relaxed text-center">
+                        Ao finalizar o pedido, o boleto bancário será gerado através do gateway de pagamento e você poderá realizar o download ou copiar a linha digitável para pagamento.
+                      </p>
+                    </div>
+                  )}
+
                   {/* CUSTOMS & IMPORTATION IMPORTANT NOTICE */}
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-6 space-y-2.5">
                     <div className="flex gap-2 items-center text-amber-950 font-extrabold text-[11px] uppercase tracking-wider">

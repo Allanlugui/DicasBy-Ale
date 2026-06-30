@@ -896,6 +896,19 @@ export function Tracking() {
                         /* Generated Boleto Display */
                         <>
                           <div className="space-y-4">
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-amber-900">
+                              <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                              <div className="leading-relaxed space-y-1 text-left">
+                                <strong className="block text-amber-950 font-bold">Importante - Prazo de Compensação:</strong>
+                                <p>
+                                  O processamento e compensação do boleto pode levar de <strong>1 a 3 dias úteis</strong>.
+                                </p>
+                                <p>
+                                  A sua compra e o envio do produto só serão efetivados e processados <strong>após a compensação bancária definitiva</strong> (o valor precisa cair em nossa conta). Enquanto isso, o produto não será liberado.
+                                </p>
+                              </div>
+                            </div>
+
                             <p className="text-xs text-stone-600 leading-relaxed">
                               Seu pedido foi registrado e o boleto bancário já está
                               disponível para pagamento! Pague pelo seu internet
@@ -1012,6 +1025,19 @@ export function Tracking() {
                       ) : (
                         /* Generate Boleto Form */
                         <div className="col-span-2 space-y-4">
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex gap-2 items-start text-[11px] text-amber-900">
+                            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="leading-relaxed space-y-1 text-left">
+                              <strong className="block text-amber-950 font-bold">Aviso sobre o prazo de compensação:</strong>
+                              <p>
+                                O processamento e compensação do boleto pode levar de <strong>1 a 3 dias úteis</strong>.
+                              </p>
+                              <p>
+                                O seu produto ou mercadoria só será liberado/enviado <strong>após a compensação total do boleto</strong>. Enquanto o pagamento não for compensado, o cliente não receberá o produto.
+                              </p>
+                            </div>
+                          </div>
+
                           <p className="text-xs text-stone-600">
                             Preencha os dados abaixo para gerar um boleto registrado no banco Asaas. O vencimento será para o próximo dia útil.
                           </p>

@@ -27,7 +27,10 @@ Estes dados são estritamente necessários para:
 Garantimos suporte técnico e legal a quaisquer incidentes. Os seus dados são armazenados localmente e na nuvem criptografada do Firebase do projeto, sendo acessíveis unicamente pela nossa equipe comercial para realizar o despacho físico do produto. Seus dados nunca serão repassados ou comercializados para terceiros não-logísticos.
 
 4. POLÍTICA DE PAGAMENTO E TARIFAS OPERACIONAIS
-Disponibilizamos meios de pagamento oficiais configurados pelo administrador. A liberação de compra e envio de pacotes ocorrem mediante a confirmação total de pagamento. Ao utilizar o aplicativo, o cliente está ciente e concorda que eventuais despesas administrativas e tarifas essenciais para o funcionamento da plataforma (como custos operacionais, tributos fixos, infraestrutura, armazenagem básica e manutenção de aplicativo) já estão integralmente incorporadas e embutidas sob a rubrica da nossa "Taxa de Serviço".`;
+Disponibilizamos meios de pagamento oficiais configurados pelo administrador. A liberação de compra e envio de pacotes ocorrem mediante a confirmação total de pagamento. Ao utilizar o aplicativo, o cliente está ciente e concorda que eventuais despesas administrativas e tarifas essenciais para o funcionamento da plataforma (como custos operacionais, tributos fixos, infraestrutura, armazenagem básica e manutenção de aplicativo) já estão integralmente incorporadas e embutidas sob a rubrica da nossa "Taxa de Serviço".
+
+5. PRAZOS E PROCESSAMENTO DE BOLETO BANCÁRIO
+Quando o cliente optar por realizar o pagamento via boleto bancário, o processamento e compensação pela instituição financeira pode levar até 3 (três) dias úteis. A compra e liberação de envio de qualquer produto ou mercadoria só serão efetivadas e processadas após a compensação e processamento bancário definitivo do respectivo boleto (ou seja, o valor precisa ser efetivamente creditado em conta). Enquanto o pagamento não for compensado pelo banco, o cliente não receberá o produto.`;
 
 const DEFAULT_PRIVACY = `POLÍTICA DE PRIVACIDADE E CONSENTIMENTO DE TRATAMENTO DE DADOS
 
