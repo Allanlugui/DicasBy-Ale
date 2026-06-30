@@ -2,7 +2,7 @@ const CACHE_NAME = 'pwa-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.webmanifest',
+  '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'
 ];
