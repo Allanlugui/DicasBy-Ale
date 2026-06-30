@@ -1,8 +1,63 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { Order, CompanySettings, UserProfile } from "../types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function calculateStorageFee(
+  order: Order,
+  settings: CompanySettings | null,
+  customerProfile: UserProfile | null
+): number {
+  if (!order.customDeliveryRequested) return 0;
+  
+  const isOnDemand = order.items.some(item => item.product.stockType === 'PARTNER_STORE');
+  if (!isOnDemand) return 0;
+
+  if (customerProfile?.isStorageFeeExempt) return 0;
+
+  const gracePeriod = customerProfile?.customStorageGracePeriodDays ?? settings?.storageGracePeriodDays ?? 3;
+  const ratePerKg = settings?.storageFeePerVolumetricKgPerDayBRL ?? 5;
+
+  let totalDaysInStorage = 0;
+  const now = new Date();
+  
+  if (order.storedAtUS) {
+    const startUS = new Date(order.storedAtUS);
+    const start = order.storedAtBR ? new Date(Math.min(startUS.getTime(), new Date(order.storedAtBR).getTime())) : startUS;
+    const diffMs = now.getTime() - start.getTime();
+    totalDaysInStorage = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  } else if (order.storedAtBR) {
+    const start = new Date(order.storedAtBR);
+    const diffMs = now.getTime() - start.getTime();
+    totalDaysInStorage = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  const billableDays = Math.max(0, totalDaysInStorage - gracePeriod);
+  if (billableDays <= 0) return 0;
+
+  let totalVolumetricWeight = 0;
+  
+  if (order.packageDimensions && order.packageWeight) {
+    const volWeight = (order.packageDimensions.length * order.packageDimensions.width * order.packageDimensions.height) / 5000;
+    const physWeight = order.packageWeight / 1000;
+    totalVolumetricWeight = Math.max(volWeight, physWeight);
+  } else {
+    order.items.forEach(item => {
+      const length = item.product.boxLength || 20;
+      const width = item.product.boxWidth || 15;
+      const height = item.product.boxHeight || 10;
+      const weight = item.product.boxWeight || 500;
+      
+      const volWeight = (length * width * height) / 5000;
+      const physWeight = weight / 1000;
+      totalVolumetricWeight += Math.max(volWeight, physWeight) * item.quantity;
+    });
+  }
+
+  return billableDays * totalVolumetricWeight * ratePerKg;
 }
 
 export function formatCurrency(value: number) {

@@ -77,6 +77,8 @@ export function AdminSettingsTab() {
   // New operational costs fields
   const [serviceFeePercent, setServiceFeePercent] = useState(30);
   const [storageRatePerM2, setStorageRatePerM2] = useState(150);
+  const [storageGracePeriodDays, setStorageGracePeriodDays] = useState(3);
+  const [storageFeePerVolumetricKgPerDayBRL, setStorageFeePerVolumetricKgPerDayBRL] = useState(5);
   const [appFeeFixedBRL, setAppFeeFixedBRL] = useState(20);
   const [personalShopperPrepaymentBRL, setPersonalShopperPrepaymentBRL] =
     useState(150);
@@ -107,6 +109,8 @@ export function AdminSettingsTab() {
       setPrivacyPolicy(companySettings.privacyPolicy || DEFAULT_PRIVACY);
       setServiceFeePercent(companySettings.serviceFeePercent ?? 30);
       setStorageRatePerM2(companySettings.storageRatePerM2 ?? 150);
+      setStorageGracePeriodDays(companySettings.storageGracePeriodDays ?? 3);
+      setStorageFeePerVolumetricKgPerDayBRL(companySettings.storageFeePerVolumetricKgPerDayBRL ?? 5);
       setAppFeeFixedBRL(companySettings.appFeeFixedBRL ?? 20);
       setPersonalShopperPrepaymentBRL(
         companySettings.personalShopperPrepaymentBRL ?? 150,
@@ -201,6 +205,8 @@ export function AdminSettingsTab() {
         privacyPolicy,
         serviceFeePercent,
         storageRatePerM2,
+        storageGracePeriodDays,
+        storageFeePerVolumetricKgPerDayBRL,
         appFeeFixedBRL,
         personalShopperPrepaymentBRL,
         personalShopperMaxDepositBRL,
@@ -356,7 +362,7 @@ export function AdminSettingsTab() {
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-stone-600 block">
-                Valor Base Armazenagem (por m²)
+                Valor Base Armazenagem (por m² - mensal)
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-2.5 text-stone-400 text-sm">
@@ -370,7 +376,44 @@ export function AdminSettingsTab() {
                 />
               </div>
               <p className="text-[10px] text-stone-400">
-                Usado para calcular a taxa mensal baseada no volume do pacote.
+                Usado para calcular a taxa mensal baseada no volume do pacote (estoque padrão).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">
+                Período de Cortesia Armazenamento (Dias)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={storageGracePeriodDays}
+                  onChange={(e) => setStorageGracePeriodDays(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">
+                Dias sem cobrança para pedidos personalizados com envio personalizado após chegarem no CD.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">
+                Taxa de Armazenagem Diária (R$ por Kg Volumétrico)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-2.5 text-stone-400 text-sm">
+                  R$
+                </span>
+                <input
+                  type="number"
+                  value={storageFeePerVolumetricKgPerDayBRL}
+                  onChange={(e) => setStorageFeePerVolumetricKgPerDayBRL(Number(e.target.value))}
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">
+                Cobrado por dia excedente ao período de cortesia para itens sobre encomenda com envio personalizado.
               </p>
             </div>
 

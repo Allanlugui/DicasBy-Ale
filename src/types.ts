@@ -148,6 +148,11 @@ export type Order = {
   status: OrderStatus;
   history: OrderEvent[];
   shippingMethod?: ShippingMethod;
+  customDeliveryRequested?: boolean;
+  customDeliveryInstructions?: string;
+  storedAtUS?: string;
+  storedAtBR?: string;
+  accumulatedStorageFeeBRL?: number;
   shippingEstimateBRL?: number;
   shippingEstimateWithMarginBRL?: number;
   customsResponsibilityAccepted?: boolean;
@@ -191,6 +196,8 @@ export type UserProfile = {
   city: string;
   state: string;
   updatedAt: string;
+  customStorageGracePeriodDays?: number;
+  isStorageFeeExempt?: boolean;
 };
 
 export type CompanySettings = {
@@ -210,6 +217,8 @@ export type CompanySettings = {
   // New Operational Costs fields
   serviceFeePercent?: number;
   storageRatePerM2?: number; 
+  storageGracePeriodDays?: number;
+  storageFeePerVolumetricKgPerDayBRL?: number;
   appFeeFixedBRL?: number;
   fixedCosts?: { id: string; label: string; value: number }[];
   adminHubBaseUrl?: string;

@@ -85,6 +85,7 @@ export function Cart() {
   const [selectedShippingMethodId, setSelectedShippingMethodId] = useState<
     string | null
   >(null);
+  const [customDeliveryInstructions, setCustomDeliveryInstructions] = useState("");
 
   // Coupons
   const [couponCodeInput, setCouponCodeInput] = useState("");
@@ -339,6 +340,10 @@ export function Cart() {
       alert("Por favor, selecione uma modalidade de frete.");
       return;
     }
+    if (selectedShippingMethodId === "custom" && !customDeliveryInstructions.trim()) {
+      alert("Por favor, informe as instruções para a entrega personalizada.");
+      return;
+    }
 
     setIsProcessing(true);
     setAsaasError(null);
@@ -359,8 +364,10 @@ export function Cart() {
             totalBRL: finalTotalBRL,
             customsResponsibilityAccepted: acceptedCustoms,
             paymentMethod: "pix",
-            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
             carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            customDeliveryRequested: selectedShippingMethodId === "custom",
+            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
         );
         setIsProcessing(false);
@@ -448,8 +455,10 @@ export function Cart() {
             asaasInvoiceUrl: data.invoiceUrl,
             status: isPaid ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT",
             paymentMethod: paymentMethod,
-            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
             carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            customDeliveryRequested: selectedShippingMethodId === "custom",
+            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
         );
 
@@ -512,8 +521,10 @@ export function Cart() {
             bankSlipUrl: data.bankSlipUrl || undefined,
             barCode: data.barCode || undefined,
             paymentMethod: "boleto",
-            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
             carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            customDeliveryRequested: selectedShippingMethodId === "custom",
+            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
         );
 
@@ -1149,6 +1160,49 @@ export function Cart() {
                           </button>
                         );
                       })}
+                      {/* Entrega Personalizada Option */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShippingMethodId("custom")}
+                        className={`flex justify-between items-center p-5 rounded-2xl border text-left transition-all relative overflow-hidden group ${
+                          selectedShippingMethodId === "custom"
+                            ? "border-rose-500 bg-rose-50/20 ring-2 ring-rose-500/20 shadow-lg shadow-rose-100/50"
+                            : "border-stone-100 bg-white hover:border-stone-300 shadow-sm"
+                        }`}
+                      >
+                        {selectedShippingMethodId === "custom" && (
+                          <div className="absolute top-0 right-0 p-1.5 bg-rose-500 rounded-bl-xl">
+                            <CheckCircle className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                            <MapPin className="w-6 h-6 text-stone-400" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-stone-900 leading-tight">
+                              Entrega Personalizada
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">
+                                DICAS BY ALE
+                              </span>
+                              <span className="text-[10px] text-stone-400">
+                                •
+                              </span>
+                              <span className="text-[10px] text-stone-500 font-medium italic">
+                                Entregue em mãos / outras formas
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-black text-stone-800 block">
+                            A Definir*
+                          </span>
+                        </div>
+                      </button>
                     </div>
                   ) : (
                     <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-center">
@@ -1158,7 +1212,27 @@ export function Cart() {
                       </span>
                     </div>
                   )}
-                  {selectedShipping && (
+
+                  {selectedShippingMethodId === "custom" && (
+                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 mt-4 animate-fade-in">
+                      <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-2">
+                        Instruções para Entrega Personalizada *
+                      </label>
+                      <textarea
+                        required
+                        value={customDeliveryInstructions}
+                        onChange={(e) => setCustomDeliveryInstructions(e.target.value)}
+                        placeholder="Ex: Gostaria de retirar em mãos em Miami ou receber por motoboy no Brasil..."
+                        rows={3}
+                        className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none outline-none"
+                      />
+                      <p className="text-[10px] text-stone-500 mt-2">
+                        <strong>Nota de Segurança:</strong> Entregas personalizadas estão sujeitas a aprovação de acordo com o perfil do cliente. Taxas de armazenamento poderão ser aplicadas.
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedShipping && selectedShippingMethodId !== "custom" && (
                     <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5 space-y-2 mt-2 text-[11px]">
                       <div className="flex items-center gap-1.5 text-blue-700 font-bold text-[10px] uppercase">
                         <Info className="w-3.5 h-3.5 shrink-0" />

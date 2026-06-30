@@ -50,7 +50,7 @@ import {
   CartFeedback,
   AbandonedEmailLog,
 } from "../types";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, calculateStorageFee } from "../lib/utils";
 import { jsPDF } from "jspdf";
 
 import { ImageInput } from "../components/ImageInput";
@@ -2664,8 +2664,9 @@ function OrderAdminCard({
   order: any;
   updateOrderStatus: any;
 }) {
-  const { companySettings, autoSaveUserDocument, syncOrderWithERPs } =
+  const { companySettings, autoSaveUserDocument, syncOrderWithERPs, profiles } =
     useAppContext();
+  const customerProfile = profiles?.find((p: any) => p.userId === order.userId || p.userId === order.customerEmail) || null;
   const [isSyncing, setIsSyncing] = useState(false);
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [note, setNote] = useState("");
@@ -2808,15 +2809,27 @@ function OrderAdminCard({
   const signatureRef = useRef<SignatureCanvas>(null);
   const currentEvent = order.history[0];
 
-  // Auto-calculate storage fee when dimensions change and status is STORED_IN_US or similar
+  // Use the new calculateStorageFee method from utils
   useEffect(() => {
-    if (length > 0 && width > 0) {
-      const rate = companySettings?.storageRatePerM2 || 150;
-      const areaM2 = (length * width) / 10000;
-      const calculatedFee = areaM2 * rate;
-      setStorageFeeBRL(Number(calculatedFee.toFixed(2)));
+    // Find customer profile using useAppContext? No, we don't have it directly. Let's pass it if possible, or just default to company settings
+    const fee = calculateStorageFee(
+      order,
+      companySettings || null,
+      customerProfile
+    );
+    // Add existing order storageFeeBRL in case it was modified? No, the new calculation is dynamic and overrides.
+    // Wait, if we want this to update live we should use it. 
+    // Wait, calculateStorageFee uses order.storedAtUS which might not exist until the status is saved.
+    // Let's use the new function, but also allow manual override?
+    
+    // Actually, let's keep the manual input state but suggest the calculated one? No, we want it automatic.
+    // Let's just set the state if it's > 0
+    if (fee > 0) {
+      setStorageFeeBRL(Number(fee.toFixed(2)));
+    } else if (order.storageFeeBRL) {
+      setStorageFeeBRL(order.storageFeeBRL);
     }
-  }, [length, width, companySettings]);
+  }, [order, companySettings]);
 
   // Auto-calculate shipping fee based on dimensions and weight when autoRates simulation is active
   useEffect(() => {
@@ -2871,10 +2884,16 @@ function OrderAdminCard({
       extraFields.shippingPaid = true;
     }
 
+    extraFields.storageFeeBRL = storageFeeBRL;
+
     if (status === "STORED_IN_US") {
       extraFields.packageDimensions = { length, width, height };
       extraFields.packageWeight = weight;
-      extraFields.storageFeeBRL = storageFeeBRL;
+      if (!order.storedAtUS) extraFields.storedAtUS = new Date().toISOString();
+    }
+    
+    if (status === "ARRIVED_IN_BR") {
+      if (!order.storedAtBR) extraFields.storedAtBR = new Date().toISOString();
     }
 
     extraFields.onDemandProductCostBRL = onDemandProductCostBRL;
@@ -2970,6 +2989,19 @@ function OrderAdminCard({
           <h4 className="font-semibold text-gray-900 border-b border-gray-100 pb-2">
             Status Atual
           </h4>
+
+          {/* Entrega Personalizada Instructions */}
+          {order.customDeliveryRequested && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 space-y-2 mb-4">
+              <div className="flex items-center gap-1.5 text-indigo-700 font-bold text-[10px] uppercase tracking-widest">
+                <Truck className="w-3.5 h-3.5 shrink-0" />
+                Instruções de Entrega Personalizada
+              </div>
+              <p className="text-xs text-indigo-900 leading-relaxed font-medium">
+                {order.customDeliveryInstructions || "Nenhuma instrução fornecida."}
+              </p>
+            </div>
+          )}
 
           <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 space-y-3">
             <div className="flex items-center justify-between">

@@ -1538,6 +1538,31 @@ export function Tracking() {
             </div>
           </div>
 
+          {/* Delivery Method Details */}
+          {order.customDeliveryRequested && (
+            <div className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 md:p-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <Truck className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold font-display text-indigo-900">
+                    Entrega Personalizada
+                  </h3>
+                  <p className="text-xs font-medium text-indigo-600 mt-0.5">
+                    Este pedido utiliza um método de entrega sob medida.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl p-4 border border-indigo-100 shadow-sm">
+                <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Instruções do Cliente</h4>
+                <p className="text-sm text-indigo-900 leading-relaxed font-medium">
+                  {order.customDeliveryInstructions || "Nenhuma instrução adicional fornecida."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Order Items Table (Readonly) */}
           <div className="bg-white rounded-2xl shadow-sm border border-stone-100 p-6 md:p-8 flex flex-col">
             <h3 className="text-lg font-bold font-display text-stone-900 mb-4 border-b border-stone-100 pb-4">
@@ -1590,13 +1615,27 @@ export function Tracking() {
                 <div className="flex justify-between text-sm">
                   <span className="text-stone-500">Taxa de Serviço:</span>
                   <span className="font-medium text-stone-900">
-                    {formatCurrency(
-                      (order.serviceFeeBRL || 0) +
-                        (order.storageFeeBRL || 0) +
-                        (order.appFeeBRL || 0),
-                    )}
+                    {formatCurrency(order.serviceFeeBRL || 0)}
                   </span>
                 </div>
+                
+                {order.appFeeBRL ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-stone-500">Taxa do Aplicativo:</span>
+                    <span className="font-medium text-stone-900">
+                      {formatCurrency(order.appFeeBRL)}
+                    </span>
+                  </div>
+                ) : null}
+
+                {order.storageFeeBRL ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-stone-500">Taxa de Armazenamento:</span>
+                    <span className="font-medium text-stone-900">
+                      {formatCurrency(order.storageFeeBRL)}
+                    </span>
+                  </div>
+                ) : null}
 
                 {order.prepaymentFee ? (
                   <div className="flex justify-between text-sm">

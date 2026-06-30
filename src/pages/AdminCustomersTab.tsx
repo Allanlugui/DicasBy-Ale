@@ -18,6 +18,7 @@ import {
   MessageCircle,
   X,
   Folder,
+  Package,
 } from "lucide-react";
 import { AdminDriveTab } from "./AdminDriveTab";
 
@@ -305,7 +306,8 @@ export function AdminCustomersTab() {
 
             <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
               {modalTab === "info" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-stone-600 mb-1">
                       Nome Completo
@@ -442,7 +444,47 @@ export function AdminCustomersTab() {
                     />
                   </div>
                 </div>
-              ) : (
+                
+                <div className="mt-6 pt-6 border-t border-stone-100">
+                  <h4 className="font-bold text-sm text-stone-900 mb-4 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-indigo-500" />
+                    Condições Especiais de Armazenamento
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-600 mb-1">
+                        Período de Cortesia Personalizado (Dias)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.customStorageGracePeriodDays || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, customStorageGracePeriodDays: e.target.value ? Number(e.target.value) : undefined })
+                        }
+                        placeholder="Deixe em branco para usar o padrão"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <p className="text-[10px] text-stone-500 mt-1">Deixe em branco para usar a regra geral da empresa.</p>
+                    </div>
+                    
+                    <div className="flex items-center mt-6">
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.isStorageFeeExempt || false}
+                          onChange={(e) => setFormData({ ...formData, isStorageFeeExempt: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <span className="ml-3 text-xs font-bold text-stone-600">
+                          Isentar Taxa de Armazenamento
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
                 <div className="animate-fade-in">
                   <AdminDriveTab limitToUserId={editingCustomer?.userId} />
                 </div>
