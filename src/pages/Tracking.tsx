@@ -30,6 +30,9 @@ import { formatCurrency, safeCopyText, generatePixCode, validateDocument } from 
 
 const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
   PENDING_PAYMENT: Clock,
+  PREPAYMENT_RECEIVED: CheckCircle,
+  AWAITING_PRODUCT_PAYMENT: Clock,
+  PRODUCT_PAYMENT_RECEIVED: CheckCircle,
   PAYMENT_RECEIVED: Clock,
   PURCHASED_IN_STORE: Package,
   STORED_IN_US: MapPin,
@@ -42,6 +45,9 @@ const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "Aguardando Pagamento",
+  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
+  AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
+  PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
   PAYMENT_RECEIVED: "Pagamento Confirmado",
   PURCHASED_IN_STORE: "Comprado na Loja",
   STORED_IN_US: "Armazenado no CD EUA",
@@ -680,7 +686,7 @@ export function Tracking() {
               );
             })()}
                        {/* Payment Details for PENDING_PAYMENT or STORED_IN_US */}
-          {(order.status === "PENDING_PAYMENT" || order.status === "STORED_IN_US") &&
+          {(order.status === "PENDING_PAYMENT" || order.status === "AWAITING_PRODUCT_PAYMENT" || order.status === "STORED_IN_US") &&
             (() => {
               const activePixKey =
                 companySettings?.pixKey || "jallanluiz@gmail.com";
@@ -690,9 +696,18 @@ export function Tracking() {
               // Use final shipping fee if it exists and we are in shipping payment status
               const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
               const isShipping = order.status === 'STORED_IN_US';
-              const amount = hasPaidPrepayment
-                      ? order.onDemandProductCostBRL
-                      : order.totalBRL;
+              let amount = order.totalBRL;
+              if (order.status === 'AWAITING_PRODUCT_PAYMENT') {
+                amount = (order.onDemandProductCostBRL || 0) + (order.finalShippingFeeBRL || order.shippingFeeBRL || 0);
+              } else if (isShipping) {
+                amount = order.finalShippingFeeBRL || order.shippingFeeBRL || 0;
+              } else if (order.status === 'PENDING_PAYMENT') {
+                if (order.prepaymentFee && order.prepaymentFee > 0) {
+                  amount = order.prepaymentFee;
+                } else {
+                  amount = order.totalBRL;
+                }
+              }
 
               const pixCode = generatePixCode(
                 activePixKey,
@@ -792,9 +807,11 @@ export function Tracking() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                       <div className="space-y-4">
                         <p className="text-xs text-stone-600 leading-relaxed">
-                          {isShipping
-                            ? "Sua encomenda já está pronta no nosso galpão! Para que possamos prosseguir com o despacho internacional para o Brasil, por favor efetue o pagamento do frete final calculado."
-                            : "Sua compra internacional aguarda confirmação de transferência Pix para darmos início ao faturamento aduaneiro seguro."}
+                          {order.status === 'AWAITING_PRODUCT_PAYMENT'
+                            ? "O valor real do produto e o frete de envio foram calculados. Efetue o pagamento abaixo para confirmarmos a compra e o despacho."
+                            : (isShipping
+                              ? "Sua encomenda já está pronta no nosso galpão! Para que possamos prosseguir com o despacho internacional para o Brasil, por favor efetue o pagamento do frete final calculado."
+                              : "Sua compra internacional aguarda confirmação de transferência Pix para darmos início ao faturamento aduaneiro seguro.")}
                         </p>
 
                         <div className="space-y-1.5 p-3.5 bg-stone-50 rounded-xl border border-stone-100 text-xs">
@@ -820,9 +837,11 @@ export function Tracking() {
                           )}
                           <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
                             <span className="text-stone-500 font-bold">
-                              {isShipping
-                                ? "Frete a Pagar:"
-                                : (hasPaidPrepayment ? "Valor do Produto (A Pagar):" : "Sinal / Taxa de Serviço:")}
+                              {order.status === 'AWAITING_PRODUCT_PAYMENT'
+                                ? "Valor do Produto + Frete:"
+                                : (isShipping
+                                  ? "Frete a Pagar:"
+                                  : (hasPaidPrepayment ? "Valor do Produto (A Pagar):" : "Sinal / Taxa de Serviço:"))}
                             </span>
                             <strong className="text-rose-600 text-sm font-semibold">
                               {formatCurrency(amount)}

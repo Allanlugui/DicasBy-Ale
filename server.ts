@@ -2159,6 +2159,9 @@ async function sendStatusUpdateNotification(orderId: string, status: string, not
 
     const statusLabels: Record<string, string> = {
       'PENDING_PAYMENT': 'Aguardando Pagamento',
+      'PREPAYMENT_RECEIVED': 'Pagamento de taxa de serviço personalizado confirmada',
+      'AWAITING_PRODUCT_PAYMENT': 'Aguardando pagamento do produto',
+      'PRODUCT_PAYMENT_RECEIVED': 'Pagamento do produto confirmado',
       'PAYMENT_RECEIVED': 'Pagamento Confirmado',
       'PURCHASED_IN_STORE': 'Comprado na Loja / Pronto para Despacho',
       'STORED_IN_US': 'Recebido em nosso Centro de Distribuição (EUA)',
@@ -2256,6 +2259,16 @@ async function sendStatusUpdateNotification(orderId: string, status: string, not
     console.error("[sendStatusUpdateNotification] Error:", err);
     return false;
   }
+}
+
+function generateCarrierTrackingCode(carrier: string): string {
+  const c = (carrier || "").toLowerCase();
+  const randNum = () => Math.floor(100000000 + Math.random() * 900000000).toString();
+  if (c.includes("fedex")) return `FX${randNum()}US`;
+  if (c.includes("dhl")) return `DHL${randNum()}BR`;
+  if (c.includes("ups")) return `1Z${randNum()}`;
+  if (c.includes("usps")) return `9400${randNum()}`;
+  return `BR${randNum()}US`;
 }
 
 // ---------------------------------------------------------------------------------
@@ -2620,35 +2633,81 @@ app.post("/api/asaas/webhook", async (req, res) => {
         console.log(`[Asaas Webhook] Order found: ${orderId}. Current status: ${orderData.status}`);
 
         if (orderData.status === 'PENDING_PAYMENT') {
-          await ordersRef.doc(orderId).update({
-            status: 'PAYMENT_RECEIVED',
+          // Check if it is On-Demand/Quote and has a prepayment fee
+          const hasPrepayment = orderData.prepaymentFee && orderData.prepaymentFee > 0;
+          const targetStatus = hasPrepayment ? 'PREPAYMENT_RECEIVED' : 'PAYMENT_RECEIVED';
+          const targetTitle = hasPrepayment ? 'Taxa de Serviço Confirmada' : 'Pagamento Recebido';
+          const targetDesc = hasPrepayment 
+            ? `Pagamento da taxa de serviço personalizado automático confirmado via webhook Asaas (${payment.billingType}).`
+            : `Pagamento automático confirmado via webhook Asaas (${payment.billingType}).`;
+
+          const updateFields: any = {
+            status: targetStatus,
             paymentReceivedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          });
+          };
+
+          if (!hasPrepayment && !orderData.carrierTrackingCode) {
+            const carrier = orderData.carrierName || (orderData.shippingMethod && orderData.shippingMethod.carrier) || "Correios";
+            updateFields.carrierTrackingCode = generateCarrierTrackingCode(carrier);
+          }
+
+          await ordersRef.doc(orderId).update(updateFields);
 
           const eventRef = ordersRef.doc(orderId).collection('events');
           await eventRef.add({
-            status: 'PAYMENT_RECEIVED',
-            title: 'Pagamento Recebido',
-            description: `Pagamento automático confirmado via webhook Asaas (${payment.billingType}).`,
+            status: targetStatus,
+            title: targetTitle,
+            description: targetDesc,
             timestamp: new Date().toISOString()
           });
 
           await db.collection('integrationLogs').add({
             timestamp: new Date().toISOString(),
             type: 'Asaas Webhook',
-            message: `Pagamento confirmado para o pedido ${orderId}. Valor: R$ ${payment.value}.`,
+            message: `Pagamento confirmado para o pedido ${orderId} (${targetStatus}). Valor: R$ ${payment.value}.`,
             status: 'success',
             details: JSON.stringify({ paymentId, event, billingType: payment.billingType })
           });
 
-          console.log(`[Asaas Webhook] Order ${orderId} successfully updated to PAYMENT_RECEIVED`);
-        } else if (orderData.status === 'AWAITING_SHIPPING_PAYMENT') {
+          console.log(`[Asaas Webhook] Order ${orderId} successfully updated to ${targetStatus}`);
+        } else if (orderData.status === 'AWAITING_PRODUCT_PAYMENT') {
           await ordersRef.doc(orderId).update({
+            status: 'PRODUCT_PAYMENT_RECEIVED',
+            productPaymentReceivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+          const eventRef = ordersRef.doc(orderId).collection('events');
+          await eventRef.add({
+            status: 'PRODUCT_PAYMENT_RECEIVED',
+            title: 'Pagamento de Produto Confirmado',
+            description: `Pagamento do custo do produto e frete internacional automático confirmado via webhook Asaas (${payment.billingType}).`,
+            timestamp: new Date().toISOString()
+          });
+
+          await db.collection('integrationLogs').add({
+            timestamp: new Date().toISOString(),
+            type: 'Asaas Webhook',
+            message: `Pagamento do produto confirmado para o pedido ${orderId}. Valor: R$ ${payment.value}.`,
+            status: 'success',
+            details: JSON.stringify({ paymentId, event, billingType: payment.billingType })
+          });
+
+          console.log(`[Asaas Webhook] Order ${orderId} successfully updated to PRODUCT_PAYMENT_RECEIVED`);
+        } else if (orderData.status === 'AWAITING_SHIPPING_PAYMENT') {
+          const updateFields: any = {
             status: 'SHIPPING_PAID',
             shippingPaidAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          });
+          };
+
+          if (!orderData.carrierTrackingCode) {
+            const carrier = orderData.carrierName || (orderData.shippingMethod && orderData.shippingMethod.carrier) || "Correios";
+            updateFields.carrierTrackingCode = generateCarrierTrackingCode(carrier);
+          }
+
+          await ordersRef.doc(orderId).update(updateFields);
 
           const eventRef = ordersRef.doc(orderId).collection('events');
           await eventRef.add({

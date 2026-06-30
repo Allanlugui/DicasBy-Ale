@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { Store, Product, Order, OrderItem, OrderEvent, OrderStatus, Ticket, Review, TicketMessage, UserProfile, CompanySettings, Collaborator, QuoteRequest, DriveFolder, FileDocument, SystemNotification, DiscountCoupon, ShippingMethod, SystemKnowledge, CartFeedback, AbandonedEmailLog } from './types';
-import { generateTrackingId, cleanUndefined, safeStorage } from './lib/utils';
+import { generateTrackingId, cleanUndefined, safeStorage, generateCarrierTrackingCode } from './lib/utils';
 import { auth, db } from './lib/firebase';
 import { onAuthStateChanged, User, signInWithEmailLink, isSignInWithEmailLink, sendSignInLinkToEmail, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { collection, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -678,6 +678,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateOrderStatus = async (orderId: string, status: OrderStatus, note?: string, photoUrl?: string, receipt?: any, extraFields?: Partial<Order>) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+    const isCustom = order.prepaymentFee && order.prepaymentFee > 0;
+    let autoTrackingCode = order.carrierTrackingCode;
+    if (!autoTrackingCode) {
+      const carrier = order.carrierName || order.shippingMethod?.carrier || "Correios";
+      if (status === 'PAYMENT_RECEIVED' && !isCustom) {
+        autoTrackingCode = generateCarrierTrackingCode(carrier);
+      } else if (status === 'SHIPPING_PAID' && isCustom) {
+        autoTrackingCode = generateCarrierTrackingCode(carrier);
+      }
+    }
+
     const newEvent: OrderEvent = {
       id: Math.random().toString(36).substr(2, 9),
       status,
@@ -690,6 +701,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       history: [newEvent, ...order.history],
       ...extraFields
     };
+    if (autoTrackingCode) {
+      updateData.carrierTrackingCode = autoTrackingCode;
+    }
     if (receipt) updateData.receipt = receipt;
     await updateDoc(doc(db, 'orders', orderId), updateData);
 
@@ -708,8 +722,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Auto-save attachment to client drive if provided
     if (photoUrl || receipt?.url) {
        const attachmentUrl = photoUrl || (receipt as any)?.url;
-       const docName = status === 'PAYMENT_RECEIVED' ? `Comprovante_${order.trackingId}` : `Foto_Pedido_${order.trackingId}_${status}`;
-       const category = status === 'PAYMENT_RECEIVED' ? 'Financeiro' : 'Logística';
+       const isFinance = status === 'PAYMENT_RECEIVED' || status === 'PREPAYMENT_RECEIVED' || status === 'PRODUCT_PAYMENT_RECEIVED' || status === 'SHIPPING_PAID';
+       const docName = isFinance ? `Comprovante_${order.trackingId}_${status}` : `Foto_Pedido_${order.trackingId}_${status}`;
+       const category = isFinance ? 'Financeiro' : 'Logística';
        
        await autoSaveUserDocument(
          order.userId, 

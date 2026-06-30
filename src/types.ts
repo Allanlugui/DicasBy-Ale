@@ -98,6 +98,9 @@ export type DiscountCoupon = {
 
 export type OrderStatus = 
   | 'PENDING_PAYMENT' 
+  | 'PREPAYMENT_RECEIVED'
+  | 'AWAITING_PRODUCT_PAYMENT'
+  | 'PRODUCT_PAYMENT_RECEIVED'
   | 'PAYMENT_RECEIVED' 
   | 'PURCHASED_IN_STORE' 
   | 'STORED_IN_US' 

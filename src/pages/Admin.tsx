@@ -1850,9 +1850,9 @@ function OrdersTab({
   const totalAll = orders.length;
   const activeOrders = orders.filter((o) => o.status !== "CANCELLED");
   const cancelledOrders = orders.filter((o) => o.status === "CANCELLED");
-  const pendingOrders = orders.filter((o) => o.status === "PENDING_PAYMENT");
+  const pendingOrders = orders.filter((o) => o.status === "PENDING_PAYMENT" || o.status === "AWAITING_PRODUCT_PAYMENT");
   const paidOrders = orders.filter(
-    (o) => o.status !== "CANCELLED" && o.status !== "PENDING_PAYMENT",
+    (o) => o.status !== "CANCELLED" && o.status !== "PENDING_PAYMENT" && o.status !== "AWAITING_PRODUCT_PAYMENT",
   );
 
   const totalActiveCount = activeOrders.length;
@@ -2054,6 +2054,21 @@ function OrdersTab({
         key: "PENDING_PAYMENT",
         label: "Aguardando Pagamento",
         color: [217, 119, 6],
+      },
+      {
+        key: "PREPAYMENT_RECEIVED",
+        label: "Taxa de Serviço Confirmada",
+        color: [16, 185, 129],
+      },
+      {
+        key: "AWAITING_PRODUCT_PAYMENT",
+        label: "Aguardando Pagamento do Produto",
+        color: [217, 119, 6],
+      },
+      {
+        key: "PRODUCT_PAYMENT_RECEIVED",
+        label: "Pagamento do Produto Confirmado",
+        color: [16, 185, 129],
       },
       {
         key: "PAYMENT_RECEIVED",
@@ -3166,6 +3181,15 @@ function OrderAdminCard({
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3 border"
               >
                 <option value="PENDING_PAYMENT">Aguardando Pagamento</option>
+                <option value="PREPAYMENT_RECEIVED">
+                  Pagamento de taxa de serviço personalizado confirmada
+                </option>
+                <option value="AWAITING_PRODUCT_PAYMENT">
+                  Aguardando pagamento do produto
+                </option>
+                <option value="PRODUCT_PAYMENT_RECEIVED">
+                  Pagamento do produto confirmado
+                </option>
                 <option value="PAYMENT_RECEIVED">
                   Pagamento Confirmado (Sinal 30% ou Total)
                 </option>

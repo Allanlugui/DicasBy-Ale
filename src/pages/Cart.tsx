@@ -48,7 +48,7 @@ export function Cart() {
   const navigate = useNavigate();
 
   const pendingQuoteOrders = orders
-    ? orders.filter((o) => o.status === "PENDING_PAYMENT")
+    ? orders.filter((o) => o.status === "PENDING_PAYMENT" || o.status === "AWAITING_PRODUCT_PAYMENT")
     : [];
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
 
@@ -366,7 +366,7 @@ export function Cart() {
             customsResponsibilityAccepted: acceptedCustoms,
             paymentMethod: "pix",
             carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
-            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            carrierTrackingCode: undefined,
             customDeliveryRequested: selectedShippingMethodId === "custom",
             customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
@@ -457,7 +457,7 @@ export function Cart() {
             status: isPaid ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT",
             paymentMethod: paymentMethod,
             carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
-            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            carrierTrackingCode: isPaid && (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
             customDeliveryRequested: selectedShippingMethodId === "custom",
             customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
@@ -523,7 +523,7 @@ export function Cart() {
             barCode: data.barCode || undefined,
             paymentMethod: "boleto",
             carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
-            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
+            carrierTrackingCode: undefined,
             customDeliveryRequested: selectedShippingMethodId === "custom",
             customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
           },
@@ -558,7 +558,7 @@ export function Cart() {
         {pendingQuoteOrders.map((order, index) => {
           const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
           const amountToPayNow = hasPaidPrepayment
-            ? order.onDemandProductCostBRL
+            ? (order.onDemandProductCostBRL || 0) + (order.finalShippingFeeBRL || order.shippingFeeBRL || 0)
             : (order.prepaymentFee || order.totalBRL);
 
           return (
