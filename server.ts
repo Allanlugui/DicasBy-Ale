@@ -2149,6 +2149,115 @@ async function sendInvoiceNotificationWithAttachments(
   }
 }
 
+async function sendStatusUpdateNotification(orderId: string, status: string, note?: string) {
+  try {
+    const docSnap = await db.collection('orders').doc(orderId).get();
+    if (!docSnap.exists) return false;
+    
+    const order = docSnap.data();
+    if (!order) return false;
+
+    const statusLabels: Record<string, string> = {
+      'PENDING_PAYMENT': 'Aguardando Pagamento',
+      'PAYMENT_RECEIVED': 'Pagamento Confirmado',
+      'PURCHASED_IN_STORE': 'Comprado na Loja / Pronto para Despacho',
+      'STORED_IN_US': 'Recebido em nosso Centro de Distribuição (EUA)',
+      'SHIPPING_PAID': 'Frete Internacional Pago',
+      'IN_TRANSIT_TO_BR': 'Em Trânsito para o Brasil',
+      'ARRIVED_IN_BR': 'Recebido em nosso Centro de Distribuição (Brasil)',
+      'DELIVERED': 'Entregue com Sucesso',
+      'CANCELLED': 'Pedido Cancelado'
+    };
+
+    const friendlyStatus = statusLabels[status] || status;
+    const trackingId = order.trackingId || "N/A";
+    const appUrl = process.env.PUBLIC_APP_URL || "https://dicasbyale.com";
+
+    // Email to Customer
+    if (order.customerEmail) {
+      const subject = `Atualização do seu Pedido #${orderId}: ${friendlyStatus} 📦`;
+      const html = `
+        <div style="font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);">
+          <div style="background-color: #ef4444; padding: 24px; text-align: center; color: white;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: bold;">Status do Pedido Atualizado!</h2>
+            <p style="margin: 4px 0 0; opacity: 0.9; font-size: 14px;">O seu pedido #${orderId} acabou de receber uma nova atualização.</p>
+          </div>
+          <div style="padding: 24px; line-height: 1.6;">
+            <p style="margin-top: 0;">Olá, <strong>${order.customerName || "Cliente"}</strong>,</p>
+            <p>Seu pedido acaba de ser atualizado para o status: <strong style="color: #ef4444; font-size: 16px;">${friendlyStatus}</strong>.</p>
+            
+            ${note ? `<div style="background-color: #f8fafc; border-left: 4px solid #ef4444; padding: 12px; margin: 16px 0; font-size: 14px; color: #475569; font-style: italic;">"${note}"</div>` : ''}
+
+            <p>Você pode acompanhar o status atualizado e ver todos os detalhes do seu pedido em nosso site utilizando seu código de rastreio:</p>
+            
+            <div style="background-color: #f1f5f9; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px;">Código de Rastreio</span>
+              <strong style="font-size: 24px; color: #1e293b; letter-spacing: 2px;">${trackingId}</strong>
+            </div>
+
+            <p style="text-align: center; margin-top: 30px;">
+              <a href="${appUrl}/tracking?id=${trackingId}" style="display: inline-block; background-color: #ef4444; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);">Rastrear no Site</a>
+            </p>
+            
+            <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px;">Se você tiver qualquer dúvida, entre em contato com nosso suporte.</p>
+          </div>
+        </div>
+      `;
+
+      await dispatchEmail({
+        to: order.customerEmail,
+        subject,
+        html,
+        text: `Seu pedido #${orderId} foi atualizado para: ${friendlyStatus}. Rastreie em: ${appUrl}/tracking?id=${trackingId}`
+      });
+    }
+
+    // Email to Admin Team
+    const adminEmails = ["jallanluiz@gmail.com", "suporte@dicasbyale.com"];
+    const adminSubject = `[NOTIFICAÇÃO] Pedido #${orderId} - Status Alterado para ${friendlyStatus}`;
+    const adminHtml = `
+      <div style="font-family: sans-serif; color: #334155; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h3 style="color: #ef4444; margin-top: 0;">Atualização de Pedido</h3>
+        <p>A equipe administrativa acabou de atualizar o status de um pedido:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+          <tr>
+            <td style="padding: 8px 0; color: #64748b;">Pedido:</td>
+            <td style="padding: 8px 0; font-weight: bold;">#${orderId}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #64748b;">Cliente:</td>
+            <td style="padding: 8px 0; font-weight: bold;">${order.customerName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #64748b;">Novo Status:</td>
+            <td style="padding: 8px 0; font-weight: bold; color: #ef4444;">${friendlyStatus}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #64748b;">Rastreio:</td>
+            <td style="padding: 8px 0; font-weight: bold;">${trackingId}</td>
+          </tr>
+        </table>
+        ${note ? `<p><strong>Nota interna/cliente:</strong> ${note}</p>` : ''}
+        <p style="margin-top: 20px;"><a href="${appUrl}/admin" style="color: #ef4444; font-weight: bold;">Ver no Painel Administrativo</a></p>
+      </div>
+    `;
+
+    for (const adminEmail of adminEmails) {
+      await dispatchEmail({
+        to: adminEmail,
+        subject: adminSubject,
+        html: adminHtml,
+        text: `Pedido #${orderId} (${order.customerName}) atualizado para ${friendlyStatus}.`
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.error("[sendStatusUpdateNotification] Error:", err);
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------------
 // ASAAS INTEGRATION ROUTE
 // ---------------------------------------------------------------------------------
@@ -2619,6 +2728,22 @@ app.post("/api/orders/send-invoice", async (req, res) => {
     return res.json({ success: true, message: "Nota Fiscal e guias anexadas expedidas para o cliente por e-mail." });
   } else {
     return res.status(500).json({ error: result.error || "Falha ao disparar faturas por e-mail." });
+  }
+});
+
+app.post("/api/orders/notify-status", async (req, res) => {
+  const { orderId, status, note } = req.body || {};
+  
+  if (!orderId || !status) {
+    return res.status(400).json({ error: "orderId and status are required" });
+  }
+  
+  const success = await sendStatusUpdateNotification(orderId, status, note);
+  
+  if (success) {
+    return res.json({ success: true, message: "Notificação de status enviada com sucesso." });
+  } else {
+    return res.status(500).json({ error: "Falha ao enviar notificação de status." });
   }
 });
 

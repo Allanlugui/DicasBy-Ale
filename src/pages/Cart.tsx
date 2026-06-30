@@ -22,6 +22,7 @@ import {
   Mail,
   Send,
   AlertCircle,
+  MapPin,
 } from "lucide-react";
 import { useAppContext } from "../context";
 import { formatCurrency, safeCopyText, generatePixCode, validateDocument, generateCarrierTrackingCode } from "../lib/utils";

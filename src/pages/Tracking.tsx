@@ -679,8 +679,8 @@ export function Tracking() {
                 </div>
               );
             })()}
-                       {/* Payment Details for PENDING_PAYMENT */}
-          {order.status === "PENDING_PAYMENT" &&
+                       {/* Payment Details for PENDING_PAYMENT or STORED_IN_US */}
+          {(order.status === "PENDING_PAYMENT" || order.status === "STORED_IN_US") &&
             (() => {
               const activePixKey =
                 companySettings?.pixKey || "jallanluiz@gmail.com";
@@ -689,6 +689,7 @@ export function Tracking() {
 
               // Use final shipping fee if it exists and we are in shipping payment status
               const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
+              const isShipping = order.status === 'STORED_IN_US';
               const amount = hasPaidPrepayment
                       ? order.onDemandProductCostBRL
                       : order.totalBRL;

@@ -153,6 +153,7 @@ interface AppContextType {
   addCartFeedback: (feedback: Omit<CartFeedback, 'id' | 'createdAt'>) => Promise<void>;
   addAbandonedEmailLog: (log: Omit<AbandonedEmailLog, 'id' | 'sentAt'>) => Promise<void>;
   updateAbandonedEmailLog: (id: string, status: 'SENT' | 'RECOVERED') => Promise<void>;
+  profiles: UserProfile[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -216,6 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cartFeedbacks, setCartFeedbacks] = useState<CartFeedback[]>([]);
   const [abandonedEmailLogs, setAbandonedEmailLogs] = useState<AbandonedEmailLog[]>([]);
   const [dbQuotaExceeded, setDbQuotaExceeded] = useState(false);
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
 
   useEffect(() => {
     return registerQuotaListener((exceeded) => {
@@ -248,6 +250,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, (err) => handleFirestoreError(err, OperationType.GET, `profiles/${user.uid}`));
     return unsub;
   }, [user]);
+
+  // Fetch all profiles if admin
+  useEffect(() => {
+    if (!isAdmin) {
+      setProfiles([]);
+      return;
+    }
+    const unsub = onSnapshot(collection(db, 'profiles'), (snap) => {
+      setProfiles(snap.docs.map(doc => ({ ...doc.data(), userId: doc.id } as UserProfile)));
+    });
+    return unsub;
+  }, [isAdmin]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -678,6 +692,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     if (receipt) updateData.receipt = receipt;
     await updateDoc(doc(db, 'orders', orderId), updateData);
+
+    // Notify status change via email (background)
+    fetch('/api/orders/notify-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, status, note })
+    }).catch(err => console.error("Error sending status notification email:", err));
 
     // Trigger ERP sync if status is PAYMENT_RECEIVED
     if (status === 'PAYMENT_RECEIVED') {
@@ -1254,7 +1275,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs, cartFeedbacks, abandonedEmailLogs, addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog }}>
+    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs, cartFeedbacks, abandonedEmailLogs, addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog, profiles }}>
       {children}
     </AppContext.Provider>
   );
