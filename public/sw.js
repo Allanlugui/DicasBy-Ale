@@ -1,43 +1,11 @@
-const CACHE_NAME = 'pwa-cache-v2';
-const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
-];
+const CACHE_NAME = 'pwa-cache-v1';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Pre-caching core assets');
-        // Cache assets individually or return quietly if some fail in dev
-        return Promise.all(
-          PRECACHE_ASSETS.map((asset) => {
-            return cache.add(asset).catch((err) => {
-              console.warn(`[Service Worker] Failed to pre-cache ${asset}:`, err);
-            });
-          })
-        );
-      })
-      .then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => clients.claim())
-  );
+  event.waitUntil(clients.claim());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -56,7 +24,7 @@ self.addEventListener('fetch', (event) => {
     fetch(event.request)
       .then((response) => {
         // Clone the response before caching
-        if (response && response.status === 200) {
+        if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -65,15 +33,7 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Fallback to offline index.html for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-        });
+        return caches.match(event.request);
       })
   );
 });
