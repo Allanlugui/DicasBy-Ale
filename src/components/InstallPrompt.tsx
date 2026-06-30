@@ -11,6 +11,24 @@ export function InstallPrompt() {
   const [deviceType, setDeviceType] = useState<'android' | 'ios' | 'desktop'>('desktop');
   const [isInAppBrowser, setIsInAppBrowser] = useState(false);
 
+  // Hook 1: Listen to beforeinstallprompt (GUARANTEED TO ALWAYS RUN, no early returns!)
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      console.log('[PWA] beforeinstallprompt event captured and stored successfully.');
+      setDeferredPrompt(e);
+      setIsReadyToInstall(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    console.log('[PWA] Registered beforeinstallprompt listener.');
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  // Hook 2: Platform detection, in-app browser status, and promotional banners timers
   useEffect(() => {
     // 1. Detect platform & In-App Browser
     const userAgentRaw = window.navigator.userAgent || window.navigator.vendor || (window as any).opera || '';
@@ -41,39 +59,29 @@ export function InstallPrompt() {
       return;
     }
 
-    // Determine if it is the first access / hasn't installed yet
+    // Determine if PWA is already marked as installed
     const hasInstalled = safeStorage.getItem('pwa_installed_successfully') === 'true';
+    if (hasInstalled) return;
+
     const topBarDismissed = safeStorage.getItem('pwa_topbar_dismissed_at');
     const bannerDismissed = safeStorage.getItem('pwa_banner_dismissed_at');
 
-    if (!hasInstalled) {
-      // On the first client access to the app (no dismiss marker), show the top installation bar simplified
-      if (!topBarDismissed) {
-        const topBarTimer = setTimeout(() => {
-          setShowTopBar(true);
-        }, 800); // quick appearance for excellent first-access conversion
-        return () => clearTimeout(topBarTimer);
-      } else if (!bannerDismissed) {
-        // If they dismissed the top bar but haven't dismissed the bottom banner, show the bottom banner as fallback
-        const bannerTimer = setTimeout(() => {
-          setShowBanner(true);
-        }, 3000);
-        return () => clearTimeout(bannerTimer);
-      }
+    let bannerTimer: any = null;
+    let topBarTimer: any = null;
+
+    if (!topBarDismissed) {
+      topBarTimer = setTimeout(() => {
+        setShowTopBar(true);
+      }, 800); // quick appearance for excellent first-access conversion
+    } else if (!bannerDismissed) {
+      bannerTimer = setTimeout(() => {
+        setShowBanner(true);
+      }, 3000);
     }
 
-    // 3. For Android/Chrome/Desktop: Listen to beforeinstallprompt
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      console.log('[PWA] beforeinstallprompt event captured');
-      setDeferredPrompt(e);
-      setIsReadyToInstall(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      if (topBarTimer) clearTimeout(topBarTimer);
+      if (bannerTimer) clearTimeout(bannerTimer);
     };
   }, []);
 
