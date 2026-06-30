@@ -126,6 +126,16 @@ export function generateTrackingId() {
   return 'TRK' + Math.random().toString(36).substring(2, 9).toUpperCase();
 }
 
+export function generateCarrierTrackingCode(carrier: string): string {
+  const c = (carrier || "").toLowerCase();
+  const randNum = () => Math.floor(100000000 + Math.random() * 900000000).toString();
+  if (c.includes("fedex")) return `FX${randNum()}US`;
+  if (c.includes("dhl")) return `DHL${randNum()}BR`;
+  if (c.includes("ups")) return `1Z${randNum()}`;
+  if (c.includes("usps")) return `9400${randNum()}`;
+  return `BR${randNum()}US`;
+}
+
 export function cleanUndefined<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
   if (Array.isArray(obj)) {

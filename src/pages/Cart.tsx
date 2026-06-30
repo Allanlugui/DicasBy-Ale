@@ -24,7 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAppContext } from "../context";
-import { formatCurrency, safeCopyText, generatePixCode, validateDocument } from "../lib/utils";
+import { formatCurrency, safeCopyText, generatePixCode, validateDocument, generateCarrierTrackingCode } from "../lib/utils";
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from "../types";
 
 export function Cart() {
@@ -359,6 +359,8 @@ export function Cart() {
             totalBRL: finalTotalBRL,
             customsResponsibilityAccepted: acceptedCustoms,
             paymentMethod: "pix",
+            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
           },
         );
         setIsProcessing(false);
@@ -446,6 +448,8 @@ export function Cart() {
             asaasInvoiceUrl: data.invoiceUrl,
             status: isPaid ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT",
             paymentMethod: paymentMethod,
+            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
           },
         );
 
@@ -508,6 +512,8 @@ export function Cart() {
             bankSlipUrl: data.bankSlipUrl || undefined,
             barCode: data.barCode || undefined,
             paymentMethod: "boleto",
+            carrierName: selectedShipping?.carrier || "Não definida",
+            carrierTrackingCode: (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
           },
         );
 

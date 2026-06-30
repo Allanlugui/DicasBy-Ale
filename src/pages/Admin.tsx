@@ -2743,11 +2743,39 @@ function OrderAdminCard({
     }
   };
 
+  // Calculate defaults from order items
+  const autoCalculatedDimensions = React.useMemo(() => {
+    let totalWeight = 0;
+    let maxLength = 0;
+    let maxWidth = 0;
+    let totalHeight = 0;
+
+    if (order.items && order.items.length > 0) {
+      order.items.forEach((item: any) => {
+        const qty = item.quantity || 1;
+        const p = item.product;
+        if (p) {
+          totalWeight += (p.boxWeight || 0) * qty;
+          maxLength = Math.max(maxLength, p.boxLength || 0);
+          maxWidth = Math.max(maxWidth, p.boxWidth || 0);
+          totalHeight += (p.boxHeight || 0) * qty;
+        }
+      });
+    }
+
+    return {
+      length: maxLength || 0,
+      width: maxWidth || 0,
+      height: totalHeight || 0,
+      weight: totalWeight || 0,
+    };
+  }, [order.items]);
+
   // Dimension states
-  const [length, setLength] = useState(order.packageDimensions?.length || 0);
-  const [width, setWidth] = useState(order.packageDimensions?.width || 0);
-  const [height, setHeight] = useState(order.packageDimensions?.height || 0);
-  const [weight, setWeight] = useState(order.packageWeight || 0);
+  const [length, setLength] = useState(order.packageDimensions?.length || autoCalculatedDimensions.length);
+  const [width, setWidth] = useState(order.packageDimensions?.width || autoCalculatedDimensions.width);
+  const [height, setHeight] = useState(order.packageDimensions?.height || autoCalculatedDimensions.height);
+  const [weight, setWeight] = useState(order.packageWeight || autoCalculatedDimensions.weight);
   const [storageFeeBRL, setStorageFeeBRL] = useState(order.storageFeeBRL || 0);
 
   const signatureRef = useRef<SignatureCanvas>(null);
@@ -2762,6 +2790,24 @@ function OrderAdminCard({
       setStorageFeeBRL(Number(calculatedFee.toFixed(2)));
     }
   }, [length, width, companySettings]);
+
+  // Auto-calculate shipping fee based on dimensions and weight when autoRates simulation is active
+  useEffect(() => {
+    if (companySettings?.enableAutoRates) {
+      if (length > 0 || width > 0 || height > 0 || weight > 0) {
+        // IATA Volumetric Weight formula: (L * W * H) / 5000
+        const volumetricWeight = (length * width * height) / 5000;
+        const chargeableWeight = Math.max(weight, volumetricWeight);
+        // Base rate: R$ 50 + R$ 80 per chargeable kg
+        const calculatedShipping = Math.round((50 + chargeableWeight * 80) * 100) / 100;
+        
+        // Only update if finalShippingFeeBRL is currently 0 or has not been customized/set in the db
+        if (!order.finalShippingFeeBRL || finalShippingFeeBRL === 0 || finalShippingFeeBRL === order.shippingFeeBRL) {
+          setFinalShippingFeeBRL(calculatedShipping);
+        }
+      }
+    }
+  }, [length, width, height, weight, companySettings?.enableAutoRates, order.finalShippingFeeBRL, order.shippingFeeBRL, finalShippingFeeBRL]);
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2904,33 +2950,25 @@ function OrderAdminCard({
           <div className="bg-stone-50 border border-stone-200 rounded-lg p-3 space-y-3">
             <div className="flex items-center justify-between">
               <h5 className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
-                Rastreio da Transportadora
+                Rastreio da Transportadora (Definido pelo Cliente)
               </h5>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-stone-500 uppercase">
-                  Nome da Transportadora
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: FedEx, DHL, UPS"
-                  value={carrierName}
-                  onChange={(e) => setCarrierName(e.target.value)}
-                  className="w-full bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-2 focus:ring-rose-500 outline-none"
-                />
+              <div className="space-y-1 bg-white p-2 border border-stone-100 rounded-lg">
+                <span className="text-[9px] font-bold text-stone-400 uppercase block">
+                  Transportadora Selecionada
+                </span>
+                <span className="text-xs font-semibold text-stone-800 block truncate">
+                  {order.carrierName || order.shippingMethod?.carrier || "Não especificada"}
+                </span>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-stone-500 uppercase">
-                  Código de Rastreio Externo
-                </label>
-                <input
-                  type="text"
-                  placeholder="Código oficial"
-                  value={carrierTrackingCode}
-                  onChange={(e) => setCarrierTrackingCode(e.target.value)}
-                  className="w-full bg-white border border-stone-200 text-xs rounded-lg px-2.5 py-2 focus:ring-rose-500 outline-none"
-                />
+              <div className="space-y-1 bg-white p-2 border border-stone-100 rounded-lg">
+                <span className="text-[9px] font-bold text-stone-400 uppercase block">
+                  Código de Rastreio Oficial
+                </span>
+                <span className="text-xs font-mono font-semibold text-stone-800 block truncate">
+                  {order.carrierTrackingCode || "Pendente"}
+                </span>
               </div>
             </div>
           </div>
@@ -3107,11 +3145,26 @@ function OrderAdminCard({
 
             {status === "STORED_IN_US" && (
               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mt-4 space-y-4 animate-fade-in shadow-sm">
-                <div className="flex items-center gap-2 text-indigo-900 mb-1">
-                  <Scale className="w-5 h-5" />
-                  <h4 className="font-bold text-sm leading-none">
-                    Cálculo de Armazenagem
-                  </h4>
+                <div className="flex items-center justify-between text-indigo-900 mb-1">
+                  <div className="flex items-center gap-2">
+                    <Scale className="w-5 h-5" />
+                    <h4 className="font-bold text-sm leading-none">
+                      Cálculo de Armazenagem
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLength(autoCalculatedDimensions.length);
+                      setWidth(autoCalculatedDimensions.width);
+                      setHeight(autoCalculatedDimensions.height);
+                      setWeight(autoCalculatedDimensions.weight);
+                    }}
+                    className="text-[9px] bg-indigo-100 hover:bg-indigo-200 text-indigo-800 px-2 py-1 rounded font-bold transition-all uppercase tracking-wider"
+                    title="Preenche automaticamente com base no catálogo de produtos cadastrados"
+                  >
+                    Recarregar do Catálogo
+                  </button>
                 </div>
                 <p className="text-[11px] text-indigo-700 leading-relaxed">
                   Insira as dimensões do pacote para calcular a taxa de

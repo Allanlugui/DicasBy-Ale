@@ -8,6 +8,7 @@ import {
   Save,
   RefreshCw,
   Scale,
+  Truck,
 } from "lucide-react";
 
 const DEFAULT_TERMS = `TERMOS DE USO
@@ -85,6 +86,8 @@ export function AdminSettingsTab() {
   const [fixedCosts, setFixedCosts] = useState<
     { id: string; label: string; value: number }[]
   >([]);
+  const [enableAutoTracking, setEnableAutoTracking] = useState(true);
+  const [enableAutoRates, setEnableAutoRates] = useState(true);
 
   // Load from context
   useEffect(() => {
@@ -117,6 +120,8 @@ export function AdminSettingsTab() {
       setAdminHubApiKey(companySettings.adminHubApiKey || "");
       setNexusBaseUrl(companySettings.nexusBaseUrl || "");
       setNexusApiKey(companySettings.nexusApiKey || "");
+      setEnableAutoTracking(companySettings.enableAutoTracking ?? true);
+      setEnableAutoRates(companySettings.enableAutoRates ?? true);
     } else {
       setTermsOfUse(DEFAULT_TERMS);
       setPrivacyPolicy(DEFAULT_PRIVACY);
@@ -205,6 +210,8 @@ export function AdminSettingsTab() {
         adminHubApiKey,
         nexusBaseUrl,
         nexusApiKey,
+        enableAutoTracking,
+        enableAutoRates,
       });
 
       console.log("[Settings] Successfully saved to Firestore.");
@@ -733,6 +740,76 @@ export function AdminSettingsTab() {
                 placeholder="Rua, Número, Bairro, Cidade - UF"
                 className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* 6. CARRIER SIMULATION AND AUTOMATION */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-6 space-y-6 shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
+            <Truck className="w-5 h-5 text-rose-500" />
+            <h3 className="text-sm font-bold text-stone-900 font-display">
+              6. Automação e Simulação de Transportadoras (Rastreio e Fretes)
+            </h3>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-xs text-stone-500 leading-relaxed">
+              Configure como o sistema deve simular as informações logísticas e custos de envio enquanto as APIs de integração reais das transportadoras não estiverem ativas para produção. No futuro, quando inserir suas credenciais reais, esses fluxos de simulação serão integrados e executados em produção de forma 100% nativa.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="bg-stone-50 border border-stone-200/60 rounded-xl p-4 md:p-5 flex flex-col justify-between space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                    Geração Automática do Código de Rastreamento
+                  </h4>
+                  <p className="text-[11px] text-stone-500 mt-1 leading-normal">
+                    Se ativado, quando o cliente finalizar uma compra, o sistema simulará e anexará automaticamente um código de rastreamento com formato real da transportadora selecionada (ex: FedEx, DHL, UPS).
+                  </p>
+                </div>
+                <div className="flex items-center justify-between border-t border-stone-200/50 pt-3 mt-2">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Status do Recurso
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableAutoTracking}
+                      onChange={(e) => setEnableAutoTracking(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="bg-stone-50 border border-stone-200/60 rounded-xl p-4 md:p-5 flex flex-col justify-between space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                    Simulação Inteligente do Cálculo do Frete
+                  </h4>
+                  <p className="text-[11px] text-stone-500 mt-1 leading-normal">
+                    Se ativado, ao carregar ou cadastrar um produto, as dimensões (largura, comprimento, altura e peso) cadastradas no catálogo serão usadas em tempo real para calcular e preencher automaticamente os custos de frete do pedido via simulação de API.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between border-t border-stone-200/50 pt-3 mt-2">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Status do Recurso
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableAutoRates}
+                      onChange={(e) => setEnableAutoRates(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>

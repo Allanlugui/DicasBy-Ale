@@ -220,6 +220,8 @@ export type CompanySettings = {
   personalShopperPrepaymentBRL?: number;
   personalShopperMaxDepositBRL?: number;
   dollarRate?: number;
+  enableAutoTracking?: boolean;
+  enableAutoRates?: boolean;
 };
 
 export type Collaborator = {
