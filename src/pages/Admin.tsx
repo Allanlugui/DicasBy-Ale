@@ -1154,6 +1154,7 @@ function ShippingMethodsTab() {
   const [carrier, setCarrier] = useState("");
   const [estimatedDays, setEstimatedDays] = useState("");
   const [basePriceBRL, setBasePriceBRL] = useState(0);
+  const [logo, setLogo] = useState("");
   const [editingId, setEditingId] = useState("");
 
   const resetForm = () => {
@@ -1162,11 +1163,23 @@ function ShippingMethodsTab() {
     setCarrier("");
     setEstimatedDays("");
     setBasePriceBRL(0);
+    setLogo("");
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogo(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { name, carrier, estimatedDays, basePriceBRL };
+    const data = { name, carrier, estimatedDays, basePriceBRL, logo };
     if (editingId) {
       await updateShippingMethod(editingId, data);
     } else {
@@ -1245,6 +1258,22 @@ function ShippingMethodsTab() {
               className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
             />
           </div>
+          <div>
+            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
+              Logotipo da Transportadora (Opcional)
+            </label>
+            <div className="flex items-center gap-4">
+              {logo && (
+                <img src={logo} alt="Logo" className="w-10 h-10 object-contain bg-white rounded border border-stone-200" />
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="w-full rounded-lg border border-stone-200 px-4 py-1.5 text-sm bg-stone-50 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+            </div>
+          </div>
           <div className="md:col-span-2 flex justify-end gap-2">
             <button
               type="button"
@@ -1269,14 +1298,23 @@ function ShippingMethodsTab() {
             key={m.id}
             className="bg-white p-4 rounded-xl border border-stone-100 shadow-sm flex items-center justify-between"
           >
-            <div>
-              <span className="font-bold text-stone-900 block">{m.name}</span>
-              <span className="text-xs text-stone-500">
-                {m.carrier} | {m.estimatedDays}
-              </span>
-              <span className="text-[11px] font-black text-indigo-600 block mt-1">
-                Base: {formatCurrency(m.basePriceBRL)}
-              </span>
+            <div className="flex items-center gap-3">
+              {m.logo ? (
+                <img src={m.logo} alt={m.carrier} className="w-10 h-10 object-contain rounded border border-stone-100 p-1" />
+              ) : (
+                <div className="w-10 h-10 bg-stone-100 rounded flex items-center justify-center">
+                  <span className="text-stone-400 text-xs font-bold">{m.carrier.substring(0, 2).toUpperCase()}</span>
+                </div>
+              )}
+              <div>
+                <span className="font-bold text-stone-900 block">{m.name}</span>
+                <span className="text-xs text-stone-500">
+                  {m.carrier} | {m.estimatedDays}
+                </span>
+                <span className="text-[11px] font-black text-indigo-600 block mt-1">
+                  Base: {formatCurrency(m.basePriceBRL)}
+                </span>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -1286,6 +1324,7 @@ function ShippingMethodsTab() {
                   setCarrier(m.carrier);
                   setEstimatedDays(m.estimatedDays);
                   setBasePriceBRL(m.basePriceBRL);
+                  setLogo(m.logo || "");
                   setShowForm(true);
                 }}
                 className="p-2 text-stone-400 hover:text-indigo-600 cursor-pointer"
@@ -5037,7 +5076,7 @@ function ProductsTab({
                   </div>
                 </div>
                 <ImageInput
-                  label="Foto do Produto (URL)"
+                  label="Foto do Produto"
                   value={imageUrl}
                   onChange={setImageUrl}
                 />

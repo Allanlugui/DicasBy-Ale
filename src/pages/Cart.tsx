@@ -529,6 +529,244 @@ export function Cart() {
     }
   };
 
+  const renderPendingOrders = () => {
+    if (pendingQuoteOrders.length === 0) return null;
+    return (
+      <div className="space-y-8 mt-8">
+        <div>
+          <h2 className="text-2xl font-display font-bold text-stone-900 border-b border-stone-200 pb-2">
+            Orçamentos Aguardando Pagamento
+          </h2>
+          <p className="text-[11px] text-stone-500 mt-2 bg-stone-50 p-3 rounded-xl border border-stone-100">
+            <strong>Política de Reembolso:</strong> A taxa de serviço paga inicialmente para pedidos personalizados 
+            só é reembolsável em caso de cancelamento antes de nossa equipe encontrar o produto ou no prazo de 24 horas. 
+            Uma vez localizado o produto, a taxa não é reembolsável. O reembolso se aplica apenas ao custo do produto e ao frete.
+          </p>
+        </div>
+        {pendingQuoteOrders.map((order, index) => {
+          const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
+          const amountToPayNow = hasPaidPrepayment
+            ? order.onDemandProductCostBRL
+            : (order.prepaymentFee || order.totalBRL);
+
+          const specificPixCode = generatePixCode(
+            activePixKey,
+            activePixName,
+            activePixCity,
+            amountToPayNow,
+          );
+
+          const handleCopySpecificPix = async () => {
+            await safeCopyText(specificPixCode);
+            setCopiedOrderId(order.id);
+            setTimeout(() => setCopiedOrderId(null), 2500);
+          };
+
+          return (
+            <div
+              key={order.id}
+              className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden flex flex-col"
+              id={`pending-order-box-${order.id}`}
+            >
+              {/* Header of Item Block */}
+              <div className="bg-stone-50 border-b border-stone-150 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <span className="text-[10px] font-mono text-stone-400 font-bold block uppercase">
+                    ID DO PEDIDO: #{order.id.substring(0, 8).toUpperCase()}
+                  </span>
+                  <span className="text-xs text-stone-500">
+                    Rastreio Logístico:{" "}
+                    <strong className="font-mono text-stone-800">
+                      {order.trackingId}
+                    </strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                  <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200/50 rounded-lg px-2 py-0.5">
+                    Aguardando Pagamento
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left component: product details */}
+                <div className="lg:col-span-6 space-y-6">
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">
+                      Itens Inclusos no Pedido
+                    </h3>
+                    <div className="space-y-4">
+                      {order.items.map((item: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex gap-4 items-center bg-stone-50 p-4 rounded-xl border border-stone-150/60"
+                        >
+                          {item.product.imageUrl && (
+                            <img
+                              src={item.product.imageUrl}
+                              alt={item.product.name}
+                              referrerPolicy="no-referrer"
+                              className="w-16 h-16 rounded-xl object-cover bg-white border border-stone-100 shrink-0"
+                            />
+                          )}
+                          <div className="flex-grow">
+                            <h4 className="text-sm font-bold text-stone-900 leading-tight">
+                              {item.product.name}
+                            </h4>
+                            <p className="text-xs text-stone-400 line-clamp-2 mt-1">
+                              {item.product.description}
+                            </p>
+                            <span className="inline-block text-[11px] font-mono font-bold text-rose-600 bg-rose-50/50 rounded px-1.5 py-0.5 mt-2">
+                              Quantidade: x{item.quantity}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Cost Summary Box */}
+                  <div className="bg-stone-50 rounded-2xl p-5 border border-stone-150/60 text-xs text-stone-600 space-y-2.5">
+                    <h4 className="font-bold text-stone-950 text-xs uppercase mb-1.5 flex justify-between">
+                      <span>Resumo de Valores</span>
+                      <span className="text-[10px] text-stone-400 font-normal normal-case">
+                        Consolidado em BRL
+                      </span>
+                    </h4>
+                    {hasPaidPrepayment ? (
+                      <>
+                        <div className="flex justify-between items-center bg-emerald-50/60 border border-emerald-100 p-2 rounded-xl">
+                          <span className="text-stone-600 font-medium">Sinal / Taxa de Serviço Especial:</span>
+                          <span className="font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-lg text-[11px]">
+                            {formatCurrency(order.prepaymentFee)} (PAGO)
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-1 font-semibold">
+                          <span>Preço de Cotação do Produto:</span>
+                          <span className="font-mono text-stone-900">
+                            {formatCurrency(order.onDemandProductCostBRL)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Frete Aduaneiro & Correios Brasil:</span>
+                          <span className="font-xs italic text-stone-500">
+                            {order.finalShippingFeeBRL ? formatCurrency(order.finalShippingFeeBRL) : "Calculado no Envio"}
+                          </span>
+                        </div>
+                        <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
+                          <span className="text-sm font-bold text-stone-900">
+                            Total a Pagar Agora:
+                          </span>
+                          <strong className="text-lg font-bold font-mono text-rose-600">
+                            {formatCurrency(order.onDemandProductCostBRL + (order.finalShippingFeeBRL || 0))}
+                          </strong>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Preço de Cotação do Produto:</span>
+                          <span className="font-mono">
+                            {formatCurrency(order.subtotalBRL)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Taxa de Serviço:</span>
+                          <span className="font-mono">
+                            {formatCurrency(
+                              (order.serviceFeeBRL || 0) +
+                                (order.storageFeeBRL || 0) +
+                                (order.appFeeBRL || 0),
+                            )}
+                          </span>
+                        </div>
+                        {order.prepaymentFee ? (
+                          <div className="flex justify-between">
+                            <span>Sinal / Taxa de Serviço Especial:</span>
+                            <span className="font-mono">
+                              {formatCurrency(order.prepaymentFee)}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex justify-between">
+                          <span>Frete Aduaneiro & Correios Brasil:</span>
+                          <span className="font-xs italic text-stone-500">
+                            {order.finalShippingFeeBRL ? formatCurrency(order.finalShippingFeeBRL) : "Calculado no Envio"}
+                          </span>
+                        </div>
+                        <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
+                          <span className="text-sm font-bold text-stone-900">
+                            Total do Pedido:
+                          </span>
+                          <strong className="text-lg font-bold font-mono text-rose-600">
+                            {formatCurrency(order.totalBRL + (order.finalShippingFeeBRL || 0))}
+                          </strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* LINK TO RECIBO */}
+                  <div className="pt-2">
+                    <Link
+                      to={`/recibo/${order.id}`}
+                      className="text-amber-600 hover:text-amber-700 font-bold text-xs inline-flex items-center gap-1.5 underline"
+                    >
+                      📄 Ver Recibo e Comprovante do Pedido de Compra →
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Right component: Pix Generator for real payment */}
+                <div className="lg:col-span-6 bg-stone-50 border border-stone-200 rounded-2xl p-6 flex flex-col items-center justify-between text-center space-y-6">
+                  <div className="w-full">
+                    <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4 block">
+                      Pagamento Pix Copia e Cola
+                    </h4>
+                    <p className="text-xs text-stone-600 max-w-sm mx-auto mb-4">
+                      Escaneie o QR Code abaixo com seu banco ou utilize o
+                      código copia e cola para pagar.
+                    </p>
+
+                    <div className="bg-white p-3.5 rounded-2xl border border-stone-200 inline-block shadow-inner mb-4">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(specificPixCode)}`}
+                        alt="QR Code Pix"
+                        className="w-36 h-36 object-contain"
+                      />
+                    </div>
+
+                    <div className="w-full max-w-xs mx-auto">
+                      <button
+                        type="button"
+                        onClick={handleCopySpecificPix}
+                        className={`w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
+                          copiedOrderId === order.id
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-stone-900 hover:bg-stone-800 text-white border-transparent"
+                        }`}
+                      >
+                        {copiedOrderId === order.id ? (
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                        {copiedOrderId === order.id
+                          ? "Código Copiado!"
+                          : "Copiar Código Pix Copia e Cola"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // If both standard cart and pending quote requests are empty
   if (cart.length === 0 && pendingQuoteOrders.length === 0) {
     return (
@@ -578,228 +816,7 @@ export function Cart() {
           </button>
         </div>
 
-        <div className="space-y-8">
-          {pendingQuoteOrders.map((order, index) => {
-            const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
-            const amountToPayNow = hasPaidPrepayment
-              ? order.onDemandProductCostBRL
-              : (order.prepaymentFee || order.totalBRL);
-
-            const specificPixCode = generatePixCode(
-              activePixKey,
-              activePixName,
-              activePixCity,
-              amountToPayNow,
-            );
-
-            const handleCopySpecificPix = async () => {
-              await safeCopyText(specificPixCode);
-              setCopiedOrderId(order.id);
-              setTimeout(() => setCopiedOrderId(null), 2500);
-            };
-
-            return (
-              <div
-                key={order.id}
-                className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden flex flex-col"
-                id={`pending-order-box-${order.id}`}
-              >
-                {/* Header of Item Block */}
-                <div className="bg-stone-50 border-b border-stone-150 px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
-                    <span className="text-[10px] font-mono text-stone-400 font-bold block uppercase">
-                      ID DO PEDIDO: #{order.id.substring(0, 8).toUpperCase()}
-                    </span>
-                    <span className="text-xs text-stone-500">
-                      Rastreio Logístico:{" "}
-                      <strong className="font-mono text-stone-800">
-                        {order.trackingId}
-                      </strong>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
-                    <span className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200/50 rounded-lg px-2 py-0.5">
-                      Aguardando Pagamento
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-                  {/* Left component: product details */}
-                  <div className="lg:col-span-6 space-y-6">
-                    <div>
-                      <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest mb-4">
-                        Itens Inclusos no Pedido
-                      </h3>
-                      <div className="space-y-4">
-                        {order.items.map((item: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className="flex gap-4 items-center bg-stone-50 p-4 rounded-xl border border-stone-150/60"
-                          >
-                            {item.product.imageUrl && (
-                              <img
-                                src={item.product.imageUrl}
-                                alt={item.product.name}
-                                referrerPolicy="no-referrer"
-                                className="w-16 h-16 rounded-xl object-cover bg-white border border-stone-100 shrink-0"
-                              />
-                            )}
-                            <div className="flex-grow">
-                              <h4 className="text-sm font-bold text-stone-900 leading-tight">
-                                {item.product.name}
-                              </h4>
-                              <p className="text-xs text-stone-400 line-clamp-2 mt-1">
-                                {item.product.description}
-                              </p>
-                              <span className="inline-block text-[11px] font-mono font-bold text-rose-600 bg-rose-50/50 rounded px-1.5 py-0.5 mt-2">
-                                Quantidade: x{item.quantity}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Cost Summary Box */}
-                    <div className="bg-stone-50 rounded-2xl p-5 border border-stone-150/60 text-xs text-stone-600 space-y-2.5">
-                      <h4 className="font-bold text-stone-950 text-xs uppercase mb-1.5 flex justify-between">
-                        <span>Resumo de Valores</span>
-                        <span className="text-[10px] text-stone-400 font-normal normal-case">
-                          Consolidado em BRL
-                        </span>
-                      </h4>
-                      {hasPaidPrepayment ? (
-                        <>
-                          <div className="flex justify-between items-center bg-emerald-50/60 border border-emerald-100 p-2 rounded-xl">
-                            <span className="text-stone-600 font-medium">Sinal / Taxa de Serviço Especial:</span>
-                            <span className="font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-lg text-[11px]">
-                              {formatCurrency(order.prepaymentFee)} (PAGO)
-                            </span>
-                          </div>
-                          <div className="flex justify-between pt-1 font-semibold">
-                            <span>Preço de Cotação do Produto:</span>
-                            <span className="font-mono text-stone-900">
-                              {formatCurrency(order.onDemandProductCostBRL)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Frete Aduaneiro & Correios Brasil:</span>
-                            <span className="font-xs italic text-stone-500">
-                              Calculado no Envio
-                            </span>
-                          </div>
-                          <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
-                            <span className="text-sm font-bold text-stone-900">
-                              Total a Pagar Agora:
-                            </span>
-                            <strong className="text-lg font-bold font-mono text-rose-600">
-                              {formatCurrency(order.onDemandProductCostBRL)}
-                            </strong>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex justify-between">
-                            <span>Preço de Cotação do Produto:</span>
-                            <span className="font-mono">
-                              {formatCurrency(order.subtotalBRL)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Taxa de Serviço:</span>
-                            <span className="font-mono">
-                              {formatCurrency(
-                                (order.serviceFeeBRL || 0) +
-                                  (order.storageFeeBRL || 0) +
-                                  (order.appFeeBRL || 0),
-                              )}
-                            </span>
-                          </div>
-                          {order.prepaymentFee ? (
-                            <div className="flex justify-between">
-                              <span>Sinal / Taxa de Serviço Especial:</span>
-                              <span className="font-mono">
-                                {formatCurrency(order.prepaymentFee)}
-                              </span>
-                            </div>
-                          ) : null}
-                          <div className="flex justify-between">
-                            <span>Frete Aduaneiro & Correios Brasil:</span>
-                            <span className="font-xs italic text-stone-500">
-                              Calculado no Envio
-                            </span>
-                          </div>
-                          <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
-                            <span className="text-sm font-bold text-stone-900">
-                              Total do Pedido:
-                            </span>
-                            <strong className="text-lg font-bold font-mono text-rose-600">
-                              {formatCurrency(order.totalBRL)}
-                            </strong>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* LINK TO RECIBO */}
-                    <div className="pt-2">
-                      <Link
-                        to={`/recibo/${order.id}`}
-                        className="text-amber-600 hover:text-amber-700 font-bold text-xs inline-flex items-center gap-1.5 underline"
-                      >
-                        📄 Ver Recibo e Comprovante do Pedido de Compra →
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Right component: Pix Generator for real payment */}
-                  <div className="lg:col-span-6 bg-stone-50 border border-stone-200 rounded-2xl p-6 flex flex-col items-center justify-between text-center space-y-6">
-                    <div className="w-full">
-                      <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4 block">
-                        Pagamento Pix Copia e Cola
-                      </h4>
-                      <p className="text-xs text-stone-600 max-w-sm mx-auto mb-4">
-                        Escaneie o QR Code abaixo com seu banco ou utilize o
-                        código copia e cola para pagar.
-                      </p>
-
-                      <div className="bg-white p-3.5 rounded-2xl border border-stone-200 inline-block shadow-inner mb-4">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(specificPixCode)}`}
-                          alt="QR Code Pix"
-                          className="w-36 h-36 object-contain"
-                        />
-                      </div>
-
-                      <div className="w-full max-w-xs mx-auto">
-                        <button
-                          type="button"
-                          onClick={handleCopySpecificPix}
-                          className={`w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                            copiedOrderId === order.id
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : "bg-stone-900 hover:bg-stone-800 text-white border-transparent"
-                          }`}
-                        >
-                          {copiedOrderId === order.id ? (
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
-                          {copiedOrderId === order.id
-                            ? "Código Copiado!"
-                            : "Copiar Código Pix Copia e Cola"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {renderPendingOrders()}
       </div>
     );
   }
@@ -953,6 +970,8 @@ export function Cart() {
               ))}
             </ul>
           </div>
+          
+          {renderPendingOrders()}
         </div>
 
         {/* RIGHT COLUMN: Resumo e Pagamento */}
@@ -1028,7 +1047,7 @@ export function Cart() {
                   {shippingMethods.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
                       {shippingMethods.map((method) => {
-                        const carrierLogo = method.carrier
+                        const carrierLogo = method.logo || (method.carrier
                           .toLowerCase()
                           .includes("fedex")
                           ? "https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg"
@@ -1038,7 +1057,7 @@ export function Cart() {
                               ? "https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg"
                               : method.carrier.toLowerCase().includes("usps")
                                 ? "https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg"
-                                : null;
+                                : null);
 
                         let calculatedShippingForThisMethod = 0;
                         cart.forEach((item) => {

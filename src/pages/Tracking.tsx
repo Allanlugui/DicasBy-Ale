@@ -64,6 +64,7 @@ export function Tracking() {
     updateOrderStatus,
     profile,
     user,
+    shippingMethods,
   } = useAppContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id") || "";
@@ -585,16 +586,17 @@ export function Tracking() {
           {/* Carrier Tracking Info */}
           {(order.carrierName || order.carrierTrackingCode) &&
             (() => {
-              const carrier = (order.carrierName || "").toLowerCase();
-              const carrierLogo = carrier.includes("fedex")
+              const carrierNameLower = (order.carrierName || "").toLowerCase();
+              const method = shippingMethods?.find((m) => m.carrier.toLowerCase() === carrierNameLower);
+              const carrierLogo = method?.logo || (carrierNameLower.includes("fedex")
                 ? "https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg"
-                : carrier.includes("dhl")
+                : carrierNameLower.includes("dhl")
                   ? "https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg"
-                  : carrier.includes("ups")
+                  : carrierNameLower.includes("ups")
                     ? "https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg"
-                    : carrier.includes("usps")
+                    : carrierNameLower.includes("usps")
                       ? "https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg"
-                      : null;
+                      : null);
 
               return (
                 <div className="bg-gradient-to-br from-indigo-600 to-indigo-700 rounded-3xl shadow-xl p-6 text-white animate-scale-in relative overflow-hidden group border border-white/10">

@@ -81,6 +81,7 @@ export type ShippingMethod = {
   carrier: string;
   estimatedDays: string;
   basePriceBRL: number;
+  logo?: string; // Base64 image
 };
 
 export type DiscountCoupon = {

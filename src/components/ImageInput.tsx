@@ -211,19 +211,7 @@ export function ImageInput({ value, onChange, label, placeholder, accept = "imag
       {label && <label className="block text-sm font-medium text-stone-700 mb-1">{label}</label>}
       
       <div className="flex flex-col sm:flex-row gap-2">
-        {/* URL Input Box */}
-        <div className="relative flex-grow">
-          <LinkIcon className="absolute left-3 top-2.5 h-5 w-5 text-stone-400" />
-          <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder || 'URL da imagem ou aperte para capturar...'}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-stone-300 focus:ring-1 focus:ring-rose-500 focus:border-rose-500 text-sm outline-none bg-white transition"
-          />
-        </div>
-        
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full">
           {/* Gallery Upload Input & Trigger */}
           <input
             type="file"
@@ -237,11 +225,11 @@ export function ImageInput({ value, onChange, label, placeholder, accept = "imag
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={loading}
-            className="cursor-pointer bg-stone-100 text-stone-700 px-3.5 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-stone-200 transition disabled:opacity-50 text-xs flex-grow sm:flex-initial"
-            title="Escolher arquivo da galeria"
+            className="cursor-pointer w-full bg-stone-100 text-stone-700 px-3.5 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-stone-200 transition disabled:opacity-50 text-sm flex-grow sm:flex-initial"
+            title="Escolher arquivo do dispositivo"
           >
-            <Upload className="w-3.5 h-3.5 text-stone-500" />
-            <span>Galeria</span>
+            <Upload className="w-4 h-4 text-stone-500" />
+            <span>Arquivo / Galeria</span>
           </button>
 
           {/* Direct Camera Triggers */}
@@ -252,10 +240,10 @@ export function ImageInput({ value, onChange, label, placeholder, accept = "imag
               startCamera();
             }}
             disabled={loading}
-            className="cursor-pointer bg-rose-600 text-white px-3.5 py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-rose-700 transition disabled:opacity-50 text-xs flex-grow sm:flex-initial"
+            className="cursor-pointer w-full bg-rose-600 text-white px-3.5 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-rose-700 transition disabled:opacity-50 text-sm flex-grow sm:flex-initial"
             title="Tirar foto usando a câmera"
           >
-            <Camera className="w-3.5 h-3.5" />
+            <Camera className="w-4 h-4" />
             <span>Tirar Foto</span>
           </button>
         </div>
