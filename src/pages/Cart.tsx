@@ -561,19 +561,6 @@ export function Cart() {
             ? order.onDemandProductCostBRL
             : (order.prepaymentFee || order.totalBRL);
 
-          const specificPixCode = generatePixCode(
-            activePixKey,
-            activePixName,
-            activePixCity,
-            amountToPayNow,
-          );
-
-          const handleCopySpecificPix = async () => {
-            await safeCopyText(specificPixCode);
-            setCopiedOrderId(order.id);
-            setTimeout(() => setCopiedOrderId(null), 2500);
-          };
-
           return (
             <div
               key={order.id}
@@ -709,7 +696,7 @@ export function Cart() {
                         </div>
                         <div className="pt-3 border-t border-stone-200 flex justify-between items-end">
                           <span className="text-sm font-bold text-stone-900">
-                            Total do Pedido:
+                            Total a Pagar Agora:
                           </span>
                           <strong className="text-lg font-bold font-mono text-rose-600">
                             {formatCurrency(order.totalBRL + (order.finalShippingFeeBRL || 0))}
@@ -730,45 +717,32 @@ export function Cart() {
                   </div>
                 </div>
 
-                {/* Right component: Pix Generator for real payment */}
-                <div className="lg:col-span-6 bg-stone-50 border border-stone-200 rounded-2xl p-6 flex flex-col items-center justify-between text-center space-y-6">
-                  <div className="w-full">
-                    <h4 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4 block">
-                      Pagamento Pix Copia e Cola
+                {/* Right component: Unified Secure Payment Portal */}
+                <div className="lg:col-span-6 bg-stone-50 border border-stone-200 rounded-2xl p-8 flex flex-col items-center justify-center text-center space-y-6">
+                  <div className="w-full max-w-sm space-y-4">
+                    <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2 border border-rose-100 shadow-sm">
+                      <CreditCard className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-stone-900 font-display">
+                      Pagar Pedido com Segurança
                     </h4>
-                    <p className="text-xs text-stone-600 max-w-sm mx-auto mb-4">
-                      Escaneie o QR Code abaixo com seu banco ou utilize o
-                      código copia e cola para pagar.
+                    <p className="text-xs text-stone-600 leading-relaxed">
+                      Selecione a melhor forma de pagamento para a sua importação. Oferecemos suporte completo a <strong>Pix, Cartão de Crédito (em até 10x) ou Boleto Bancário</strong>.
                     </p>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-stone-200 inline-block shadow-inner mb-4">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(specificPixCode)}`}
-                        alt="QR Code Pix"
-                        className="w-36 h-36 object-contain"
-                      />
-                    </div>
-
-                    <div className="w-full max-w-xs mx-auto">
-                      <button
-                        type="button"
-                        onClick={handleCopySpecificPix}
-                        className={`w-full py-2.5 text-xs font-bold rounded-xl border flex items-center justify-center gap-1.5 transition ${
-                          copiedOrderId === order.id
-                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                            : "bg-stone-900 hover:bg-stone-800 text-white border-transparent"
-                        }`}
+                    <div className="pt-2">
+                      <Link
+                        to={`/rastreio?id=${order.id}`}
+                        className="cursor-pointer w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md hover:shadow-lg text-center"
+                        id={`pay-order-btn-${order.id}`}
                       >
-                        {copiedOrderId === order.id ? (
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 animate-bounce" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        {copiedOrderId === order.id
-                          ? "Código Copiado!"
-                          : "Copiar Código Pix Copia e Cola"}
-                      </button>
+                        <CreditCard className="w-4 h-4" />
+                        Escolher Forma de Pagamento ({formatCurrency(amountToPayNow)})
+                      </Link>
                     </div>
+                    <span className="text-[10px] text-stone-400 block tracking-wide">
+                      🔒 Ambiente Seguro e Criptografado via Asaas
+                    </span>
                   </div>
                 </div>
               </div>

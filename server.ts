@@ -2196,7 +2196,7 @@ async function sendStatusUpdateNotification(orderId: string, status: string, not
             </div>
 
             <p style="text-align: center; margin-top: 30px;">
-              <a href="${appUrl}/tracking?id=${trackingId}" style="display: inline-block; background-color: #ef4444; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);">Rastrear no Site</a>
+              <a href="${appUrl}/rastreio?id=${trackingId}" style="display: inline-block; background-color: #ef4444; color: white; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);">Rastrear no Site</a>
             </p>
             
             <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 24px;">Se você tiver qualquer dúvida, entre em contato com nosso suporte.</p>
@@ -2208,7 +2208,7 @@ async function sendStatusUpdateNotification(orderId: string, status: string, not
         to: order.customerEmail,
         subject,
         html,
-        text: `Seu pedido #${orderId} foi atualizado para: ${friendlyStatus}. Rastreie em: ${appUrl}/tracking?id=${trackingId}`
+        text: `Seu pedido #${orderId} foi atualizado para: ${friendlyStatus}. Rastreie em: ${appUrl}/rastreio?id=${trackingId}`
       });
     }
 
