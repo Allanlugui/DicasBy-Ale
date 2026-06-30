@@ -26,7 +26,7 @@ import { useAppContext } from "../context";
 import { ImageInput } from "../components/ImageInput";
 import { Trash2 } from "lucide-react";
 import { Order, OrderStatus, OrderEvent, Review } from "../types";
-import { formatCurrency, safeCopyText, generatePixCode } from "../lib/utils";
+import { formatCurrency, safeCopyText, generatePixCode, validateDocument } from "../lib/utils";
 
 const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
   PENDING_PAYMENT: Clock,
@@ -129,6 +129,17 @@ export function Tracking() {
     try {
       if (!billingCpf || !billingPhone || !billingZip || !billingStreet || !billingNumber || !billingCity || !billingState) {
         throw new Error("Por favor, preencha todos os dados de cobrança / endereço.");
+      }
+
+      const docValidation = validateDocument(billingCpf);
+      if (!docValidation.isValid) {
+        throw new Error(
+          docValidation.type === "CPF"
+            ? "O CPF de cobrança informado é inválido. Por favor, verifique o número."
+            : docValidation.type === "CNPJ"
+            ? "O CNPJ de cobrança informado é inválido. Por favor, verifique o número."
+            : "O documento de cobrança informado não é um CPF ou CNPJ válido."
+        );
       }
 
       if (selectedMethod === "credit_card") {

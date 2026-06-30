@@ -24,7 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAppContext } from "../context";
-import { formatCurrency, safeCopyText, generatePixCode } from "../lib/utils";
+import { formatCurrency, safeCopyText, generatePixCode, validateDocument } from "../lib/utils";
 import { DiscountCoupon, Order, OrderStatus, ShippingMethod } from "../types";
 
 export function Cart() {
@@ -127,6 +127,7 @@ export function Cart() {
     profile &&
     profile.fullName &&
     profile.document &&
+    validateDocument(profile.document).isValid &&
     profile.phone &&
     profile.zipCode &&
     profile.street &&

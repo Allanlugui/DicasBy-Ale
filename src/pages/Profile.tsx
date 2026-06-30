@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAppContext } from "../context";
+import { validateDocument } from "../lib/utils";
 import {
   User,
   MapPin,
@@ -205,6 +206,19 @@ export function Profile() {
     if (!acceptedTerms) {
       setError(
         "Para prosseguir, você precisa ler e aceitar os Termos de Uso e Política de Privacidade em total conformidade com a LGPD e legislação americana.",
+      );
+      setLoading(false);
+      return;
+    }
+
+    const docValidation = validateDocument(document);
+    if (!docValidation.isValid) {
+      setError(
+        docValidation.type === "CPF"
+          ? "O CPF digitado é inválido. Por favor, verifique o número."
+          : docValidation.type === "CNPJ"
+          ? "O CNPJ digitado é inválido. Por favor, verifique o número."
+          : "O documento informado não é um CPF ou CNPJ válido. Verifique se digitou os números corretamente."
       );
       setLoading(false);
       return;
