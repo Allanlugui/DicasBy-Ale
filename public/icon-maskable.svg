@@ -1,23 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="roseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fda4af" />
-      <stop offset="50%" stop-color="#f43f5e" />
-      <stop offset="100%" stop-color="#be123c" />
+    <!-- Premium Gold Gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5e1b9" />
+      <stop offset="50%" stop-color="#ddb46a" />
+      <stop offset="100%" stop-color="#b58a3c" />
+    </linearGradient>
+    <!-- Elegant Rose Gold Gradient -->
+    <linearGradient id="roseGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eac5bc" />
+      <stop offset="100%" stop-color="#b37a70" />
     </linearGradient>
   </defs>
-  <!-- Main Background fills the entire view box, essential for maskable icons -->
-  <rect width="512" height="512" fill="url(#roseGrad)" />
-  
-  <!-- Slightly smaller scale for maskable safety zones -->
-  <g transform="translate(136, 126) scale(0.8)">
-    <path d="M75,120 L225,120 C238.8,120 250,131.2 250,145 L250,295 C250,308.8 238.8,320 225,320 L75,320 C61.2,320 50,308.8 50,295 L50,145 C50,131.2 61.2,120 75,120 Z" 
-          fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M100,120 C100,50 200,50 200,120" 
-          fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" />
-    <path d="M150,230 C150,230 115,200 115,180 C115,166 126,155 140,155 C148,155 150,162 150,162 C150,162 152,155 160,155 C174,155 185,166 185,180 C185,200 150,230 150,230 Z" 
-          fill="#ffffff" />
-    <polygon points="260,70 265,85 280,85 268,95 272,110 260,100 248,110 252,95 240,85 255,85" fill="#fef08a" />
-    <polygon points="40,240 43,250 53,250 45,257 48,267 40,260 32,267 35,257 27,250 37,250" fill="#fef08a" />
+
+  <!-- Background filled to edge for maskable icons -->
+  <rect width="512" height="512" fill="#1e1a19" />
+
+  <!-- Scale and translate for maskable icon safe zone (0.8 scale centered) -->
+  <g transform="translate(51.2, 51.2) scale(0.8)">
+    <!-- Shopping Bag Handle -->
+    <path d="M 196 205 A 60 60 0 0 1 316 205" fill="none" stroke="url(#goldGrad)" stroke-width="28" stroke-linecap="round" />
+
+    <!-- Outer Bag Body -->
+    <path d="M 152 205 L 360 205 C 363 205 365 207 366 210 L 391 405 C 393 420 380 432 365 432 L 147 432 C 132 432 119 420 121 405 L 146 210 C 147 207 149 205 152 205 Z" 
+          fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linejoin="round" />
+
+    <!-- Inner Bag Body (Rose Gold, slightly inset) -->
+    <path d="M 166 220 L 346 220 C 348 220 349 221 350 223 L 373 395 C 374 405 366 414 355 414 L 157 414 C 146 414 138 405 139 395 L 162 223 C 163 221 164 220 166 220 Z" 
+          fill="#1e1a19" stroke="url(#roseGoldGrad)" stroke-width="4" stroke-linejoin="round" />
+
+    <!-- Centered thin gold "A" -->
+    <path d="M 256 250 L 208 365" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+    <path d="M 256 250 L 304 365" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+    <path d="M 224 326 L 288 326" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+
+    <!-- Sparkle Star on the right -->
+    <path d="M 335 265 Q 335 277 347 277 Q 335 277 335 289 Q 335 277 323 277 Q 335 277 335 265 Z" fill="url(#goldGrad)" />
   </g>
 </svg>
