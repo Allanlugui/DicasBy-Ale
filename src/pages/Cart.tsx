@@ -87,6 +87,7 @@ export function Cart() {
     string | null
   >(null);
   const [customDeliveryInstructions, setCustomDeliveryInstructions] = useState("");
+  const [customWhatsApp, setCustomWhatsApp] = useState("");
 
   // Coupons
   const [couponCodeInput, setCouponCodeInput] = useState("");
@@ -114,6 +115,11 @@ export function Cart() {
   const [isGeneratingPix, setIsGeneratingPix] = useState(false);
   const [asaasError, setAsaasError] = useState<string | null>(null);
 
+  // Real DHL Rate state
+  const [dhlRealRateBRL, setDhlRealRateBRL] = useState<number | null>(null);
+  const [isDhlLoading, setIsDhlLoading] = useState(false);
+  const [dhlError, setDhlError] = useState<string | null>(null);
+
   // Auto pre-fill from user profile
   useEffect(() => {
     if (profile) {
@@ -123,6 +129,84 @@ export function Cart() {
       setCustomerEmail(user.email || "");
     }
   }, [profile, user]);
+
+  // Effect to fetch real DHL rates
+  useEffect(() => {
+    const fetchDhlRates = async () => {
+      // Only fetch if enabled, items in stock, and address is provided
+      const hasStockItems = cart.some(item => {
+        const p = item.product;
+        const isPartnerStore = p.stockType === "PARTNER_STORE" || (p.stockType === "IN_STOCK" && (p.inventory || 0) <= 0);
+        return !isPartnerStore;
+      });
+
+      if (!companySettings?.enableDhlRealRates || !hasStockItems || !profile?.city || !profile?.zipCode) {
+        setDhlRealRateBRL(null);
+        return;
+      }
+
+      setIsDhlLoading(true);
+      setDhlError(null);
+
+      try {
+        const stockItems = cart.filter(item => {
+          const p = item.product;
+          const isPartnerStore = p.stockType === "PARTNER_STORE" || (p.stockType === "IN_STOCK" && (p.inventory || 0) <= 0);
+          return !isPartnerStore;
+        });
+
+        const packages = stockItems.map(item => ({
+          weight: (item.product.boxWeight || 500) / 1000, // to kg
+          dimensions: {
+            length: item.product.boxLength || 20,
+            width: item.product.boxWidth || 15,
+            height: item.product.boxHeight || 10
+          }
+        }));
+
+        const response = await fetch("/api/dhl/rates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plannedShippingDate: new Date().toISOString().split('T')[0],
+            unitOfMeasurement: "metric",
+            isCustomsDeclarable: true,
+            originCountryCode: "US",
+            originCityName: "Miami",
+            originPostalCode: "33122",
+            destinationCountryCode: "BR",
+            destinationCityName: profile.city,
+            destinationPostalCode: profile.zipCode,
+            packages,
+            declaredValue: stockItems.reduce((acc, item) => acc + (item.product.priceUSD * item.quantity), 0),
+            declaredCurrency: "USD"
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Falha ao obter cotação DHL");
+        }
+
+        const data = await response.json();
+        // Extract the rate for the fastest/cheapest service (Express Worldwide usually)
+        const expressService = data.products?.find((p: any) => p.productName.includes("EXPRESS WORLDWIDE") || p.productCode === "P");
+        if (expressService && expressService.totalPrice?.[0]?.price) {
+          const priceUSD = expressService.totalPrice[0].price;
+          const dollarRate = companySettings?.dollarRate || 5.2; // fallback
+          setDhlRealRateBRL(priceUSD * dollarRate);
+        } else {
+          setDhlError("Serviço DHL não disponível para esta rota.");
+        }
+      } catch (err: any) {
+        console.error("[DHL Cart Rate] Error:", err);
+        setDhlError(err.message);
+      } finally {
+        setIsDhlLoading(false);
+      }
+    };
+
+    fetchDhlRates();
+  }, [cart, profile?.city, profile?.zipCode, companySettings?.enableDhlRealRates, companySettings?.dollarRate]);
 
   // Is the profile complete enough to ship?
   const isProfileComplete = !!(
@@ -156,40 +240,45 @@ export function Cart() {
   const discountBRL = totals.discountBRL;
   const totalBRL = totals.totalBRL;
 
+  const dollarRate = companySettings?.dollarRate || 5.2;
+
   // Dynamic shipping logic based on dimensions (length, width, height) and weight of each product in the cart
   let calculatedShippingStock = 0;
   let calculatedShippingOnDemand = 0;
 
-  if (selectedShipping) {
-    cart.forEach((item) => {
-      const p = item.product;
-      const length = p.boxLength || 20; // fallback if undefined
-      const width = p.boxWidth || 15; // fallback if undefined
-      const height = p.boxHeight || 10; // fallback if undefined
-      const weight = p.boxWeight || 500; // fallback (grams) if undefined
+  // Use a standard DHL price per kg (USD 25 as midpoint of user provided USD 20-30)
+  const dhlPricePerKgUSD = 25; 
+  const dhlPricePerKgBRL = dhlPricePerKgUSD * dollarRate;
 
-      // Volumetric weight = (L * W * H) / 5000 (standard international courier volumetric weight in kg)
-      const volumetricWeight = (length * width * height) / 5000;
-      // Physical weight in kg
-      const physicalWeight = weight / 1000;
-      // Chargeable weight is the greater of the two
-      const chargeableWeight = Math.max(volumetricWeight, physicalWeight);
+  cart.forEach((item) => {
+    const p = item.product;
+    const length = p.boxLength || 20; // fallback if undefined
+    const width = p.boxWidth || 15; // fallback if undefined
+    const height = p.boxHeight || 10; // fallback if undefined
+    const weight = p.boxWeight || 500; // fallback (grams) if undefined
 
-      // Weight multiplier: Base price covers up to 0.5kg (500g). Larger/heavier items scale up the shipping cost.
-      const weightMultiplier = Math.max(1, chargeableWeight / 0.5);
-      const itemShipping =
-        selectedShipping.basePriceBRL * weightMultiplier * item.quantity;
+    // Volumetric weight = (L * W * H) / 5000 (standard international courier volumetric weight in kg)
+    const volumetricWeight = (length * width * height) / 5000;
+    // Physical weight in kg
+    const physicalWeight = weight / 1000;
+    // Chargeable weight is the greater of the two
+    const chargeableWeight = Math.max(volumetricWeight, physicalWeight);
 
-      const isPartnerStore =
-        p.stockType === "PARTNER_STORE" ||
-        (p.stockType === "IN_STOCK" && (p.inventory || 0) <= 0);
-      if (isPartnerStore) {
-        calculatedShippingOnDemand += itemShipping;
-      } else {
-        calculatedShippingStock += itemShipping;
-      }
-    });
-  }
+    // If it's a real shipping method with a base price, we can use that, 
+    // but the user wants a more accurate DHL-style calculation.
+    // We'll use the dhlPricePerKgBRL as our "real" estimate for stock items.
+    const itemShipping = dhlPricePerKgBRL * chargeableWeight * item.quantity;
+
+    const isPartnerStore =
+      p.stockType === "PARTNER_STORE" ||
+      (p.stockType === "IN_STOCK" && (p.inventory || 0) <= 0);
+    
+    if (isPartnerStore) {
+      calculatedShippingOnDemand += itemShipping;
+    } else {
+      calculatedShippingStock += itemShipping;
+    }
+  });
 
   const estimatedShippingBRL = calculatedShippingStock;
   const shippingMarginOfError = estimatedShippingBRL * 0.1;
@@ -202,7 +291,11 @@ export function Cart() {
   const shippingMaxOnDemand =
     calculatedShippingOnDemand + shippingMarginOnDemand;
 
-  const finalTotalBRL = totalBRL + calculatedShippingStock;
+  const customDeliveryFee = selectedShippingMethodId === "custom" 
+    ? (companySettings?.customDeliveryServiceFeeBRL || 0) 
+    : 0;
+
+  const finalTotalBRL = totalBRL + (selectedShippingMethodId === "custom" ? customDeliveryFee : (dhlRealRateBRL || calculatedShippingStock));
 
   const handleRemoveProductWithFeedback = async (
     productId: string,
@@ -337,12 +430,10 @@ export function Cart() {
     if (cart.length === 0) return;
     if (!isProfileComplete) return;
     if (!acceptedConsent || !acceptedCustoms) return;
-    if (!selectedShippingMethodId) {
-      alert("Por favor, selecione uma modalidade de frete.");
-      return;
-    }
-    if (selectedShippingMethodId === "custom" && !customDeliveryInstructions.trim()) {
-      alert("Por favor, informe as instruções para a entrega personalizada.");
+
+    if (selectedShippingMethodId === "custom" && !customWhatsApp) {
+      setAsaasError("Por favor, informe seu WhatsApp para a entrega personalizada.");
+      setIsProcessing(false);
       return;
     }
 
@@ -352,6 +443,9 @@ export function Cart() {
     try {
       if (paymentMethod === "pix") {
         // Direct Pix using company settings - fast, solid and reliable!
+        const carrierName = selectedShippingMethodId === "custom" ? "Entrega Personalizada" : "DHL Express";
+        const customDeliveryRequested = selectedShippingMethodId === "custom";
+
         const order = await createOrder(
           customerName || profile?.fullName || "Nome Não Fornecido",
           customerEmail || user?.email || "Email Não Fornecido",
@@ -359,16 +453,18 @@ export function Cart() {
           discountBRL || undefined,
           {
             shippingMethod: selectedShipping,
-            shippingFeeBRL: calculatedShippingStock,
+            shippingFeeBRL: customDeliveryRequested ? 0 : (dhlRealRateBRL || calculatedShippingStock),
             shippingEstimateBRL: calculatedShippingOnDemand,
             shippingEstimateWithMarginBRL: shippingMaxOnDemand,
             totalBRL: finalTotalBRL,
             customsResponsibilityAccepted: acceptedCustoms,
             paymentMethod: "pix",
-            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
+            carrierName,
             carrierTrackingCode: undefined,
-            customDeliveryRequested: selectedShippingMethodId === "custom",
-            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
+            customDeliveryRequested,
+            customDeliveryInstructions: customDeliveryRequested ? customDeliveryInstructions : undefined,
+            customWhatsApp: customDeliveryRequested ? customWhatsApp : undefined,
+            customDeliveryServiceFeeBRL: customDeliveryRequested ? (companySettings?.customDeliveryServiceFeeBRL || 0) : undefined,
           },
         );
         setIsProcessing(false);
@@ -440,6 +536,9 @@ export function Cart() {
         // Create order with card payment reference
         const isPaid =
           data.status === "CONFIRMED" || data.status === "RECEIVED";
+        const carrierName = selectedShippingMethodId === "custom" ? "Entrega Personalizada" : "DHL Express";
+        const customDeliveryRequested = selectedShippingMethodId === "custom";
+
         const order = await createOrder(
           customerName || profile?.fullName || "Nome Não Fornecido",
           customerEmail || user?.email || "Email Não Fornecido",
@@ -447,19 +546,21 @@ export function Cart() {
           discountBRL || undefined,
           {
             shippingMethod: selectedShipping,
-            shippingFeeBRL: calculatedShippingStock,
+            shippingFeeBRL: customDeliveryRequested ? 0 : (dhlRealRateBRL || calculatedShippingStock),
             shippingEstimateBRL: calculatedShippingOnDemand,
             shippingEstimateWithMarginBRL: shippingMaxOnDemand,
             totalBRL: finalTotalBRL,
             customsResponsibilityAccepted: acceptedCustoms,
             asaasPaymentId: data.paymentId,
             asaasInvoiceUrl: data.invoiceUrl,
-            status: isPaid ? "PAYMENT_RECEIVED" : "PENDING_PAYMENT",
+            status: isPaid ? (customDeliveryRequested ? "IN_TRANSIT_TO_BR" : "PAYMENT_RECEIVED") : "PENDING_PAYMENT",
             paymentMethod: paymentMethod,
-            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
-            carrierTrackingCode: isPaid && (companySettings?.enableAutoTracking ?? true) && selectedShipping?.carrier ? generateCarrierTrackingCode(selectedShipping.carrier) : undefined,
-            customDeliveryRequested: selectedShippingMethodId === "custom",
-            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
+            carrierName,
+            carrierTrackingCode: isPaid && (companySettings?.enableAutoTracking ?? true) && !customDeliveryRequested ? generateCarrierTrackingCode("DHL") : undefined,
+            customDeliveryRequested,
+            customDeliveryInstructions: customDeliveryRequested ? customDeliveryInstructions : undefined,
+            customWhatsApp: customDeliveryRequested ? customWhatsApp : undefined,
+            customDeliveryServiceFeeBRL: customDeliveryRequested ? (companySettings?.customDeliveryServiceFeeBRL || 0) : undefined,
           },
         );
 
@@ -505,6 +606,9 @@ export function Cart() {
         }
 
         // Create the order with boleto reference
+        const carrierName = selectedShippingMethodId === "custom" ? "Entrega Personalizada" : "DHL Express";
+        const customDeliveryRequested = selectedShippingMethodId === "custom";
+
         const order = await createOrder(
           customerName || profile?.fullName || "Nome Não Fornecido",
           customerEmail || user?.email || "Email Não Fornecido",
@@ -512,7 +616,7 @@ export function Cart() {
           discountBRL || undefined,
           {
             shippingMethod: selectedShipping,
-            shippingFeeBRL: calculatedShippingStock,
+            shippingFeeBRL: customDeliveryRequested ? 0 : (dhlRealRateBRL || calculatedShippingStock),
             shippingEstimateBRL: calculatedShippingOnDemand,
             shippingEstimateWithMarginBRL: shippingMaxOnDemand,
             totalBRL: finalTotalBRL,
@@ -522,10 +626,12 @@ export function Cart() {
             bankSlipUrl: data.bankSlipUrl || undefined,
             barCode: data.barCode || undefined,
             paymentMethod: "boleto",
-            carrierName: selectedShippingMethodId === "custom" ? "Entrega Personalizada" : (selectedShipping?.carrier || "Não definida"),
+            carrierName,
             carrierTrackingCode: undefined,
-            customDeliveryRequested: selectedShippingMethodId === "custom",
-            customDeliveryInstructions: selectedShippingMethodId === "custom" ? customDeliveryInstructions : undefined,
+            customDeliveryRequested,
+            customDeliveryInstructions: customDeliveryRequested ? customDeliveryInstructions : undefined,
+            customWhatsApp: customDeliveryRequested ? customWhatsApp : undefined,
+            customDeliveryServiceFeeBRL: customDeliveryRequested ? (companySettings?.customDeliveryServiceFeeBRL || 0) : undefined,
           },
         );
 
@@ -934,15 +1040,22 @@ export function Cart() {
                         Quantidade: {item.quantity}
                       </span>
                       <div className="flex items-center gap-4">
-                        <span className="font-bold text-sm text-stone-900">
-                          {item.product.stockType === "PARTNER_STORE" ||
-                          (item.product.stockType === "IN_STOCK" &&
-                            (item.product.inventory || 0) <= 0)
-                            ? "Sob Encomenda"
-                            : formatCurrency(
-                                item.product.priceBRL * item.quantity,
-                              )}
-                        </span>
+                        <div className="flex flex-col items-end">
+                          <span className="font-bold text-sm text-stone-900">
+                            {item.product.stockType === "PARTNER_STORE" ||
+                            (item.product.stockType === "IN_STOCK" &&
+                              (item.product.inventory || 0) <= 0)
+                              ? "Sob Encomenda"
+                              : formatCurrency(
+                                  item.product.priceBRL * item.quantity,
+                                )}
+                          </span>
+                          {item.product.stockType === "IN_STOCK" && (item.product.inventory || 0) > 0 && (
+                            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
+                              Pronta Entrega
+                            </span>
+                          )}
+                        </div>
                         <button
                           onClick={() =>
                             handleRemoveProductWithFeedback(
@@ -1030,235 +1143,164 @@ export function Cart() {
                 <div className="pt-4 border-t border-stone-100 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
-                      Modalidade de Frete
-                    </span>
-                    <span className="text-[9px] text-stone-300 italic">
-                      Pago após pesagem em Miami
+                      Modalidade de Envio
                     </span>
                   </div>
-                  {shippingMethods.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4">
-                      {shippingMethods.map((method) => {
-                        const carrierLogo = method.logo || (method.carrier
-                          .toLowerCase()
-                          .includes("fedex")
-                          ? "https://upload.wikimedia.org/wikipedia/commons/b/b9/FedEx_Corporation_-_Logo.svg"
-                          : method.carrier.toLowerCase().includes("dhl")
-                            ? "https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg"
-                            : method.carrier.toLowerCase().includes("ups")
-                              ? "https://upload.wikimedia.org/wikipedia/commons/1/1b/UPS_Logo_2014.svg"
-                              : method.carrier.toLowerCase().includes("usps")
-                                ? "https://upload.wikimedia.org/wikipedia/commons/d/d3/United_States_Postal_Service_Logo_2022.svg"
-                                : null);
 
-                        let calculatedShippingForThisMethod = 0;
-                        cart.forEach((item) => {
-                          const p = item.product;
-                          const length = p.boxLength || 20;
-                          const width = p.boxWidth || 15;
-                          const height = p.boxHeight || 10;
-                          const weight = p.boxWeight || 500;
-
-                          const volumetricWeight =
-                            (length * width * height) / 5000;
-                          const physicalWeight = weight / 1000;
-                          const chargeableWeight = Math.max(
-                            volumetricWeight,
-                            physicalWeight,
-                          );
-                          const weightMultiplier = Math.max(
-                            1,
-                            chargeableWeight / 0.5,
-                          );
-                          calculatedShippingForThisMethod +=
-                            method.basePriceBRL *
-                            weightMultiplier *
-                            item.quantity;
-                        });
-
-                        return (
-                          <button
-                            key={method.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedShippingMethodId(method.id)
-                            }
-                            className={`flex justify-between items-center p-5 rounded-2xl border text-left transition-all relative overflow-hidden group ${
-                              selectedShippingMethodId === method.id
-                                ? "border-rose-500 bg-rose-50/20 ring-2 ring-rose-500/20 shadow-lg shadow-rose-100/50"
-                                : "border-stone-100 bg-white hover:border-stone-300 shadow-sm"
-                            }`}
-                          >
-                            {selectedShippingMethodId === method.id && (
-                              <div className="absolute top-0 right-0 p-1.5 bg-rose-500 rounded-bl-xl">
-                                <CheckCircle className="w-3.5 h-3.5 text-white" />
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-4">
-                              {carrierLogo ? (
-                                <div className="w-12 h-12 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center p-2 shrink-0 group-hover:scale-105 transition-transform">
-                                  <img
-                                    src={carrierLogo}
-                                    alt={method.carrier}
-                                    className="max-w-full max-h-full object-contain"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center shrink-0">
-                                  <Truck className="w-6 h-6 text-stone-400" />
-                                </div>
-                              )}
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-stone-900 leading-tight">
-                                  {method.name}
-                                </span>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">
-                                    {method.carrier}
-                                  </span>
-                                  <span className="text-[10px] text-stone-400">
-                                    •
-                                  </span>
-                                  <span className="text-[10px] text-stone-500 font-medium italic">
-                                    Entrega em aprox. {method.estimatedDays}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-sm font-black text-stone-800 block">
-                                {formatCurrency(
-                                  calculatedShippingForThisMethod,
-                                )}
-                                *
-                              </span>
-                              <span className="text-[9px] text-stone-400 uppercase tracking-tighter">
-                                Custo Estimado Real
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {/* Entrega Personalizada Option */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedShippingMethodId("custom")}
-                        className={`flex justify-between items-center p-5 rounded-2xl border text-left transition-all relative overflow-hidden group ${
-                          selectedShippingMethodId === "custom"
-                            ? "border-rose-500 bg-rose-50/20 ring-2 ring-rose-500/20 shadow-lg shadow-rose-100/50"
-                            : "border-stone-100 bg-white hover:border-stone-300 shadow-sm"
-                        }`}
-                      >
-                        {selectedShippingMethodId === "custom" && (
-                          <div className="absolute top-0 right-0 p-1.5 bg-rose-500 rounded-bl-xl">
-                            <CheckCircle className="w-3.5 h-3.5 text-white" />
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                            <MapPin className="w-6 h-6 text-stone-400" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-stone-900 leading-tight">
-                              Entrega Personalizada
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">
-                                DICAS BY ALE
-                              </span>
-                              <span className="text-[10px] text-stone-400">
-                                •
-                              </span>
-                              <span className="text-[10px] text-stone-500 font-medium italic">
-                                Entregue em mãos / outras formas
-                              </span>
-                            </div>
-                          </div>
+                  <div className="space-y-3">
+                    {/* DHL Express Option */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedShippingMethodId("dhl")}
+                      className={`w-full text-left bg-stone-50 border rounded-2xl p-5 flex items-center justify-between group transition-all hover:border-stone-300 ${
+                        selectedShippingMethodId === "dhl" 
+                          ? "border-rose-500 ring-1 ring-rose-500 bg-white" 
+                          : "border-stone-200/60"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl bg-white border flex items-center justify-center p-2 shrink-0 shadow-sm transition-colors ${
+                          selectedShippingMethodId === "dhl" ? "border-rose-100" : "border-stone-100"
+                        }`}>
+                          <img
+                            src="https://upload.wikimedia.org/wikipedia/commons/a/ac/DHL_Logo.svg"
+                            alt="DHL Express"
+                            className="max-w-full max-h-full object-contain"
+                            referrerPolicy="no-referrer"
+                          />
                         </div>
-                        <div className="text-right">
-                          <span className="text-sm font-black text-stone-800 block">
-                            A Definir*
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-stone-900 leading-tight">
+                            DHL Express Worldwide
+                          </span>
+                          <span className="text-[10px] text-stone-500 font-medium italic mt-0.5">
+                            Envio internacional prioritário
                           </span>
                         </div>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 text-center">
-                      <span className="text-[11px] text-stone-500">
-                        Nenhum método de envio configurado. Entre em contato com
-                        o suporte.
-                      </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-stone-400 block uppercase tracking-tighter">
+                          Tarifa Real
+                        </span>
+                        <span className="text-[10px] text-stone-600 font-bold block">
+                          {isDhlLoading ? (
+                            <span className="flex items-center gap-1">
+                              <span className="w-2 h-2 rounded-full bg-stone-300 animate-pulse" />
+                              Calculando...
+                            </span>
+                          ) : (dhlRealRateBRL || calculatedShippingStock) > 0 ? (
+                            formatCurrency(dhlRealRateBRL || calculatedShippingStock)
+                          ) : dhlError ? (
+                            <span className="text-rose-500 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              Erro na cotação
+                            </span>
+                          ) : (
+                            "Calculada no despacho"
+                          )}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Custom Delivery Option */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedShippingMethodId("custom")}
+                      className={`w-full text-left bg-stone-50 border rounded-2xl p-5 flex items-center justify-between group transition-all hover:border-stone-300 ${
+                        selectedShippingMethodId === "custom" 
+                          ? "border-rose-500 ring-1 ring-rose-500 bg-white" 
+                          : "border-stone-200/60"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl bg-white border flex items-center justify-center p-2 shrink-0 shadow-sm transition-colors ${
+                          selectedShippingMethodId === "custom" ? "border-rose-100" : "border-stone-100"
+                        }`}>
+                          <Truck className={`w-6 h-6 ${selectedShippingMethodId === "custom" ? "text-rose-500" : "text-stone-400"}`} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-stone-900 leading-tight">
+                            Entrega Personalizada
+                          </span>
+                          <span className="text-[10px] text-stone-500 font-medium italic mt-0.5">
+                            Escolha como quer receber
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-stone-400 block uppercase tracking-tighter">
+                          Custo
+                        </span>
+                        <span className="text-[10px] text-stone-600 font-bold block">
+                          Sob Consulta
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {selectedShippingMethodId !== 'custom' && cart.some(item => (item.product.inventory || 0) <= 0 || item.product.stockType === 'PARTNER_STORE') && (
+                    <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-3 mt-4">
+                      <div className="flex gap-2">
+                        <Info className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-amber-700 leading-relaxed font-medium">
+                          O valor do frete final para itens sob encomenda será calculado automaticamente pela DHL após a chegada ao nosso armazém em Miami.
+                        </p>
+                      </div>
                     </div>
                   )}
+
 
                   {selectedShippingMethodId === "custom" && (
-                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 mt-4 animate-fade-in">
-                      <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-2">
-                        Instruções para Entrega Personalizada *
-                      </label>
-                      <textarea
-                        required
-                        value={customDeliveryInstructions}
-                        onChange={(e) => setCustomDeliveryInstructions(e.target.value)}
-                        placeholder="Ex: Gostaria de retirar em mãos em Miami ou receber por motoboy no Brasil..."
-                        rows={3}
-                        className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none outline-none"
-                      />
-                      <p className="text-[10px] text-stone-500 mt-2">
-                        <strong>Nota de Segurança:</strong> Entregas personalizadas estão sujeitas a aprovação de acordo com o perfil do cliente. Taxas de armazenamento poderão ser aplicadas.
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedShipping && selectedShippingMethodId !== "custom" && (
-                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5 space-y-2 mt-2 text-[11px]">
-                      <div className="flex items-center gap-1.5 text-blue-700 font-bold text-[10px] uppercase">
-                        <Info className="w-3.5 h-3.5 shrink-0" />
-                        Informações sobre o Frete
+                    <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 mt-4 animate-fade-in space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-2">
+                          Seu WhatsApp para Contato *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={customWhatsApp}
+                          onChange={(e) => setCustomWhatsApp(e.target.value)}
+                          placeholder="Ex: (11) 99999-9999"
+                          className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+                        />
                       </div>
-                      {totals.onDemandCount > 0 ? (
-                        <div className="text-blue-900 leading-normal space-y-1">
-                          <p>
-                            <strong>Produtos Sob Encomenda:</strong> O valor do
-                            frete não será cobrado agora. Você pagará o valor
-                            real do envio internacional (estimado entre{" "}
-                            <strong className="font-mono">
-                              {formatCurrency(shippingMinOnDemand)}
-                            </strong>{" "}
-                            e{" "}
-                            <strong className="font-mono">
-                              {formatCurrency(shippingMaxOnDemand)}
-                            </strong>
-                            ) somente quando os produtos forem pesados e
-                            consolidados em nosso centro de distribuição nos
-                            Estados Unidos.
-                          </p>
-                          {totals.stockCount > 0 && (
-                            <p>
-                              <strong>
-                                Produtos de Pronta Entrega (Estoque):
-                              </strong>{" "}
-                              O valor de{" "}
-                              <strong className="font-mono">
-                                {formatCurrency(calculatedShippingStock)}
-                              </strong>{" "}
-                              referente ao frete de envio destes produtos está
-                              incluído na soma total do pedido atual.
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-blue-900 leading-normal">
-                          <strong>Pronta Entrega (Estoque):</strong> O frete
-                          para envio direto do estoque no valor de{" "}
-                          <strong className="font-mono">
-                            {formatCurrency(calculatedShippingStock)}
-                          </strong>{" "}
-                          já está incluído no total inicial do seu pedido.
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-2">
+                          Instruções ou Dúvidas para Entrega Personalizada
+                        </label>
+                        <textarea
+                          value={customDeliveryInstructions}
+                          onChange={(e) => setCustomDeliveryInstructions(e.target.value)}
+                          placeholder="Ex: Gostaria de retirar em mãos em Miami ou receber por motoboy no Brasil..."
+                          rows={3}
+                          className="w-full rounded-xl border border-stone-200 px-4 py-3 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 resize-none outline-none"
+                        />
+                      </div>
+
+                      <div className="bg-white/80 rounded-lg p-3 border border-rose-100/50 text-[10px] text-stone-600 leading-relaxed space-y-2">
+                        <p className="font-bold text-rose-700 uppercase tracking-tight">Aviso Importante sobre Entrega Personalizada:</p>
+                        <p>
+                          A entrega personalizada pode ter custos elevados dependendo da sua localização, tipo de produto, volume e peso. 
+                          Os valores finais de frete e logística serão negociados diretamente via WhatsApp após o pagamento da Taxa de Serviço.
                         </p>
+                        <p>
+                          <strong>Responsabilidade Legal:</strong> Todos os impostos e trâmites legais para que o produto chegue em suas mãos com nota fiscal são de inteira responsabilidade do cliente, e podem ser cobrados enquanto o produto estiver em trânsito.
+                        </p>
+                        <p className="text-rose-600 font-bold">
+                          Não nos responsabilizamos por produtos retidos ou apreendidos pela Receita Federal.
+                        </p>
+                        <p>
+                          Ao prosseguir, você concorda com uma experiência única e 100% segura, com atendimento exclusivo e personalizado.
+                        </p>
+                      </div>
+
+                      {companySettings?.customDeliveryServiceFeeBRL && (
+                        <div className="flex items-center justify-between bg-rose-100/50 p-2.5 rounded-lg border border-rose-200">
+                          <span className="text-[10px] font-bold text-rose-800 uppercase tracking-tight">Taxa de Serviço de Entrega:</span>
+                          <span className="text-xs font-black text-rose-900">{formatCurrency(companySettings.customDeliveryServiceFeeBRL)}</span>
+                        </div>
                       )}
                     </div>
                   )}

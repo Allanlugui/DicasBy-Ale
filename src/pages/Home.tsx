@@ -1553,15 +1553,19 @@ function CompactProductCard({
   if (!product) return null;
   const store = stores ? stores.find((s) => s.id === product.storeId) : null;
   const hasVariants = product.variants && product.variants.length > 0;
+  const totalVariantStock = hasVariants ? product.variants.reduce((acc, v) => acc + (v.stock || 0), 0) : 0;
+  
   const isAvailable =
     product.isAvailable !== false &&
     (product.boxWidth || 0) > 0 &&
     (product.boxLength || 0) > 0 &&
     (product.boxHeight || 0) > 0 &&
     (product.boxWeight || 0) > 0;
+
   const isPartnerStore =
     product.stockType === "PARTNER_STORE" ||
-    (product.stockType === "IN_STOCK" && (product.inventory || 0) <= 0);
+    (product.stockType === "IN_STOCK" && (hasVariants ? totalVariantStock <= 0 : (product.inventory || 0) <= 0));
+  const isInStock = !isPartnerStore && isAvailable;
 
   const priceBRL = product.priceBRL || 0;
   const priceUSD = product.priceUSD || 0;
@@ -1597,6 +1601,11 @@ function CompactProductCard({
         {isPartnerStore && isAvailable && (
           <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white font-black text-[7px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
             Encomenda
+          </div>
+        )}
+        {isInStock && (
+          <div className="absolute top-1.5 right-1.5 bg-emerald-500 text-white font-black text-[7px] uppercase tracking-wider px-1.5 py-0.5 rounded shadow-sm">
+            Pronta Entrega
           </div>
         )}
       </div>
@@ -1676,6 +1685,8 @@ function ProductCard({
   const store = stores ? stores.find((s) => s.id === product.storeId) : null;
 
   const hasVariants = product.variants && product.variants.length > 0;
+  const totalVariantStock = hasVariants ? product.variants.reduce((acc, v) => acc + (v.stock || 0), 0) : 0;
+
   const isAvailable =
     product.isAvailable !== false &&
     (product.boxWidth || 0) > 0 &&
@@ -1684,7 +1695,8 @@ function ProductCard({
     (product.boxWeight || 0) > 0;
   const isPartnerStore =
     product.stockType === "PARTNER_STORE" ||
-    (product.stockType === "IN_STOCK" && (product.inventory || 0) <= 0);
+    (product.stockType === "IN_STOCK" && (hasVariants ? totalVariantStock <= 0 : (product.inventory || 0) <= 0));
+  const isInStock = !isPartnerStore && isAvailable;
 
   return (
     <div
@@ -1717,6 +1729,11 @@ function ProductCard({
         {isPartnerStore && isAvailable && (
           <div className="absolute top-4 right-4 bg-amber-500 text-white font-black text-[8px] uppercase tracking-widest px-2 py-0.5 rounded shadow-lg">
             Sob Encomenda
+          </div>
+        )}
+        {isInStock && (
+          <div className="absolute top-4 right-4 bg-emerald-500 text-white font-black text-[8px] uppercase tracking-widest px-2 py-0.5 rounded shadow-lg">
+            Pronta Entrega
           </div>
         )}
       </div>
@@ -1753,7 +1770,7 @@ function ProductCard({
             ) : (
               <>
                 <div className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">
-                  Valor estimado
+                  Valor do Produto
                 </div>
                 <div className="font-black text-2xl text-stone-900 tracking-tight">
                   {formatCurrency(product.priceBRL)}
@@ -1970,16 +1987,16 @@ function ProductModal({
     ? (product.priceUSD + (exactSelectedVariant.priceAdjustUSD || 0))
     : estimatedPrices.priceUSD;
 
+  const isSelectionInStock = exactSelectedVariant 
+    ? exactSelectedVariant.stock > 0 
+    : (product.stockType === "IN_STOCK" && (product.inventory || 0) > 0);
+
   const isAvailable =
     product.isAvailable !== false &&
     (product.boxWidth || 0) > 0 &&
     (product.boxLength || 0) > 0 &&
     (product.boxHeight || 0) > 0 &&
     (product.boxWeight || 0) > 0;
-
-  const isPartnerStore =
-    product.stockType === "PARTNER_STORE" ||
-    (product.stockType === "IN_STOCK" && (product.inventory || 0) <= 0);
 
   const handleAddToCart = () => {
     const isCustomRequest = !exactSelectedVariant;
@@ -1989,12 +2006,20 @@ function ProductModal({
       ...product,
       name: exactSelectedVariant
         ? `${product.name} (${exactSelectedVariant.name})`
-        : `${product.name} (${Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" | ")})`,
+        : (Object.keys(selectedOptions).length > 0 
+          ? `${product.name} (${Object.entries(selectedOptions).map(([k, v]) => `${k}: ${v}`).join(" | ")})`
+          : product.name),
       priceBRL: currentPriceBRL,
       priceUSD: currentPriceUSD,
-      sku: exactSelectedVariant?.sku || `${product.sku || "CUSTOM"}-${Object.values(selectedOptions).map(v => v.replace(/\s+/g, "").toUpperCase()).join("-")}`,
-      stockType: (isCustomRequest || isOutOfStockRequest || product.stockType === "PARTNER_STORE") ? "PARTNER_STORE" : "IN_STOCK",
-      inventory: exactSelectedVariant ? exactSelectedVariant.stock : 0,
+      sku: exactSelectedVariant?.sku || `${product.sku || "CUSTOM"}${Object.values(selectedOptions).length > 0 ? "-" + Object.values(selectedOptions).map(v => v.replace(/\s+/g, "").toUpperCase()).join("-") : ""}`,
+      stockType: product.stockType === "PARTNER_STORE" 
+        ? "PARTNER_STORE" 
+        : (product.variants && product.variants.length > 0)
+          ? (exactSelectedVariant && exactSelectedVariant.stock > 0 ? "IN_STOCK" : "PARTNER_STORE")
+          : (product.inventory > 0 ? "IN_STOCK" : "PARTNER_STORE"),
+      inventory: exactSelectedVariant 
+        ? exactSelectedVariant.stock 
+        : (product.variants && product.variants.length > 0 ? 0 : product.inventory),
     };
 
     addToCart(productWithVariant, quantity);
@@ -2023,7 +2048,7 @@ function ProductModal({
             <div className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-2xl shadow-lg border border-stone-100 text-stone-900 font-bold text-xs uppercase tracking-widest">
               {store?.name}
             </div>
-            {isPartnerStore ? (
+            {!isSelectionInStock ? (
               <div className="bg-amber-500 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg">
                 Compra na Loja
               </div>
@@ -2046,7 +2071,17 @@ function ProductModal({
             <h2 className="text-3xl font-display font-black text-stone-900 leading-tight">
               {product.name}
             </h2>
-            {isPartnerStore ? (
+            {isSelectionInStock ? (
+              <div className="flex items-center gap-4 text-xs font-bold text-emerald-600">
+                <span className="bg-emerald-50 px-2 py-1 rounded-lg">
+                  US$ {currentPriceUSD.toFixed(2)}
+                </span>
+                <span className="text-stone-300">|</span>
+                <span className="text-stone-400">
+                  Conversão estimada incl. tributos
+                </span>
+              </div>
+            ) : (
               <div className="flex flex-col gap-1 text-xs font-bold text-amber-600">
                 <span className="bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 inline-block self-start font-black text-xs">
                   SOB ENCOMENDA - VALOR SOB CONSULTA
@@ -2055,16 +2090,6 @@ function ProductModal({
                   Este produto não possui preço de vitrine fixo por ser comprado
                   sob demanda física ou online nos EUA. O valor exato será
                   adicionado após a visita do Personal Shopper à loja.
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-4 text-xs font-bold text-emerald-600">
-                <span className="bg-emerald-50 px-2 py-1 rounded-lg">
-                  US$ {currentPriceUSD.toFixed(2)}
-                </span>
-                <span className="text-stone-300">|</span>
-                <span className="text-stone-400">
-                  Conversão estimada incl. tributos
                 </span>
               </div>
             )}
@@ -2310,10 +2335,10 @@ function ProductModal({
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest block">
-                  {isPartnerStore ? "Preço de Vitrine (Estimado)" : "Total na Vitrine"}
+                  {!isSelectionInStock ? "Preço de Vitrine (Estimado)" : "Total na Vitrine"}
                 </span>
                 <span className="text-3xl font-display font-black text-stone-900 tracking-tighter">
-                  {isPartnerStore
+                  {!isSelectionInStock
                     ? `Est. ${formatCurrency(currentPriceBRL)}`
                     : formatCurrency(currentPriceBRL)}
                 </span>
@@ -2349,8 +2374,8 @@ function ProductModal({
                 <X className="w-6 h-6" />
               )}
               {isAvailable 
-                ? (exactSelectedVariant && exactSelectedVariant.stock > 0 && product.stockType === "IN_STOCK"
-                  ? "Adicionar (Pronta Entrega)"
+                ? (isSelectionInStock
+                  ? "Comprar Agora"
                   : "Solicitar Encomenda Especial (EUA)")
                 : "Produto Indisponível"}
             </button>

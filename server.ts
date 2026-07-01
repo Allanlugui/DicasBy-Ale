@@ -1788,6 +1788,12 @@ async function sendNewSaleNotification(orderId: string) {
                 <td style="padding: 4px 0; color: #64748b;">Itens:</td>
                 <td style="padding: 4px 0; font-weight: bold; text-align: right;">${itemsList}</td>
               </tr>
+              ${order.customDeliveryRequested ? `
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Modalidade:</td>
+                <td style="padding: 4px 0; font-weight: bold; text-align: right; color: #rose-600;">Entrega Personalizada</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td style="padding: 4px 0; color: #64748b;">Valor Total:</td>
                 <td style="padding: 4px 0; font-weight: bold; text-align: right; font-size: 15px; color: #10b981;">${formattedValue}</td>
@@ -1801,6 +1807,19 @@ async function sendNewSaleNotification(orderId: string) {
 
           <p><strong>Nota Fiscal e Regularização:</strong> Informamos que a Nota Fiscal jurídica correspondente ao seu produto será gerada e, assim que disponível homologada pelo nosso faturamento, será enviada de forma 100% automatizada com apenas um clique para você diretamente neste endereço de e-mail, legalizado para transporte entre Brasil e EUA!</p>
           
+          ${order.customDeliveryRequested ? `
+          <div style="background-color: #fff1f2; border: 1px solid #ffe4e6; border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <h3 style="margin-top: 0; color: #be123c; font-size: 15px;">Próximos Passos: Entrega Personalizada</h3>
+            <p style="font-size: 13px; color: #9f1239;">Você optou por uma entrega em mãos! Veja como prosseguiremos:</p>
+            <ul style="font-size: 13px; color: #9f1239; padding-left: 20px;">
+              <li>Nossa equipe entrará em contato com você via WhatsApp (${order.customWhatsApp || 'informado no pedido'}) em breve.</li>
+              <li>Negociaremos os detalhes de local, data e custos adicionais de logística.</li>
+              <li>Seu pedido será atualizado para <strong>Em Trânsito para o Brasil</strong> assim que o processamento inicial for concluído.</li>
+              <li>Lembramos que taxas alfandegárias e legais são de inteira responsabilidade do cliente durante o trajeto.</li>
+            </ul>
+          </div>
+          ` : ''}
+
           <h3 style="color: #4f46e5; font-size: 15px; margin-top: 24px; margin-bottom: 8px;">Acompanhamento & Canais de Suporte</h3>
           <p style="margin-top: 0;">Oferecemos suporte completo e personalizado até que seu produto chegue legalizado em suas mãos. Utilize os links rápidos abaixo para validar seu pagamento, tirar dúvidas ou conversar diretamente conosco:</p>
           
@@ -1848,6 +1867,20 @@ async function sendNewSaleNotification(orderId: string) {
                 <td style="padding: 4px 0; color: #4b5563;">Status Atual:</td>
                 <td style="padding: 4px 0; font-weight: bold; color: #b91c1c;">${order.status}</td>
               </tr>
+              ${order.customDeliveryRequested ? `
+              <tr style="background-color: #fff1f2;">
+                <td style="padding: 8px 4px; color: #be123c; font-weight: bold;">ENTREGA PERSONALIZADA:</td>
+                <td style="padding: 8px 4px; font-weight: bold; color: #be123c;">SIM (Solicitado em mãos)</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">WhatsApp Cliente:</td>
+                <td style="padding: 4px 0; font-weight: bold;">${order.customWhatsApp || "Não informado"}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #4b5563;">Instruções:</td>
+                <td style="padding: 4px 0; font-style: italic;">${order.customDeliveryInstructions || "Sem instruções adicionais."}</td>
+              </tr>
+              ` : ''}
               <tr>
                 <td style="padding: 4px 0; color: #4b5563;">Valor Consolidado:</td>
                 <td style="padding: 4px 0; font-weight: bold; color: #15803d; font-size: 14px;">${formattedValue}</td>
@@ -2524,11 +2557,24 @@ app.post("/api/asaas/webhook", async (req, res) => {
         if (orderData.status === 'PENDING_PAYMENT') {
           // Check if it is On-Demand/Quote and has a prepayment fee
           const hasPrepayment = orderData.prepaymentFee && orderData.prepaymentFee > 0;
-          const targetStatus = hasPrepayment ? 'PREPAYMENT_RECEIVED' : 'PAYMENT_RECEIVED';
-          const targetTitle = hasPrepayment ? 'Taxa de Serviço Confirmada' : 'Pagamento Recebido';
-          const targetDesc = hasPrepayment 
-            ? `Pagamento da taxa de serviço personalizado automático confirmado via webhook Asaas (${payment.billingType}).`
-            : `Pagamento automático confirmado via webhook Asaas (${payment.billingType}).`;
+          const isCustomDelivery = orderData.customDeliveryRequested === true;
+          
+          let targetStatus = hasPrepayment ? 'PREPAYMENT_RECEIVED' : 'PAYMENT_RECEIVED';
+          
+          // If custom delivery is requested, it goes straight to in transit after payment
+          if (isCustomDelivery) {
+            targetStatus = 'IN_TRANSIT_TO_BR';
+          }
+          
+          const targetTitle = isCustomDelivery 
+            ? 'Entrega Personalizada Iniciada' 
+            : (hasPrepayment ? 'Taxa de Serviço Confirmada' : 'Pagamento Recebido');
+            
+          const targetDesc = isCustomDelivery
+            ? `Pagamento confirmado! Iniciando logística de entrega personalizada (${payment.billingType}).`
+            : (hasPrepayment 
+                ? `Pagamento da taxa de serviço personalizado automático confirmado via webhook Asaas (${payment.billingType}).`
+                : `Pagamento automático confirmado via webhook Asaas (${payment.billingType}).`);
 
           const updateFields: any = {
             status: targetStatus,

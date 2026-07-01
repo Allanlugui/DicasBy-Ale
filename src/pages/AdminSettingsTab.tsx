@@ -90,6 +90,8 @@ export function AdminSettingsTab() {
   >([]);
   const [enableAutoTracking, setEnableAutoTracking] = useState(true);
   const [enableAutoRates, setEnableAutoRates] = useState(true);
+  const [enableDhlRealRates, setEnableDhlRealRates] = useState(false);
+  const [customDeliveryServiceFeeBRL, setCustomDeliveryServiceFeeBRL] = useState(0);
 
   // Load from context
   useEffect(() => {
@@ -126,6 +128,8 @@ export function AdminSettingsTab() {
       setNexusApiKey(companySettings.nexusApiKey || "");
       setEnableAutoTracking(companySettings.enableAutoTracking ?? true);
       setEnableAutoRates(companySettings.enableAutoRates ?? true);
+      setEnableDhlRealRates(companySettings.enableDhlRealRates ?? false);
+      setCustomDeliveryServiceFeeBRL(companySettings.customDeliveryServiceFeeBRL ?? 0);
     } else {
       setTermsOfUse(DEFAULT_TERMS);
       setPrivacyPolicy(DEFAULT_PRIVACY);
@@ -218,6 +222,8 @@ export function AdminSettingsTab() {
         nexusApiKey,
         enableAutoTracking,
         enableAutoRates,
+        enableDhlRealRates,
+        customDeliveryServiceFeeBRL,
       });
 
       console.log("[Settings] Successfully saved to Firestore.");
@@ -479,6 +485,26 @@ export function AdminSettingsTab() {
               </div>
               <p className="text-[10px] text-stone-400">
                 Teto máximo para pré-pagamentos em situações extraordinárias.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-stone-600 block">
+                Taxa de Serviço Entrega Personalizada (Fixo R$)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-2.5 text-stone-400 text-sm">
+                  R$
+                </span>
+                <input
+                  type="number"
+                  value={customDeliveryServiceFeeBRL}
+                  onChange={(e) => setCustomDeliveryServiceFeeBRL(Number(e.target.value))}
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition"
+                />
+              </div>
+              <p className="text-[10px] text-stone-400">
+                Valor fixo cobrado pelo serviço de entrega personalizada em mãos.
               </p>
             </div>
 
@@ -868,6 +894,32 @@ export function AdminSettingsTab() {
                   </label>
                 </div>
               </div>
+
+              <div className="bg-stone-50 border border-stone-200/60 rounded-xl p-4 md:p-5 flex flex-col justify-between space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 inline-block animate-pulse"></span>
+                    Integração Real DHL Express (API)
+                  </h4>
+                  <p className="text-[11px] text-stone-500 mt-1 leading-normal">
+                    Se ativado, o sistema usará as chaves configuradas no ambiente para consultar preços reais e gerar etiquetas via DHL API.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between border-t border-stone-200/50 pt-3 mt-2">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Status da API DHL
+                  </span>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableDhlRealRates}
+                      onChange={(e) => setEnableDhlRealRates(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -984,8 +1036,7 @@ export function AdminSettingsTab() {
                 de suporte, reviews, cupons, arquivos (Drive), destaques e logs.
                 <strong>
                   {" "}
-                  Mantém intactos: IA Generativa, CRM (usuários), Lojas, Métodos
-                  de frete e Configurações da Empresa.
+                  Mantém intactos: IA Generativa, CRM (usuários), Lojas e Configurações da Empresa.
                 </strong>
               </p>
             </div>
@@ -1030,7 +1081,7 @@ export function AdminSettingsTab() {
                 Reset de Configurações
               </h4>
               <p className="text-[10px] text-stone-500 mt-1">
-                Apaga apenas as Configurações do Sistema e Métodos de Frete.
+                Apaga apenas as Configurações do Sistema.
                 <strong>
                   {" "}
                   Todo o restante, incluindo IA, Lojas e CRM não será afetado

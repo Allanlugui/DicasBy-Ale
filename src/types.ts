@@ -153,6 +153,8 @@ export type Order = {
   shippingMethod?: ShippingMethod;
   customDeliveryRequested?: boolean;
   customDeliveryInstructions?: string;
+  customWhatsApp?: string;
+  customDeliveryServiceFeeBRL?: number;
   storedAtUS?: string;
   storedAtBR?: string;
   accumulatedStorageFeeBRL?: number;
@@ -198,6 +200,7 @@ export type UserProfile = {
   neighborhood: string;
   city: string;
   state: string;
+  countryCode?: string;
   updatedAt: string;
   customStorageGracePeriodDays?: number;
   isStorageFeeExempt?: boolean;
@@ -234,6 +237,8 @@ export type CompanySettings = {
   dollarRate?: number;
   enableAutoTracking?: boolean;
   enableAutoRates?: boolean;
+  enableDhlRealRates?: boolean;
+  customDeliveryServiceFeeBRL?: number;
 };
 
 export type Collaborator = {

@@ -1157,208 +1157,6 @@ function CouponsTab() {
   );
 }
 
-function ShippingMethodsTab() {
-  const {
-    shippingMethods,
-    addShippingMethod,
-    updateShippingMethod,
-    deleteShippingMethod,
-  } = useAppContext();
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [carrier, setCarrier] = useState("");
-  const [estimatedDays, setEstimatedDays] = useState("");
-  const [basePriceBRL, setBasePriceBRL] = useState(0);
-  const [logo, setLogo] = useState("");
-  const [editingId, setEditingId] = useState("");
-
-  const resetForm = () => {
-    setEditingId("");
-    setName("");
-    setCarrier("");
-    setEstimatedDays("");
-    setBasePriceBRL(0);
-    setLogo("");
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogo(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const data = { name, carrier, estimatedDays, basePriceBRL, logo };
-    if (editingId) {
-      await updateShippingMethod(editingId, data);
-    } else {
-      await addShippingMethod(data);
-    }
-    resetForm();
-    setShowForm(false);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-stone-900">Métodos de Envio</h3>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"
-        >
-          {showForm ? <XCircle /> : <Plus />}{" "}
-          {showForm ? "Cancelar" : "Novo Método"}
-        </button>
-      </div>
-
-      {showForm && (
-        <form
-          onSubmit={handleSave}
-          className="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-              Nome do Serviço
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
-              placeholder="Ex: Econômico Aéreo"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-              Transportadora
-            </label>
-            <input
-              type="text"
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value)}
-              required
-              className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
-              placeholder="Ex: USPS, FedEx, Uber Local"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-              Prazo Estimado
-            </label>
-            <input
-              type="text"
-              value={estimatedDays}
-              onChange={(e) => setEstimatedDays(e.target.value)}
-              required
-              className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
-              placeholder="Ex: 15-20 dias"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-              Preço Base Estimado (R$)
-            </label>
-            <input
-              type="number"
-              value={basePriceBRL}
-              onChange={(e) => setBasePriceBRL(Number(e.target.value))}
-              required
-              className="w-full rounded-lg border border-stone-200 px-4 py-2 text-sm bg-stone-50"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-widest mb-1">
-              Logotipo da Transportadora (Opcional)
-            </label>
-            <div className="flex items-center gap-4">
-              {logo && (
-                <img src={logo} alt="Logo" className="w-10 h-10 object-contain bg-white rounded border border-stone-200" />
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="w-full rounded-lg border border-stone-200 px-4 py-1.5 text-sm bg-stone-50 file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-              />
-            </div>
-          </div>
-          <div className="md:col-span-2 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-stone-500 font-bold px-4"
-            >
-              Limpar
-            </button>
-            <button
-              type="submit"
-              className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold"
-            >
-              Salvar Método
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {shippingMethods.map((m) => (
-          <div
-            key={m.id}
-            className="bg-white p-4 rounded-xl border border-stone-100 shadow-sm flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              {m.logo ? (
-                <img src={m.logo} alt={m.carrier} className="w-10 h-10 object-contain rounded border border-stone-100 p-1" />
-              ) : (
-                <div className="w-10 h-10 bg-stone-100 rounded flex items-center justify-center">
-                  <span className="text-stone-400 text-xs font-bold">{m.carrier.substring(0, 2).toUpperCase()}</span>
-                </div>
-              )}
-              <div>
-                <span className="font-bold text-stone-900 block">{m.name}</span>
-                <span className="text-xs text-stone-500">
-                  {m.carrier} | {m.estimatedDays}
-                </span>
-                <span className="text-[11px] font-black text-indigo-600 block mt-1">
-                  Base: {formatCurrency(m.basePriceBRL)}
-                </span>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setEditingId(m.id);
-                  setName(m.name);
-                  setCarrier(m.carrier);
-                  setEstimatedDays(m.estimatedDays);
-                  setBasePriceBRL(m.basePriceBRL);
-                  setLogo(m.logo || "");
-                  setShowForm(true);
-                }}
-                className="p-2 text-stone-400 hover:text-indigo-600 cursor-pointer"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => deleteShippingMethod(m.id)}
-                className="p-2 text-stone-400 hover:text-rose-600 cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export function Admin() {
   const {
@@ -1540,17 +1338,6 @@ export function Admin() {
           >
             Cupons
             {activeTab === "coupons" && (
-              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>
-            )}
-          </button>
-        )}
-        {hasPermission("settings") && (
-          <button
-            onClick={() => setActiveTab("shipping_methods")}
-            className={`whitespace-nowrap pb-4 px-4 font-bold text-sm transition-colors cursor-pointer relative ${activeTab === "shipping_methods" ? "text-rose-600" : "text-stone-500 hover:text-stone-800"}`}
-          >
-            Métodos frete
-            {activeTab === "shipping_methods" && (
               <span className="absolute bottom-0 left-0 w-full h-0.5 bg-rose-500 rounded-t-full"></span>
             )}
           </button>
@@ -1751,9 +1538,6 @@ export function Admin() {
       )}
       {activeTab === "notifications" && <AdminNotificationsTab />}
       {activeTab === "coupons" && hasPermission("settings") && <CouponsTab />}
-      {activeTab === "shipping_methods" && hasPermission("settings") && (
-        <ShippingMethodsTab />
-      )}
       {activeTab === "inventory" && hasPermission("products") && (
         <InventoryTab products={products} updateProduct={updateProduct} />
       )}
@@ -2726,6 +2510,7 @@ function OrderAdminCard({
   const [carrierTrackingCode, setCarrierTrackingCode] = useState(
     order.carrierTrackingCode || "",
   );
+  const [isLoadingDhl, setIsLoadingDhl] = useState(false);
 
   // States for Invoice and documents upload
   const [invoiceBase64, setInvoiceBase64] = useState<string>(
@@ -2894,6 +2679,62 @@ function OrderAdminCard({
     }
   }, [length, width, height, weight, companySettings?.enableAutoRates, order.finalShippingFeeBRL, order.shippingFeeBRL, finalShippingFeeBRL]);
 
+  const handleDhlRate = async () => {
+    if (length <= 0 || width <= 0 || height <= 0 || weight <= 0) {
+      alert("Por favor, preencha as dimensões e o peso para consultar a DHL.");
+      return;
+    }
+
+    setIsLoadingDhl(true);
+    try {
+      const res = await fetch("/api/dhl/rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plannedShippingDate: new Date().toISOString().split('T')[0],
+          unitOfMeasurement: "metric",
+          isCustomsDeclarable: true,
+          originCountryCode: "US",
+          originCityName: "Miami",
+          destinationCountryCode: customerProfile?.countryCode || "BR",
+          destinationCityName: customerProfile?.city || "São Paulo",
+          weight: weight,
+          length: length,
+          width: width,
+          height: height,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao consultar DHL.");
+      }
+
+      const data = await res.json();
+      // DHL API returns an array of products. We take the first one or a specific one.
+      // Usually "P" is Express Worldwide.
+      const expressProduct = data.products?.find((p: any) => p.productCode === "P") || data.products?.[0];
+      
+      if (expressProduct && expressProduct.totalPrice) {
+        // DHL returns USD typically or local currency. We need to convert or check the currency.
+        // For simplicity in this simulation, we assume it returns total price in USD or BRL based on your DHL account.
+        // If it's USD, we multiply by our dollar rate.
+        let val = expressProduct.totalPrice[0].price;
+        if (expressProduct.totalPrice[0].currency === 'USD') {
+          val = val * (companySettings?.dollarRate || 5.5);
+        }
+        setFinalShippingFeeBRL(Math.round(val * 100) / 100);
+        alert(`Frete DHL calculado com sucesso: ${formatCurrency(val)}`);
+      } else {
+        alert("Nenhum preço retornado pela DHL para estas dimensões.");
+      }
+    } catch (err: any) {
+      alert("Falha DHL: " + err.message);
+    } finally {
+      setIsLoadingDhl(false);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     let receipt = undefined;
@@ -2950,6 +2791,38 @@ function OrderAdminCard({
     extraFields.customsName = customsName;
     extraFields.carrierName = carrierName;
     extraFields.carrierTrackingCode = carrierTrackingCode;
+
+    // DHL Shipment Creation Trigger
+    if (status === "IN_TRANSIT_TO_BR" && companySettings?.enableDhlRealRates && !order.carrierTrackingCode) {
+      try {
+        const dhlRes = await fetch("/api/dhl/shipment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: order.customerName,
+            customerEmail: order.customerEmail,
+            customerPhone: customerProfile?.phone || "",
+            customerAddress: `${customerProfile?.street}, ${customerProfile?.number}`,
+            customerCity: customerProfile?.city || "São Paulo",
+            customerPostalCode: customerProfile?.zipCode || "01001-000",
+            customerCountry: customerProfile?.countryCode || "BR",
+            totalWeight: weight,
+          }),
+        });
+
+        if (dhlRes.ok) {
+          const dhlData = await dhlRes.json();
+          if (dhlData.shipmentTrackingNumber) {
+            extraFields.carrierTrackingCode = dhlData.shipmentTrackingNumber;
+            extraFields.carrierName = "DHL Express";
+            setCarrierTrackingCode(dhlData.shipmentTrackingNumber);
+            setCarrierName("DHL Express");
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao gerar etiqueta DHL automática:", err);
+      }
+    }
 
     // Se admin anexar foto ou comprovante junto (relatório fotográfico)
     if (photoUrl) {
@@ -3329,8 +3202,21 @@ function OrderAdminCard({
                     <label className="block text-[10px] font-bold text-indigo-600 uppercase mb-1">
                       Taxa Calculada
                     </label>
-                    <div className="w-full px-3 py-2 rounded-lg border border-indigo-300 text-sm bg-indigo-100 font-bold text-indigo-900">
-                      {formatCurrency(storageFeeBRL)}
+                    <div className="flex gap-2">
+                      <div className="flex-1 px-3 py-2 rounded-lg border border-indigo-300 text-sm bg-indigo-100 font-bold text-indigo-900">
+                        {formatCurrency(storageFeeBRL)}
+                      </div>
+                      {(companySettings?.enableDhlRealRates) && (
+                        <button
+                          type="button"
+                          onClick={handleDhlRate}
+                          disabled={isLoadingDhl}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-3 py-1 rounded-lg uppercase transition-all shadow-sm flex items-center gap-1"
+                        >
+                          {isLoadingDhl ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Truck className="w-3 h-3" />}
+                          Calcular DHL
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

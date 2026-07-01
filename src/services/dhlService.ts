@@ -4,18 +4,28 @@
  * Documentation: https://developer.dhl.com/
  */
 
+export interface DHLPackage {
+  weight: number;
+  dimensions: {
+    length: number;
+    width: number;
+    height: number;
+  };
+}
+
 export interface DHLQuoteRequest {
   plannedShippingDate: string;
   unitOfMeasurement: 'metric' | 'imperial';
   isCustomsDeclarable: boolean;
   originCountryCode: string;
   originCityName: string;
+  originPostalCode?: string;
   destinationCountryCode: string;
   destinationCityName: string;
-  weight: number;
-  length: number;
-  width: number;
-  height: number;
+  destinationPostalCode?: string;
+  packages: DHLPackage[];
+  declaredValue?: number;
+  declaredCurrency?: string;
 }
 
 export class DHLService {
@@ -30,8 +40,6 @@ export class DHLService {
   }
 
   private async getAuthHeader(): Promise<string> {
-    // DHL often uses Basic Auth or API Key in headers depending on the specific product (Express, eCommerce, etc.)
-    // For Express API (Sandbox), it's typically Basic Auth with Key:Secret
     const credentials = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64');
     return `Basic ${credentials}`;
   }
@@ -56,12 +64,12 @@ export class DHLService {
         body: JSON.stringify({
           customerDetails: {
             shipperDetails: {
-              postalCode: "33122",
+              postalCode: params.originPostalCode || "33122",
               cityName: params.originCityName,
               countryCode: params.originCountryCode
             },
             receiverDetails: {
-              postalCode: "01001-000",
+              postalCode: params.destinationPostalCode || "01001-000",
               cityName: params.destinationCityName,
               countryCode: params.destinationCountryCode
             }
@@ -72,20 +80,11 @@ export class DHLService {
           monetaryAmount: [
             {
               type: "declaredValue",
-              value: 100,
-              currency: "USD"
+              value: params.declaredValue || 100,
+              currency: params.declaredCurrency || "USD"
             }
           ],
-          packages: [
-            {
-              weight: params.weight,
-              dimensions: {
-                length: params.length,
-                width: params.width,
-                height: params.height
-              }
-            }
-          ]
+          packages: params.packages
         })
       });
 
