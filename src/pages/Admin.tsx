@@ -63,17 +63,17 @@ import { AdminCustomersTab } from "./AdminCustomersTab";
 import { AdminIntegrationLogsTab } from "./AdminIntegrationLogsTab";
 
 export const ADMIN_STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando Pagamento",
+  PENDING_PAYMENT: "Aguardando Pagamento de Taxa de Serviço Personalizado",
   PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
   AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
   PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
-  PAYMENT_RECEIVED: "Pagamento Confirmado (Sinal 30% ou Total)",
+  PAYMENT_RECEIVED: "Pagamento Confirmado (Pronto para Faturamento)",
   PURCHASED_IN_STORE: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
-  STORED_IN_US: "Armazenado no CD dos EUA",
-  SHIPPING_PAID: "Frete Pago (Confirmado)",
-  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
-  ARRIVED_IN_BR: "Chegou no Brasil",
-  DELIVERED: "Entregue ao Cliente",
+  STORED_IN_US: "Armazenado no centro de distribuição",
+  SHIPPING_PAID: "Frete Pago",
+  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil/Estados Unidos",
+  ARRIVED_IN_BR: "Seu produto chegou ao destino",
+  DELIVERED: "Produto entregue ao cliente",
   CANCELLED: "Cancelado",
 };
 

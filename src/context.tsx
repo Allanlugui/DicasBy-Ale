@@ -682,9 +682,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let autoTrackingCode = order.carrierTrackingCode;
     if (!autoTrackingCode) {
       const carrier = order.carrierName || order.shippingMethod?.carrier || "Correios";
-      if (status === 'PAYMENT_RECEIVED' && !isCustom) {
-        autoTrackingCode = generateCarrierTrackingCode(carrier);
-      } else if (status === 'SHIPPING_PAID' && isCustom) {
+      if (status === 'IN_TRANSIT_TO_BR') {
         autoTrackingCode = generateCarrierTrackingCode(carrier);
       }
     }

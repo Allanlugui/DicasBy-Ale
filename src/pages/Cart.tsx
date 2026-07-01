@@ -556,10 +556,16 @@ export function Cart() {
           </p>
         </div>
         {pendingQuoteOrders.map((order, index) => {
-          const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
-          const amountToPayNow = hasPaidPrepayment
-            ? (order.onDemandProductCostBRL || 0) + (order.finalShippingFeeBRL || order.shippingFeeBRL || 0)
-            : (order.prepaymentFee || order.totalBRL);
+          const isCustom = (order.prepaymentFee || 0) > 0;
+          let amountToPayNow = order.totalBRL;
+
+          if (order.status === 'PENDING_PAYMENT') {
+            amountToPayNow = isCustom ? order.prepaymentFee : order.totalBRL;
+          } else if (order.status === 'AWAITING_PRODUCT_PAYMENT') {
+            amountToPayNow = order.onDemandProductCostBRL || 0;
+          } else if (order.status === 'STORED_IN_US') {
+            amountToPayNow = order.finalShippingFeeBRL || order.shippingFeeBRL || 0;
+          }
 
           return (
             <div
@@ -633,7 +639,7 @@ export function Cart() {
                         Consolidado em BRL
                       </span>
                     </h4>
-                    {hasPaidPrepayment ? (
+                    {isCustom ? (
                       <>
                         <div className="flex justify-between items-center bg-emerald-50/60 border border-emerald-100 p-2 rounded-xl">
                           <span className="text-stone-600 font-medium">Sinal / Taxa de Serviço Especial:</span>

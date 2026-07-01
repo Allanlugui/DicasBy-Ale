@@ -2647,11 +2647,6 @@ app.post("/api/asaas/webhook", async (req, res) => {
             updatedAt: new Date().toISOString()
           };
 
-          if (!hasPrepayment && !orderData.carrierTrackingCode) {
-            const carrier = orderData.carrierName || (orderData.shippingMethod && orderData.shippingMethod.carrier) || "Correios";
-            updateFields.carrierTrackingCode = generateCarrierTrackingCode(carrier);
-          }
-
           await ordersRef.doc(orderId).update(updateFields);
 
           const eventRef = ordersRef.doc(orderId).collection('events');
@@ -2682,7 +2677,7 @@ app.post("/api/asaas/webhook", async (req, res) => {
           await eventRef.add({
             status: 'PRODUCT_PAYMENT_RECEIVED',
             title: 'Pagamento de Produto Confirmado',
-            description: `Pagamento do custo do produto e frete internacional automático confirmado via webhook Asaas (${payment.billingType}).`,
+            description: `Pagamento do custo do produto automático confirmado via webhook Asaas (${payment.billingType}).`,
             timestamp: new Date().toISOString()
           });
 
@@ -2701,11 +2696,6 @@ app.post("/api/asaas/webhook", async (req, res) => {
             shippingPaidAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
-
-          if (!orderData.carrierTrackingCode) {
-            const carrier = orderData.carrierName || (orderData.shippingMethod && orderData.shippingMethod.carrier) || "Correios";
-            updateFields.carrierTrackingCode = generateCarrierTrackingCode(carrier);
-          }
 
           await ordersRef.doc(orderId).update(updateFields);
 

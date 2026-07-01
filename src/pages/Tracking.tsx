@@ -44,17 +44,17 @@ const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando Pagamento",
+  PENDING_PAYMENT: "Aguardando Pagamento de Taxa de Serviço Personalizado",
   PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
   AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
   PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
   PAYMENT_RECEIVED: "Pagamento Confirmado",
   PURCHASED_IN_STORE: "Comprado na Loja",
-  STORED_IN_US: "Armazenado no CD EUA",
+  STORED_IN_US: "Armazenado no centro de distribuição",
   SHIPPING_PAID: "Frete Pago",
-  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
-  ARRIVED_IN_BR: "Chegou no Brasil",
-  DELIVERED: "Entregue ao Cliente",
+  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil/Estados Unidos",
+  ARRIVED_IN_BR: "Seu produto chegou ao destino",
+  DELIVERED: "Produto entregue ao cliente",
   CANCELLED: "Cancelado",
 };
 
@@ -707,15 +707,15 @@ export function Tracking() {
               const activePixCity = companySettings?.pixCity || "SAO PAULO";
 
               // Use final shipping fee if it exists and we are in shipping payment status
-              const hasPaidPrepayment = order.prepaymentFee > 0 && (order.onDemandProductCostBRL || 0) > 0;
+              const isCustom = (order.prepaymentFee || 0) > 0;
               const isShipping = order.status === 'STORED_IN_US';
               let amount = order.totalBRL;
               if (order.status === 'AWAITING_PRODUCT_PAYMENT') {
-                amount = (order.onDemandProductCostBRL || 0) + (order.finalShippingFeeBRL || order.shippingFeeBRL || 0);
+                amount = order.onDemandProductCostBRL || 0;
               } else if (isShipping) {
                 amount = order.finalShippingFeeBRL || order.shippingFeeBRL || 0;
               } else if (order.status === 'PENDING_PAYMENT') {
-                if (order.prepaymentFee && order.prepaymentFee > 0) {
+                if (isCustom) {
                   amount = order.prepaymentFee;
                 } else {
                   amount = order.totalBRL;
@@ -842,7 +842,7 @@ export function Tracking() {
                               {activePixKey}
                             </strong>
                           </div>
-                          {hasPaidPrepayment && !isShipping && (
+                          {isCustom && !isShipping && (
                             <div className="flex justify-between text-[11px] text-emerald-700 bg-emerald-50/60 border border-emerald-100 p-1.5 rounded-lg mt-1">
                               <span>Sinal / Taxa de Serviço:</span>
                               <span className="font-bold">Pago ({formatCurrency(order.prepaymentFee)})</span>
@@ -851,10 +851,10 @@ export function Tracking() {
                           <div className="flex justify-between border-t border-stone-200/60 pt-2 mt-2">
                             <span className="text-stone-500 font-bold">
                               {order.status === 'AWAITING_PRODUCT_PAYMENT'
-                                ? "Valor do Produto + Frete:"
+                                ? "Valor do Produto:"
                                 : (isShipping
                                   ? "Frete a Pagar:"
-                                  : (hasPaidPrepayment ? "Valor do Produto (A Pagar):" : "Sinal / Taxa de Serviço:"))}
+                                  : (isCustom ? "Sinal / Taxa de Serviço:" : "Valor Total do Pedido:"))}
                             </span>
                             <strong className="text-rose-600 text-sm font-semibold">
                               {formatCurrency(amount)}
