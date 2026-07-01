@@ -4,6 +4,7 @@ import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { DHLService } from "./src/services/dhlService";
 
 // Initialize Firebase Admin for server-side Firestore access with explicit credentials fallback
 function initializeFirebase() {
@@ -54,6 +55,7 @@ function initializeFirebase() {
 }
 
 const db = initializeFirebase();
+const dhl = new DHLService();
 
 function getPreciseFallbackImage(productName: string, categoryName: string = ''): string {
   const nameLower = (productName || "").toLowerCase();
@@ -430,6 +432,34 @@ function decodedSegment(seg: string): string {
 }
 
 // API route to perform real internet product search using Gemini & Search Grounding
+app.post("/api/dhl/rates", async (req, res) => {
+  try {
+    const rates = await dhl.getRates(req.body);
+    res.json(rates);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/dhl/shipment", async (req, res) => {
+  try {
+    const shipment = await dhl.createShipment(req.body);
+    res.json(shipment);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/dhl/track/:trackingNumber", async (req, res) => {
+  try {
+    const tracking = await dhl.trackShipment(req.params.trackingNumber);
+    if (!tracking) return res.status(404).json({ error: "Tracking not found" });
+    res.json(tracking);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/search-internet", async (req, res) => {
   const { query: searchQuery, userLocation } = req.body;
   if (!searchQuery || typeof searchQuery !== 'string') {
