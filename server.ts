@@ -2018,17 +2018,17 @@ async function sendStatusUpdateNotification(orderId: string, status: string, not
 
     const statusLabels: Record<string, string> = {
       'PENDING_PAYMENT': 'Aguardando Pagamento',
-      'PREPAYMENT_RECEIVED': 'Pagamento de taxa de serviço personalizado confirmada',
+      'PREPAYMENT_RECEIVED': 'Pagamento de taxa de serviço personalizada confirmada',
       'AWAITING_PRODUCT_PAYMENT': 'Aguardando pagamento do produto',
       'PRODUCT_PAYMENT_RECEIVED': 'Pagamento do produto confirmado',
-      'PAYMENT_RECEIVED': 'Pagamento Confirmado',
-      'PURCHASED_IN_STORE': 'Comprado na Loja / Pronto para Despacho',
-      'STORED_IN_US': 'Recebido em nosso Centro de Distribuição (EUA)',
-      'SHIPPING_PAID': 'Frete Internacional Pago',
-      'IN_TRANSIT_TO_BR': 'Em Trânsito para o Brasil',
-      'ARRIVED_IN_BR': 'Recebido em nosso Centro de Distribuição (Brasil)',
-      'DELIVERED': 'Entregue com Sucesso',
-      'CANCELLED': 'Pedido Cancelado'
+      'PAYMENT_RECEIVED': 'Pagamento Confirmado (Sinal 30% ou Total)',
+      'PURCHASED_IN_STORE': 'Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)',
+      'STORED_IN_US': 'Armazenado no CD dos EUA',
+      'SHIPPING_PAID': 'Frete Pago (Confirmado)',
+      'IN_TRANSIT_TO_BR': 'Em trâmite para o Brasil (Despachado)',
+      'ARRIVED_IN_BR': 'Chegou no Brasil',
+      'DELIVERED': 'Entregue ao Cliente',
+      'CANCELLED': 'Cancelado'
     };
 
     const friendlyStatus = statusLabels[status] || status;

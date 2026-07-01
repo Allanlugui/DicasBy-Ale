@@ -63,17 +63,17 @@ import { AdminCustomersTab } from "./AdminCustomersTab";
 import { AdminIntegrationLogsTab } from "./AdminIntegrationLogsTab";
 
 export const ADMIN_STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando Pagamento de Taxa de Serviço Personalizado",
-  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
+  PENDING_PAYMENT: "Aguardando Pagamento",
+  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizada confirmada",
   AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
   PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
-  PAYMENT_RECEIVED: "Pagamento Confirmado (Pronto para Faturamento)",
+  PAYMENT_RECEIVED: "Pagamento Confirmado (Sinal 30% ou Total)",
   PURCHASED_IN_STORE: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
-  STORED_IN_US: "Armazenado no centro de distribuição",
-  SHIPPING_PAID: "Frete Pago",
-  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil/Estados Unidos",
-  ARRIVED_IN_BR: "Seu produto chegou ao destino",
-  DELIVERED: "Produto entregue ao cliente",
+  STORED_IN_US: "Armazenado no CD dos EUA",
+  SHIPPING_PAID: "Frete Pago (Confirmado)",
+  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
+  ARRIVED_IN_BR: "Chegou no Brasil",
+  DELIVERED: "Entregue ao Cliente",
   CANCELLED: "Cancelado",
 };
 
@@ -2030,7 +2030,7 @@ function OrdersTab({
 
     doc.setFont("helvetica", "normal");
     doc.setTextColor(15, 23, 42);
-    doc.text("Valores Sob Análise / Aguardando Pagamento", 17, 79);
+    doc.text("Aguardando Pagamento", 17, 79);
     doc.setTextColor(217, 119, 6); // amber-600
     doc.text(
       `R$ ${sumPendingBRL.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
@@ -2073,38 +2073,38 @@ function OrdersTab({
       },
       {
         key: "PREPAYMENT_RECEIVED",
-        label: "Taxa de Serviço Confirmada",
+        label: "Pagamento de taxa de serviço personalizada confirmada",
         color: [16, 185, 129],
       },
       {
         key: "AWAITING_PRODUCT_PAYMENT",
-        label: "Aguardando Pagamento do Produto",
+        label: "Aguardando pagamento do produto",
         color: [217, 119, 6],
       },
       {
         key: "PRODUCT_PAYMENT_RECEIVED",
-        label: "Pagamento do Produto Confirmado",
+        label: "Pagamento do produto confirmado",
         color: [16, 185, 129],
       },
       {
         key: "PAYMENT_RECEIVED",
-        label: "Pagamento Confirmado",
+        label: "Pagamento Confirmado (Sinal 30% ou Total)",
         color: [16, 185, 129],
       },
       {
         key: "PURCHASED_IN_STORE",
-        label: "Comprado na Loja Gringa",
+        label: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
         color: [37, 99, 235],
       },
       {
         key: "STORED_IN_US",
-        label: "Armazenado no CD EUA",
+        label: "Armazenado no CD dos EUA",
         color: [79, 70, 229],
       },
-      { key: "SHIPPING_PAID", label: "Frete Pago", color: [16, 185, 129] },
+      { key: "SHIPPING_PAID", label: "Frete Pago (Confirmado)", color: [16, 185, 129] },
       {
         key: "IN_TRANSIT_TO_BR",
-        label: "Em Trâmite Internacional",
+        label: "Em trâmite para o Brasil (Despachado)",
         color: [124, 58, 237],
       },
       {
@@ -2114,12 +2114,12 @@ function OrdersTab({
       },
       {
         key: "DELIVERED",
-        label: "Entregue ao Destinatário",
+        label: "Entregue ao Cliente",
         color: [15, 23, 42],
       },
       {
         key: "CANCELLED",
-        label: "Cancelado (Excluído dos Ativos)",
+        label: "Cancelado",
         color: [225, 29, 72],
       },
     ];
@@ -2260,7 +2260,7 @@ function OrdersTab({
     },
     {
       id: "PAYMENT_RECEIVED",
-      label: "Pagamento Confirmado",
+      label: "Pagamento Confirmado (Sinal 30% ou Total)",
       count: totalPaidCount,
       icon: CheckCircle,
     },
@@ -2272,25 +2272,25 @@ function OrdersTab({
     },
     {
       id: "STORED_IN_US",
-      label: "Armazenado nos EUA",
+      label: "Armazenado no CD dos EUA",
       count: orders.filter((o) => o.status === "STORED_IN_US").length,
       icon: StoreIcon,
     },
     {
       id: "IN_TRANSIT_TO_BR",
-      label: "Em Trânsito para BR",
+      label: "Em trâmite para o Brasil (Despachado)",
       count: orders.filter((o) => o.status === "IN_TRANSIT_TO_BR").length,
       icon: FileText,
     },
     {
       id: "ARRIVED_IN_BR",
-      label: "No Brasil",
+      label: "Chegou no Brasil",
       count: orders.filter((o) => o.status === "ARRIVED_IN_BR").length,
       icon: FileText,
     },
     {
       id: "DELIVERED",
-      label: "Entregue",
+      label: "Entregue ao Cliente",
       count: orders.filter((o) => o.status === "DELIVERED").length,
       icon: CheckCircle,
     },
@@ -2643,7 +2643,7 @@ function OrdersTab({
                     >
                       <option value="PENDING_PAYMENT">Aguardando Pagamento</option>
                       <option value="PREPAYMENT_RECEIVED">
-                        Pagamento de taxa de serviço personalizado confirmada
+                        Pagamento de taxa de serviço personalizada confirmada
                       </option>
                       <option value="AWAITING_PRODUCT_PAYMENT">
                         Aguardando pagamento do produto
@@ -3212,7 +3212,7 @@ function OrderAdminCard({
               >
                 <option value="PENDING_PAYMENT">Aguardando Pagamento</option>
                 <option value="PREPAYMENT_RECEIVED">
-                  Pagamento de taxa de serviço personalizado confirmada
+                  Pagamento de taxa de serviço personalizada confirmada
                 </option>
                 <option value="AWAITING_PRODUCT_PAYMENT">
                   Aguardando pagamento do produto

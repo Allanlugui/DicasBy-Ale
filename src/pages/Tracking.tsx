@@ -44,17 +44,17 @@ const STATUS_ICONS: Record<OrderStatus, React.ElementType> = {
 };
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING_PAYMENT: "Aguardando Pagamento de Taxa de Serviço Personalizado",
-  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizado confirmada",
+  PENDING_PAYMENT: "Aguardando Pagamento",
+  PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizada confirmada",
   AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
   PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
-  PAYMENT_RECEIVED: "Pagamento Confirmado",
-  PURCHASED_IN_STORE: "Comprado na Loja",
-  STORED_IN_US: "Armazenado no centro de distribuição",
-  SHIPPING_PAID: "Frete Pago",
-  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil/Estados Unidos",
-  ARRIVED_IN_BR: "Seu produto chegou ao destino",
-  DELIVERED: "Produto entregue ao cliente",
+  PAYMENT_RECEIVED: "Pagamento Confirmado (Sinal 30% ou Total)",
+  PURCHASED_IN_STORE: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
+  STORED_IN_US: "Armazenado no CD dos EUA",
+  SHIPPING_PAID: "Frete Pago (Confirmado)",
+  IN_TRANSIT_TO_BR: "Em trâmite para o Brasil (Despachado)",
+  ARRIVED_IN_BR: "Chegou no Brasil",
+  DELIVERED: "Entregue ao Cliente",
   CANCELLED: "Cancelado",
 };
 
