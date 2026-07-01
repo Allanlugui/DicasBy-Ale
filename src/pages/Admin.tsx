@@ -66,8 +66,8 @@ export const ADMIN_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING_PAYMENT: "Aguardando Pagamento",
   PREPAYMENT_RECEIVED: "Pagamento de taxa de serviço personalizada confirmada",
   AWAITING_PRODUCT_PAYMENT: "Aguardando pagamento do produto",
-  PRODUCT_PAYMENT_RECEIVED: "Pagamento do produto confirmado",
-  PAYMENT_RECEIVED: "Pagamento Confirmado (Sinal 30% ou Total)",
+  PRODUCT_PAYMENT_RECEIVED: "Pagamento do Produto Confirmado",
+  PAYMENT_RECEIVED: "Pagamento do Produto Confirmado",
   PURCHASED_IN_STORE: "Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)",
   STORED_IN_US: "Armazenado no CD dos EUA",
   SHIPPING_PAID: "Frete Pago (Confirmado)",
@@ -1867,12 +1867,12 @@ function OrdersTab({
       },
       {
         key: "PRODUCT_PAYMENT_RECEIVED",
-        label: "Pagamento do produto confirmado",
+        label: "Pagamento do Produto Confirmado",
         color: [16, 185, 129],
       },
       {
         key: "PAYMENT_RECEIVED",
-        label: "Pagamento Confirmado (Sinal 30% ou Total)",
+        label: "Pagamento do Produto Confirmado",
         color: [16, 185, 129],
       },
       {
@@ -2044,7 +2044,7 @@ function OrdersTab({
     },
     {
       id: "PAYMENT_RECEIVED",
-      label: "Pagamento Confirmado (Sinal 30% ou Total)",
+      label: "Pagamento do Produto Confirmado",
       count: totalPaidCount,
       icon: CheckCircle,
     },
@@ -2433,10 +2433,10 @@ function OrdersTab({
                         Aguardando pagamento do produto
                       </option>
                       <option value="PRODUCT_PAYMENT_RECEIVED">
-                        Pagamento do produto confirmado
+                        Pagamento do Produto Confirmado
                       </option>
                       <option value="PAYMENT_RECEIVED">
-                        Pagamento Confirmado (Sinal 30% ou Total)
+                        Pagamento do Produto Confirmado
                       </option>
                       <option value="PURCHASED_IN_STORE">
                         Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)
@@ -3091,10 +3091,10 @@ function OrderAdminCard({
                   Aguardando pagamento do produto
                 </option>
                 <option value="PRODUCT_PAYMENT_RECEIVED">
-                  Pagamento do produto confirmado
+                  Pagamento do Produto Confirmado
                 </option>
                 <option value="PAYMENT_RECEIVED">
-                  Pagamento Confirmado (Sinal 30% ou Total)
+                  Pagamento do Produto Confirmado
                 </option>
                 <option value="PURCHASED_IN_STORE">
                   Comprado na Loja (Pronto para Adicionar Foto da Nota/Produto)

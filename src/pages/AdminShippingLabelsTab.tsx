@@ -504,7 +504,7 @@ export function AdminShippingLabelsTab({
             className="bg-stone-50 border border-stone-200 text-xs rounded-xl px-2.5 py-1.5 font-bold focus:ring-rose-500 outline-none"
           >
             <option value="PAYMENT_RECEIVED">
-              Pagamento Confirmado (Pronto para Iniciar)
+              Pagamento do Produto Confirmado
             </option>
             <option value="PURCHASED_IN_STORE">
               Comprado na Loja (Empacotando)
