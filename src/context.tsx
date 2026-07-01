@@ -153,6 +153,7 @@ interface AppContextType {
   addCartFeedback: (feedback: Omit<CartFeedback, 'id' | 'createdAt'>) => Promise<void>;
   addAbandonedEmailLog: (log: Omit<AbandonedEmailLog, 'id' | 'sentAt'>) => Promise<void>;
   updateAbandonedEmailLog: (id: string, status: 'SENT' | 'RECOVERED') => Promise<void>;
+  liveDollarRate: number | null;
   profiles: UserProfile[];
 }
 
@@ -170,9 +171,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [rawCart, setRawCart] = useState<CartItem[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [liveDollarRate, setLiveDollarRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchRate = async () => {
+      try {
+        const response = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
+        const data = await response.json();
+        if (data.USDBRL && data.USDBRL.bid) {
+          setLiveDollarRate(parseFloat(data.USDBRL.bid));
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+      }
+    };
+
+    fetchRate();
+    const interval = setInterval(fetchRate, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const products = useMemo(() => {
-    const rate = companySettings?.dollarRate || 5.50;
+    const rate = liveDollarRate || companySettings?.dollarRate || 5.50;
     return rawProducts.map(p => {
       const loc = p.location || 'US';
       if (loc === 'BR') {
@@ -1288,7 +1308,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs, cartFeedbacks, abandonedEmailLogs, addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog, profiles }}>
+    <AppContext.Provider value={{ user, profile, dbQuotaExceeded, companySettings, isAdmin, collaborator, stores, products, orders, tickets, reviews, cart, addToCart, removeFromCart, clearCart, createOrder, updateOrderStatus, saveProfile, saveCompanySettings, addProduct, updateProduct, deleteProduct, addStore, updateStore, deleteStore, createTicket, updateTicket, submitReview, sendLoginLink, logout, loginWithGoogle, quoteRequests, createQuoteRequest, updateQuoteRequest, approveQuoteAndCreateOrder, folders, documents, createFolder, updateFolder, deleteFolder, createDocument, updateDocument, deleteDocument, calculateCartTotals, autoSaveUserDocument, notifications, resolveNotification, coupons, addCoupon, updateCoupon, deleteCoupon, shippingMethods, addShippingMethod, updateShippingMethod, deleteShippingMethod, systemKnowledge, addSystemKnowledge, updateSystemKnowledge, deleteSystemKnowledge, learnFromTicket, syncOrderWithERPs, cartFeedbacks, abandonedEmailLogs, addCartFeedback, addAbandonedEmailLog, updateAbandonedEmailLog, profiles, liveDollarRate }}>
       {children}
     </AppContext.Provider>
   );

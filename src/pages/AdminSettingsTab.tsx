@@ -48,7 +48,7 @@ Ao marcar a caixa de seleção de concordo no momento do cadastro ou conclusão 
 Você possui pleno direito de requerer a anonimização, exclusão de histórico de perfil, correção ou limitação do tratamento dos seus dados diretamente com a nossa equipe de suporte VIP integrada ao app.`;
 
 export function AdminSettingsTab() {
-  const { companySettings, saveCompanySettings } = useAppContext();
+  const { companySettings, saveCompanySettings, liveDollarRate } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -498,6 +498,21 @@ export function AdminSettingsTab() {
                   className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 text-sm rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition font-semibold text-rose-600"
                 />
               </div>
+              {liveDollarRate && (
+                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 p-2 rounded-lg mt-2 shadow-sm animate-in fade-in slide-in-from-top-1 duration-500">
+                  <RefreshCw className="w-3 h-3 text-emerald-600 animate-spin" />
+                  <span className="text-[10px] font-bold text-emerald-700">
+                    Cotação Oficial (Agora): R$ {liveDollarRate.toFixed(2)}
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => setDollarRate(Number(liveDollarRate.toFixed(2)))}
+                    className="ml-auto text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded font-black uppercase hover:bg-emerald-700 transition shadow-sm"
+                  >
+                    Sincronizar
+                  </button>
+                </div>
+              )}
               <p className="text-[10px] text-stone-400">
                 Cotação do dólar atualizada diariamente. Atualiza automaticamente os preços dos produtos da vitrine em tempo real.
               </p>

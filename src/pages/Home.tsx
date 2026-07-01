@@ -42,6 +42,7 @@ export function Home() {
     approveQuoteAndCreateOrder,
     loginWithGoogle,
     companySettings,
+    liveDollarRate,
   } = useAppContext();
   const [selectedStore, setSelectedStore] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -88,6 +89,16 @@ export function Home() {
   const [submittingQuote, setSubmittingQuote] = useState(false);
   const [localSuccessMsg, setLocalSuccessMsg] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Exchange rate oscillation state
+  const [showUSD, setShowUSD] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setShowUSD((prev) => !prev);
+    }, 5000); // Oscillate every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -385,28 +396,34 @@ export function Home() {
         </div>
 
         <div className="md:col-span-1 w-full">
-          {/* Daily Dollar Exchange Rate Display */}
+          {/* Daily Exchange Rate Display (Oscillating) */}
           <div className="bg-white border border-stone-200 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all h-[54px] md:h-[58px]">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-stone-900 text-rose-500 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
-                $
+              <div className="w-8 h-8 bg-stone-900 text-rose-500 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-sm transition-transform duration-500 hover:scale-110">
+                {showUSD ? "$" : "R$"}
               </div>
               <div className="leading-tight">
                 <h4 className="text-[11px] font-black text-stone-900 flex items-center gap-1">
-                  Dólar do Dia
-                  <span className="bg-rose-50 text-rose-600 text-[8px] font-black uppercase px-1 py-0.5 rounded">
-                    Hoje
+                  {showUSD ? "Dólar Comercial" : "Real Brasileiro"}
+                  <span className="bg-emerald-50 text-emerald-600 text-[8px] font-black uppercase px-1 py-0.5 rounded">
+                    Agora
                   </span>
                 </h4>
                 <p className="text-[9px] text-stone-400 font-semibold uppercase tracking-wider">
-                  Cotação Comercial
+                  Cotação em Tempo Real
                 </p>
               </div>
             </div>
             <div className="bg-stone-50 border border-stone-100 text-stone-900 font-mono font-black text-xs px-2.5 py-1 rounded-xl flex flex-col items-end shrink-0">
-              <span className="text-[8px] text-stone-400 font-sans tracking-wider font-semibold uppercase leading-none mb-0.5">Valor:</span>
-              <span className="text-rose-600 font-black text-xs sm:text-sm">
-                R$ {companySettings?.dollarRate ? companySettings.dollarRate.toFixed(2) : "5.50"}
+              <span className="text-[8px] text-stone-400 font-sans tracking-wider font-semibold uppercase leading-none mb-0.5">
+                {showUSD ? "1 USD vale:" : "1 BRL vale:"}
+              </span>
+              <span className="text-rose-600 font-black text-xs sm:text-sm animate-pulse">
+                {showUSD ? (
+                  <>R$ {(liveDollarRate || companySettings?.dollarRate || 5.50).toFixed(2)}</>
+                ) : (
+                  <>$ {(1 / (liveDollarRate || companySettings?.dollarRate || 5.50)).toFixed(2)}</>
+                )}
               </span>
             </div>
           </div>

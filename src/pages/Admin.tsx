@@ -1776,7 +1776,8 @@ function OrdersTab({
   orders: any[];
   updateOrderStatus: any;
 }) {
-  const { createOrder } = useAppContext();
+  const { createOrder, liveDollarRate, companySettings } = useAppContext();
+  const dollarRate = liveDollarRate || companySettings?.dollarRate || 5.50;
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>(
     "ACTIVE_NOT_CANCELLED",
@@ -1823,7 +1824,7 @@ function OrdersTab({
               description: "Item de pedido manual",
               imageUrl:
                 "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=200",
-              priceUSD: parseFloat(manualOrderData.value) / 5.0,
+              priceUSD: parseFloat(manualOrderData.value) / dollarRate,
               priceBRL: parseFloat(manualOrderData.value),
               category: "Manual",
               stockType: "IN_STOCK",
@@ -3802,8 +3803,8 @@ function ProductsTab({
   });
 
   // Form fields
-  const { companySettings } = useAppContext();
-  const dollarRate = companySettings?.dollarRate || 5.50;
+  const { companySettings, liveDollarRate } = useAppContext();
+  const dollarRate = liveDollarRate || companySettings?.dollarRate || 5.50;
   const [location, setLocation] = useState<"BR" | "US">("US");
   const [editingId, setEditingId] = useState("");
   const [storeId, setStoreId] = useState("");
