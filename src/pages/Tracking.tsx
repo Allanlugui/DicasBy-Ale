@@ -385,6 +385,13 @@ export function Tracking() {
     e.preventDefault();
     if (!order || rating === 0) return alert("Por favor, selecione uma nota.");
 
+    // URL detection regex for security
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}/i;
+    if (urlPattern.test(comment)) {
+      alert("Por motivos de segurança contra malware e ataques, não é permitido inserir links ou URLs em seus comentários. Por favor, descreva sua experiência apenas com texto.");
+      return;
+    }
+
     const review: Review = {
       id: "",
       orderId: order.id,
@@ -1799,7 +1806,7 @@ export function Tracking() {
                     )}
                     <ImageInput
                       value=""
-                      placeholder="Faça Upload ou insira URL..."
+                      placeholder="Anexar foto dos produtos..."
                       onChange={(url) => {
                         if (url) setReviewPhotos([...reviewPhotos, url]);
                       }}

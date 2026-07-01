@@ -212,6 +212,16 @@ export function Profile() {
     }
 
     const docValidation = validateDocument(document);
+
+    // URL detection regex for security
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}/i;
+    const hasUrl = [fullName, street, complement, neighborhood, city, state].some(val => urlPattern.test(val));
+    if (hasUrl) {
+      setError("Por motivos de segurança cibernética contra malware, não é permitido inserir links ou URLs nos campos de cadastro. Por favor, utilize apenas texto.");
+      setLoading(false);
+      return;
+    }
+
     if (!docValidation.isValid) {
       setError(
         docValidation.type === "CPF"

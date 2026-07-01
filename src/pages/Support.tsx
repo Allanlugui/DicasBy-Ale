@@ -282,6 +282,14 @@ export function Support() {
 
   const handleSend = async (text: string) => {
     const hasAttachments = selectedAttachments.length > 0;
+    
+    // Safety check: Block links
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    if (urlRegex.test(text)) {
+      alert("Por medida de segurança cibernética, o envio de links não é permitido. Por favor, envie apenas texto ou anexe fotos (JPEG/PNG) do seu dispositivo.");
+      return;
+    }
+
     if (!text.trim() && !hasAttachments) return;
     if (!activeTicket || activeTicket.status === "CLOSED") return;
 
@@ -823,7 +831,7 @@ export function Support() {
                     className="hidden"
                     onChange={handleFileChange}
                     multiple
-                    accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    accept="image/jpeg,image/png,image/webp"
                   />
 
                   <button

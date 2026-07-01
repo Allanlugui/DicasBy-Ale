@@ -429,156 +429,7 @@ function decodedSegment(seg: string): string {
   }
 }
 
-// API route to extract product info from URL
-app.post("/api/extract-product", async (req, res) => {
-  let { url } = req.body;
-  if (!url || typeof url !== 'string') {
-    return res.status(400).json({ error: "Missing or invalid URL" });
-  }
-
-  // Auto-prepend protocol if missing for absolute link resilience
-  url = url.trim();
-  if (!/^https?:\/\//i.test(url)) {
-    url = "https://" + url;
-  }
-
-  try {
-    let html = "";
-    let metaTitle = "";
-    let metaDesc = "";
-    let metaImage = "";
-    let metaPrice = "";
-
-    // 1. Fetch remote HTML content with resilient browser headers and timeouts
-    try {
-      const response = await fetch(url, {
-        headers: { 
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache"
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined // safe fallback if timeout method on AbortSignal isn't supported
-      });
-      
-      if (response.ok) {
-        html = await response.text();
-      } else {
-        console.warn(`[Scraper] Fetch returned status: ${response.status} for URL: ${url}`);
-      }
-    } catch (fetchErr) {
-      console.error("[Scraper] Fetch failed or timed out:", fetchErr);
-    }
-
-    // 2. Parse HTML using robust RegExp helpers if content was successfully fetched
-    if (html) {
-      try {
-        metaTitle = extractTitle(html);
-        metaImage = extractMetaTag(html, "og:image");
-        metaDesc = extractMetaTag(html, "description") || extractMetaTag(html, "og:description") || "";
-        metaPrice = extractMetaTag(html, "product:price:amount") || extractMetaTag(html, "og:price:amount") || "";
-      } catch (parseError) {
-        console.error("[Scraper] HTML parsing failed:", parseError);
-      }
-    }
-
-    // 3. Ask Gemini with robust search grounding to extract structured info
-    const isGeminiMissing = !process.env.GEMINI_API_KEY;
-    const ai = getGeminiClient();
-    if (ai) {
-      try {
-        // Convert body to text, but truncate if too large
-        const bodyText = html ? stripHtmlTags(html) : "";
-        const textToAnalyze = bodyText.substring(0, 12000); // safe limit for token processing
-
-        const prompt = `
-          Below are details for a product from the following URL: ${url}
-
-          Scraped Meta Tags:
-          Title: ${metaTitle || "None"}
-          Description: ${metaDesc || "None"}
-          Image URL: ${metaImage || "None"}
-          Price Metadata: ${metaPrice || "None"}
-
-          Page Scraped Content:
-          ${textToAnalyze || "None (The direct scrape request was blocked, returned nothing, or is rendered dynamically by Javascript)"}
-
-          CRITICAL TASK:
-          You must extract details for this product and return them as a valid, parsable JSON object.
-          Since many websites block simple scrapers with anti-bot challenges (returning blank, 403, or dynamic JS), please DO the following:
-          if the "Page Scraped Content" is blank, incomplete, or looks like a blocker/anti-bot message, use your built-in Google Search tool to search for this product URL: '${url}' to fetch the actual product name, description, typical price in USD, and high-quality image URL.
-
-          Return EXACTLY a JSON object with this shape:
-          {
-            "name": "Exact Name of the Product",
-            "description": "Short clean description of the product (approx. 2-3 sentences)",
-            "priceUSD": 29.99, // Numeric value in USD. Parse correctly (e.g. $29.99 -> 29.99). If not found or if only BRL is known, convert approximately (e.g. BRL/5.2). If unknown, return 0.
-            "imageUrl": "https://example.com/image.jpg" // High resolution product image URL
-          }
-
-          IMPORTANT constraints:
-          - Return ONLY the raw JSON object.
-          - DO NOT wrap the output in any Markdown markdown formatting blocks (like \`\`\`json).
-          - Do not add conversational text. Return just the raw JSON.
-        `;
-
-        const aiResponse = await generateContentWithRetry(ai, {
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            tools: [{ googleSearch: {} }] // Dynamic Google Search grounding enabled!
-          }
-        });
-
-        let textResult = aiResponse.text || "{}";
-        textResult = textResult.replace(/^```json/g, "").replace(/```$/g, "").trim();
-        const extractedInfo = JSON.parse(textResult);
-
-        if (extractedInfo && typeof extractedInfo === 'object') {
-          return res.json({
-            name: extractedInfo.name || metaTitle || guessNameFromUrl(url),
-            description: extractedInfo.description || metaDesc || "Detalhes importados via URL do produto.",
-            priceUSD: Number(extractedInfo.priceUSD) || parseFloat(metaPrice) || 0,
-            imageUrl: extractedInfo.imageUrl || metaImage || "",
-            isGeminiMissing: false
-          });
-        }
-      } catch (geminiError: any) {
-        const errorMsg = String(geminiError).toLowerCase();
-        if (errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("resource_exhausted") || errorMsg.includes("limit")) {
-          console.log("[Scraper] Gemini search-grounded extraction rate limit or quota reached. Falling back to scraped metadata elegantly.");
-        } else {
-          console.error("[Scraper] Gemini search-grounded extraction failed, falling back to scraped metadata:", geminiError);
-        }
-      }
-    }
-
-    // 4. Resilient fallback: Return parsed metadata or URL segment guesses on any failure
-    const guessedName = metaTitle || guessNameFromUrl(url);
-    return res.json({
-      name: guessedName.length > 100 ? guessedName.substring(0, 100) + "..." : guessedName,
-      description: metaDesc || "Inserido via link de importação de produtos.",
-      priceUSD: parseFloat(metaPrice) || 0,
-      imageUrl: metaImage || "",
-      isGeminiMissing
-    });
-  } catch (globalErr: any) {
-    console.error("[Scraper] Unhandled server error in extraction route:", globalErr);
-    // Guarantees zero 500 error codes to frontend, falls back to guessed info happily
-    const fallbackName = guessNameFromUrl(url);
-    return res.json({
-      name: fallbackName,
-      description: "Inserido via link de importação de produtos.",
-      priceUSD: 0,
-      imageUrl: "",
-      isGeminiMissing: !process.env.GEMINI_API_KEY
-    });
-  }
-});
-
-// Route to perform real internet product search using Gemini & Search Grounding
+// API route to perform real internet product search using Gemini & Search Grounding
 app.post("/api/search-internet", async (req, res) => {
   const { query: searchQuery, userLocation } = req.body;
   if (!searchQuery || typeof searchQuery !== 'string') {
@@ -1263,6 +1114,14 @@ AUTONOMIA DE RESPOSTA E AGENTE HUMANO (TRANSFERÊNCIA):
   4. Divergências financeiras complexas, dúvidas de taxas extras de importação, ou reclamações severas de atrasos maiores que 35 dias.
 - Se for transferir para atendimento humano, escreva uma mensagem muito simpática e reconfortante: "Estou transferindo o seu atendimento diretamente para um especialista do nosso suporte humano agora para que possamos analisar seu caso detalhadamente. Você pode aguardar aqui no chat ou se preferir, entrar em contato conosco diretamente pelo WhatsApp (+55 11 93323-2319)."
 - E logo em seguida, você DEVE IMPRIMIR EXATAMENTE no final da mensagem a tag: [TRANSFER_TO_HUMAN] (isso sinalizará o sistema para notificar urgentemente nossos gerentes de suporte).
+
+REGRAS CRÍTICAS DE SEGURANÇA E LINKS:
+- VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE ACESSAR, PROCESSAR, ANALISAR OU CLICAR EM QUALQUER LINK ENVIADO PELO CLIENTE.
+- Se o cliente enviar um link (URL), você deve ignorá-lo completamente e informar que por políticas de segurança cibernética contra malware e ataques, você não tem permissão para abrir links externos.
+- Oriente o cliente que se ele deseja mostrar um produto ou comprovante, ele deve anexar a FOTO diretamente do dispositivo dele (JPEG ou PNG) usando o ícone de clipe/anexo.
+- NUNCA peça ao cliente para enviar um link. Sempre peça por fotos ou descrição em texto.
+- Não envie links externos em suas respostas, exceto o link de rastreamento oficial da transportadora.
+- Essa é uma regra crítica de segurança para evitar ataques ao sistema.
 
 REGRAS DE REEMBOLSO E POLÍTICA DE CANCELAMENTO DE ENCOMENDAS (COMPRA SOB COMISSÃO):
 - O cliente tem o direito de solicitar cancelamento da compra sob comissão em até 7 dias úteis. Ele pode fazer o cancelamento imediato clicando no botão "Cancelar Compra" na página de rastreio de seu pedido.

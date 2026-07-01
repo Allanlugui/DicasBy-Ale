@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAppContext } from "../context";
 import {
   ShoppingBag,
@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Store as StoreIcon,
   Filter,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { formatCurrency, safeCopyText, safeStorage } from "../lib/utils";
 import { Product } from "../types";
@@ -82,6 +84,8 @@ export function Home() {
   const [manualDescription, setManualDescription] = useState("");
   const [manualPriceUSD, setManualPriceUSD] = useState("");
   const [manualImageUrl, setManualImageUrl] = useState("");
+  const [uploadingManualImage, setUploadingManualImage] = useState(false);
+  const manualFileRef = useRef<HTMLInputElement>(null);
 
   // Submit flow states
   const [promptQuote, setPromptQuote] = useState<any | null>(null);
@@ -100,6 +104,67 @@ export function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX_WIDTH = 1200; // Increased quality
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject("No canvas context");
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85); // High quality
+          resolve(dataUrl);
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleManualFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setModalError("Por favor, selecione apenas arquivos de imagem (JPEG, PNG).");
+      return;
+    }
+
+    setUploadingManualImage(true);
+    try {
+      const compressed = await compressImage(file);
+      setManualImageUrl(compressed);
+    } catch (err) {
+      console.error("Error compressing manual image:", err);
+      setModalError("Erro ao processar imagem. Tente outra foto.");
+    } finally {
+      setUploadingManualImage(false);
+    }
+  };
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get("ref");
@@ -122,6 +187,14 @@ export function Home() {
 
   const handleInternetSearch = async () => {
     if (!searchQuery.trim()) return;
+
+    // URL detection regex
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}/i;
+    if (urlPattern.test(searchQuery)) {
+      setSearchError("Por motivos de segurança contra malware e ataques cibernéticos, não é permitido inserir links ou URLs no campo de busca. Por favor, digite apenas o nome do produto.");
+      return;
+    }
+
     setSearchingInternet(true);
     setSearchError(null);
     setInternetResults([]);
@@ -241,6 +314,14 @@ export function Home() {
       return;
     }
     if (!manualName.trim()) return;
+
+    // URL detection regex
+    const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|[a-z0-9.-]+\.[a-z]{2,}/i;
+    if (urlPattern.test(manualName) || urlPattern.test(manualDescription)) {
+      setModalError("Por motivos de segurança cibernética contra malware, não é permitido colar links ou URLs no formulário de orçamento. Por favor, utilize apenas texto para descrever o produto e anexe uma foto do seu dispositivo.");
+      return;
+    }
+
     setSubmittingQuote(true);
     setModalError(null);
     try {
@@ -926,15 +1007,39 @@ export function Home() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">
-                      Link ou Foto (URL opcional)
+                      Foto do Produto (Anexar do Dispositivo)
                     </label>
-                    <input
-                      type="text"
-                      value={manualImageUrl}
-                      onChange={(e) => setManualImageUrl(e.target.value)}
-                      placeholder="https://-ou-nome-da-loja"
-                      className="w-full bg-stone-50 border border-stone-100 rounded-2xl px-5 py-4 text-sm font-bold text-stone-900 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all shadow-inner"
-                    />
+                    <div 
+                      onClick={() => manualFileRef.current?.click()}
+                      className={`w-full aspect-[4/3] md:aspect-video bg-stone-50 border-2 border-dashed ${manualImageUrl ? 'border-rose-200' : 'border-stone-200'} rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-stone-100 transition-all group overflow-hidden relative shadow-inner`}
+                    >
+                      <input
+                        type="file"
+                        ref={manualFileRef}
+                        onChange={handleManualFileChange}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      
+                      {manualImageUrl ? (
+                        <>
+                          <img src={manualImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="text-white text-xs font-bold bg-rose-600 px-3 py-1.5 rounded-lg shadow-lg">Alterar Foto</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-stone-400 group-hover:text-rose-500 transition-colors">
+                            {uploadingManualImage ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs font-bold text-stone-900">Clique para anexar foto</p>
+                            <p className="text-[10px] text-stone-400 font-medium">JPEG ou PNG de alta resolução</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
