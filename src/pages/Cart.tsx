@@ -85,7 +85,7 @@ export function Cart() {
   // Shipping selection
   const [selectedShippingMethodId, setSelectedShippingMethodId] = useState<
     string | null
-  >(null);
+  >("dhl");
   const [customDeliveryInstructions, setCustomDeliveryInstructions] = useState("");
   const [customWhatsApp, setCustomWhatsApp] = useState("");
 

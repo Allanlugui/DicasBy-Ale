@@ -15,6 +15,10 @@ self.addEventListener('fetch', (event) => {
   }
   
   const url = new URL(event.request.url);
+  // Only intercept http or https requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
   // Do not intercept API calls or Vite HMR
   if (url.pathname.startsWith('/api') || url.pathname.includes('@vite')) {
     return;
