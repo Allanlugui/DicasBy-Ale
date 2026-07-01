@@ -4,7 +4,7 @@ import fs from "fs";
 import { GoogleGenAI } from "@google/genai";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { DHLService } from "./src/services/dhlService";
+import { DHLService } from "./src/services/dhlService.js";
 
 // Initialize Firebase Admin for server-side Firestore access with explicit credentials fallback
 function initializeFirebase() {
